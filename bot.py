@@ -20,7 +20,7 @@ BUNGIE_API_KEY = os.environ.get('BUNGIE_API_KEY')
 DISCORD_API_KEY = os.environ.get('DISCORD_API_KEY')
 GROUP_ID = os.environ.get('GROUP_ID')
 
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 logging.getLogger('aiohttp.client').setLevel(logging.ERROR)
 
 loop = asyncio.new_event_loop()
@@ -33,11 +33,11 @@ destiny = pydest.Pydest(BUNGIE_API_KEY, loop=loop)
 
 async def get_all_games(game_mode: str):
     while True:
-        logging.info(f"Background: Finding all {game_mode} games for all members")
+        logging.info(f"background: Finding all {game_mode} games for all members")
         for member in await database.get_members():
             count = await get_member_history(database, destiny, member.xbox_username, game_mode)
-            logging.info(f"Background: Found {count} {game_mode} games for {member.xbox_username}")
-        logging.info(f"Background: Found all {game_mode} games for all members")
+            logging.info(f"background: Found {count} {game_mode} games for {member.xbox_username}")
+        logging.info(f"background: Found all {game_mode} games for all members")
         await asyncio.sleep(3600)
 
 
@@ -170,7 +170,7 @@ async def sync(ctx):
 
 @member.command()
 async def games(ctx, game_mode: str, member_name: str=None):
-    game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp']
+    game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp', 'pvp']
 
     if not member_name:
         member_name = str(ctx.message.author).split('#')[0]
