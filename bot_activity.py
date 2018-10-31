@@ -3,7 +3,7 @@ import pydest
 import sys
 import backoff
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from peewee import DoesNotExist, IntegrityError
 
 from members import Game
@@ -46,7 +46,7 @@ PLAYER_COUNT = {
     MODE_PVP_IRONBANNER_CONTROL: 6, MODE_PVP_IRONBANNER_CLASH: 6
 }
 
-FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
+FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
@@ -101,7 +101,7 @@ async def get_member_history(database, destiny, member_name, game_mode):
         except DoesNotExist:
             pass
         else:
-            if game_session.last_updated > (datetime.utcnow() - timedelta(hours = 1)):
+            if game_session.last_updated > (datetime.now(timezone.utc) - timedelta(hours = 1)):
                 total_game_count += game_session.count
                 continue
 
