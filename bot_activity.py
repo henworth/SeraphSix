@@ -101,7 +101,7 @@ async def get_member_history(database, destiny, member_name, game_mode):
         except DoesNotExist:
             pass
         else:
-            if game_session.last_updated > (datetime.now() - timedelta(hours = 1)):
+            if game_session.last_updated > (datetime.utcnow() - timedelta(hours = 1)):
                 total_game_count += game_session.count
                 continue
 

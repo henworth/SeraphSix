@@ -1,8 +1,12 @@
 import asyncio
-from datetime import datetime
-from peewee import Model, CharField, BigIntegerField, DateTimeField, IntegerField, ForeignKeyField, Proxy, BooleanField
-from peewee_async import PostgresqlDatabase, Manager
+
+from datetime import datetime, timezone
 from urllib.parse import urlparse
+
+from peewee import Model, CharField, BigIntegerField, IntegerField, ForeignKeyField, Proxy, BooleanField
+from peewee_async import Manager
+from peewee_asyncext import PostgresqlExtDatabase
+from playhouse.postgres_ext import DateTimeTZField
 
 database_proxy = Proxy()
 
@@ -16,7 +20,7 @@ class Member(BaseModel):
     bungie_id = BigIntegerField(unique=True)
     bungie_username = CharField(null=True)
     discord_id = BigIntegerField(null=True, index=True)
-    join_date = DateTimeField()
+    join_date = DateTimeTZField()
     xbox_username = CharField(unique=True)
     is_active = BooleanField(default=True)
 
@@ -30,7 +34,7 @@ class GameSession(BaseModel):
     member = ForeignKeyField(Member, backref='gamesessions')
     game_mode_id = IntegerField(index=True)
     count = IntegerField()
-    last_updated = DateTimeField(default=datetime.now)
+    last_updated = DateTimeTZField(default=datetime.now(timezone.utc))
 
     class Meta:
         indexes = (
@@ -41,7 +45,7 @@ class GameSession(BaseModel):
 class Game(BaseModel):
     mode_id = IntegerField()
     instance_id = BigIntegerField(unique=True)
-    date = DateTimeField()
+    date = DateTimeTZField()
 
 
 class GameMember(BaseModel):
@@ -57,7 +61,7 @@ class Database:
 
     def __init__(self, url, loop=None):
         url = urlparse(url)
-        self._database = PostgresqlDatabase(
+        self._database = PostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,
             host=url.hostname, port=url.port)
         self._loop = asyncio.get_event_loop() if loop is None else loop
@@ -84,7 +88,7 @@ class Database:
     async def update_game_session(self, member_name, game_mode_id, count):
         game_session = await self.get_game_session(member_name, game_mode_id)
         game_session.count = game_session.count + count
-        game_session.last_updated = datetime.now()
+        game_session.last_updated = datetime.utcnow()
         return await self.objects.update(game_session)
 
     async def get_game_sessions(self, member_name):
