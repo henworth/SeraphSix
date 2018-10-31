@@ -58,7 +58,7 @@ async def member(ctx):
 @member.command()
 async def link(ctx, xbox_username: str, discord_username: str=None):
     if not discord_username:
-        discord_username = ctx.message.author.nick
+        discord_username = str(ctx.message.author)
 
     try:
         member_discord = await UserConverter().convert(ctx, discord_username)
