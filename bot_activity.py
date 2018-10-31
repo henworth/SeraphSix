@@ -4,7 +4,7 @@ import sys
 import backoff
 
 from datetime import datetime, timedelta, timezone
-from peewee import DoesNotExist, IntegrityError
+from peewee import DoesNotExist, IntegrityError, InternalError
 
 from members import Game
 
@@ -150,17 +150,22 @@ async def get_member_history(database, destiny, member_name, game_mode):
                 except IntegrityError:
                     pass
                 else:
-                    for player in players:
-                        try:
-                            await database.create_game_session(
-                                player,
-                                {
-                                    "game_mode_id": mode_id, 
-                                    "count": 1, 
-                                }
-                            )
-                        except IntegrityError:
-                            await database.update_game_session(player, mode_id, 1)
+                    async with database.objects.atomic() as transaction:
+                        for player in players:
+                            create_failed = False
+                            try:
+                                await database.create_game_session(
+                                    player,
+                                    {
+                                        "game_mode_id": mode_id, 
+                                        "count": 1, 
+                                    }
+                                )
+                            except (IntegrityError, InternalError):
+                                await transaction.rollback()
+                                create_failed = True
+                            if create_failed:
+                                await database.update_game_session(player, mode_id, 1)
                     mode_count += 1
 
         if mode_count > 0:
