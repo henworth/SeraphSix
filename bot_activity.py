@@ -67,6 +67,11 @@ async def decode_activity(destiny, reference_id):
     return await destiny.decode_hash(reference_id, 'DestinyActivityDefinition')
 
 
+@backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
+async def get_profile(destiny, member_id):
+    return await destiny.api.get_profile(PLATFORM_XBOX, member_id, [COMPONENT_CHARACTERS])
+
+
 async def get_member_history(database, destiny, member_name, game_mode):
     
     if game_mode == 'gambit':
@@ -91,7 +96,7 @@ async def get_member_history(database, destiny, member_name, game_mode):
     member_id = member_db.bungie_id
     member_join_date = member_db.join_date
 
-    profile = await destiny.api.get_profile(PLATFORM_XBOX, member_id, [COMPONENT_CHARACTERS])
+    profile = await get_profile(destiny, member_id)
     char_ids = list(profile['Response']['characters']['data'].keys())
 
     total_game_count = 0
@@ -127,6 +132,9 @@ async def get_member_history(database, destiny, member_name, game_mode):
                 pgcr = await get_activity(destiny, activity_id)
                 game = Game(pgcr['Response'])
                 
+                # Loop through all players to find any members that completed
+                # the game session. Also check if the member joined before
+                # the game time.
                 players = []
                 for player in game.players:
                     if player['completed'] and player['name'] in members:
@@ -134,6 +142,10 @@ async def get_member_history(database, destiny, member_name, game_mode):
                         if game.date > member_db.join_date:
                             players.append(player['name'])
 
+                # Check if player count is below the threshold, or if the game
+                # occurred after Forsaken released (ie. Season 4) or if the
+                # member joined before game time. If any of those apply, the
+                # game is not eligible.
                 if (len(players) < player_threshold or
                         game.date < FORSAKEN_RELEASE or 
                         game.date < member_join_date):
@@ -151,6 +163,8 @@ async def get_member_history(database, destiny, member_name, game_mode):
                     pass
                 else:
                     async with database.objects.atomic() as transaction:
+                        # Loop though all players and create/update their
+                        # count as needed.
                         for player in players:
                             create_failed = False
                             try:
@@ -168,7 +182,14 @@ async def get_member_history(database, destiny, member_name, game_mode):
                                 await database.update_game_session(player, mode_id, 1)
                     mode_count += 1
 
-        if mode_count > 0:
-            total_game_count += mode_count
+        # Increment the total counter and update the date stamp in the database
+        # This happens irrespective the count to track update times appropriately.
+        # If the update fails, there is no record and the member has yet to play
+        # that game mode.
+        total_game_count += mode_count
+        try:
+            await database.update_game_session(member_name, mode_id, mode_count)
+        except DoesNotExist:
+            continue
 
     return total_game_count
