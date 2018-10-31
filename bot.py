@@ -31,17 +31,22 @@ database.initialize()
 destiny = pydest.Pydest(BUNGIE_API_KEY, loop=loop)
 
 
-async def my_background_task():
-    counter = 0
+async def get_all_games(game_mode: str):
     while True:
-        counter += 1
-        await asyncio.sleep(60) # task runs every 60 seconds
+        logging.info(f"Background: Finding all {game_mode} games for all members")
+        for member in await database.get_members():
+            count = await get_member_history(database, destiny, member.xbox_username, game_mode)
+            logging.info(f"Background: Found {count} {game_mode} games for {member.xbox_username}")
+        logging.info(f"Background: Found all {game_mode} games for all members")
+        await asyncio.sleep(3600)
 
 
 @bot.event
 async def on_ready():
     logging.info(f"Logged in as {bot.user.name} ({bot.user.id})")
-    # bot.loop.create_task(my_background_task())
+    bot.loop.create_task(get_all_games('raid'))
+    bot.loop.create_task(get_all_games('gambit'))
+    bot.loop.create_task(get_all_games('pvp'))
 
 
 @bot.command()
