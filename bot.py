@@ -35,7 +35,7 @@ async def get_all_games(game_mode: str):
     while True:
         logging.info(f"background: Finding all {game_mode} games for all members")
         for member in await database.get_members():
-            count = await get_member_history(database, destiny, member.xbox_username, game_mode)
+            count = await get_member_history(database, destiny, member.xbox_username, game_mode, check_date=False)
             logging.info(f"background: Found {count} {game_mode} games for {member.xbox_username}")
         logging.info(f"background: Found all {game_mode} games for all members")
         await asyncio.sleep(3600)

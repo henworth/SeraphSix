@@ -1,6 +1,4 @@
-import asyncio
 import pydest
-import sys
 import backoff
 
 from datetime import datetime, timedelta, timezone
@@ -18,7 +16,6 @@ MODE_RAID = 4
 
 MODE_PVP_CONTROL = 10
 MODE_PVP_CLASH = 12
-MODE_PVP_IRONBANNER = 19
 MODE_PVP_MAYHEM = 25
 MODE_PVP_SUPREMACY = 31
 MODE_PVP_SURVIVAL = 37
@@ -30,8 +27,9 @@ MODE_PVP_BREAKTHROUGH = 65
 
 
 MODES_PVP_QUICK = [
-    MODE_PVP_CONTROL, MODE_PVP_CLASH, MODE_PVP_IRONBANNER,
-    MODE_PVP_MAYHEM, MODE_PVP_SUPREMACY
+    MODE_PVP_CONTROL, MODE_PVP_CLASH, MODE_PVP_MAYHEM,
+    MODE_PVP_SUPREMACY, MODE_PVP_DOUBLES,
+    MODE_PVP_IRONBANNER_CONTROL, MODE_PVP_IRONBANNER_CLASH
 ]
 
 MODES_PVP_COMP = [
@@ -40,10 +38,10 @@ MODES_PVP_COMP = [
 
 PLAYER_COUNT = {
     MODE_GAMBIT: 4, MODE_RAID: 6, MODE_PVP_DOUBLES: 2,
-    MODE_PVP_CONTROL: 6, MODE_PVP_CLASH: 6, MODE_PVP_IRONBANNER: 6,
-    MODE_PVP_MAYHEM: 6, MODE_PVP_SUPREMACY: 6,
-    MODE_PVP_SURVIVAL: 4, MODE_PVP_COUNTDOWN: 4, MODE_PVP_BREAKTHROUGH: 4,
-    MODE_PVP_IRONBANNER_CONTROL: 6, MODE_PVP_IRONBANNER_CLASH: 6
+    MODE_PVP_CONTROL: 6, MODE_PVP_CLASH: 6, MODE_PVP_MAYHEM: 6,
+    MODE_PVP_SUPREMACY: 6, MODE_PVP_SURVIVAL: 4, MODE_PVP_COUNTDOWN: 4,
+    MODE_PVP_BREAKTHROUGH: 4, MODE_PVP_IRONBANNER_CONTROL: 6,
+    MODE_PVP_IRONBANNER_CLASH: 6
 }
 
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
@@ -72,7 +70,7 @@ async def get_profile(destiny, member_id):
     return await destiny.api.get_profile(PLATFORM_XBOX, member_id, [COMPONENT_CHARACTERS])
 
 
-async def get_member_history(database, destiny, member_name, game_mode):
+async def get_member_history(database, destiny, member_name, game_mode, check_date=True):
     
     if game_mode == 'gambit':
         game_mode_id = MODE_GAMBIT
@@ -106,7 +104,7 @@ async def get_member_history(database, destiny, member_name, game_mode):
         except DoesNotExist:
             pass
         else:
-            if game_session.last_updated > (datetime.now(timezone.utc) - timedelta(hours = 1)):
+            if game_session.last_updated > (datetime.now(timezone.utc) - timedelta(hours = 1)) and check_date:
                 total_game_count += game_session.count
                 continue
 
@@ -157,39 +155,34 @@ async def get_member_history(database, destiny, member_name, game_mode):
                     'instance_id': activity_id,
                 }
 
-                try:
-                    await database.create_game(game_details, players)
-                except IntegrityError:
-                    pass
-                else:
-                    async with database.objects.atomic() as transaction:
-                        # Loop though all players and create/update their
-                        # count as needed.
-                        for player in players:
-                            create_failed = False
-                            try:
-                                await database.create_game_session(
-                                    player,
-                                    {
-                                        "game_mode_id": mode_id, 
-                                        "count": 1, 
-                                    }
-                                )
-                            except (IntegrityError, InternalError):
-                                await transaction.rollback()
-                                create_failed = True
-                            if create_failed:
-                                await database.update_game_session(player, mode_id, 1)
+            try:
+                await database.create_game(game_details, players)
+            except IntegrityError:
+                pass
+            else:
+                # Loop though all players and create/update their
+                # count as needed.
+                for player in players:
+                    try:
+                        await database.create_game_session(
+                            player,
+                            {
+                                "game_mode_id": mode_id, 
+                                "count": 1, 
+                            }
+                        )
+                    except (IntegrityError, InternalError):
+                        await database.update_game_session(player, mode_id, 1)
                     mode_count += 1
 
         # Increment the total counter and update the date stamp in the database
-        # This happens irrespective the count to track update times appropriately.
-        # If the update fails, there is no record and the member has yet to play
-        # that game mode.
+        # This happens with a count of zero so as to track update times 
+        # appropriately. If the update fails, there is no record and the
+        # member has yet to play that game mode.
         total_game_count += mode_count
         try:
-            await database.update_game_session(member_name, mode_id, mode_count)
+            await database.update_game_session(member_name, mode_id, 0)
         except DoesNotExist:
             continue
-
+    
     return total_game_count
