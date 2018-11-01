@@ -109,6 +109,8 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
                 continue
 
         player_threshold = int(PLAYER_COUNT[mode_id] / 2)
+        if player_threshold < 2:
+            player_threshold = 2
         mode_count = 0
 
         for char_id in char_ids:
@@ -155,25 +157,25 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
                     'instance_id': activity_id,
                 }
 
-            try:
-                await database.create_game(game_details, players)
-            except IntegrityError:
-                pass
-            else:
-                # Loop though all players and create/update their
-                # count as needed.
-                for player in players:
-                    try:
-                        await database.create_game_session(
-                            player,
-                            {
-                                "game_mode_id": mode_id, 
-                                "count": 1, 
-                            }
-                        )
-                    except (IntegrityError, InternalError):
-                        await database.update_game_session(player, mode_id, 1)
-                    mode_count += 1
+                try:
+                    await database.create_game(game_details, players)
+                except IntegrityError:
+                    pass
+                else:
+                    # Loop though all players and create/update their
+                    # count as needed.
+                    for player in players:
+                        try:
+                            await database.create_game_session(
+                                player,
+                                {
+                                    "game_mode_id": mode_id,
+                                    "count": 1,
+                                }
+                            )
+                        except (IntegrityError, InternalError):
+                            await database.update_game_session(player, mode_id, 1)
+                        mode_count += 1
 
         # Increment the total counter and update the date stamp in the database
         # This happens with a count of zero so as to track update times 
