@@ -88,7 +88,7 @@ class Database:
     async def update_game_session(self, member_name, game_mode_id, count):
         game_session = await self.get_game_session(member_name, game_mode_id)
         game_session.count = game_session.count + count
-        game_session.last_updated = datetime.utcnow()
+        game_session.last_updated = datetime.now(timezone.utc)
         return await self.objects.update(game_session)
 
     async def get_game_sessions(self, member_name):
