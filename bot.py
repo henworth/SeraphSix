@@ -61,24 +61,48 @@ async def member(ctx):
 
 
 @member.command()
-async def link(ctx, xbox_username: str, discord_username: str=None):
-    if not discord_username:
-        discord_username = str(ctx.message.author)
-    else:
-        is_admin = False
-        for role in ctx.message.author.roles:
-            if role.permissions.administrator:
-                is_admin = True
-                break
+async def link_other(ctx, xbox_username: str, discord_username: str):
+    is_admin = False
+    for role in ctx.message.author.roles:
+        if role.permissions.administrator:
+            is_admin = True
+            break
 
-        if not is_admin:
-            await ctx.send(f"Linking for other users is only for users with an Administrator role")
-            return
+    if not is_admin:
+        await ctx.send(f"Linking for other users is only for users with an Administrator role")
+        return
 
     try:
         member_discord = await UserConverter().convert(ctx, discord_username)
     except BadArgument:
         await ctx.send(f"Discord user \"{discord_username}\" not found")
+        return
+
+    async with ctx.typing():
+        try:
+            member_db = await database.get_member(xbox_username)
+        except DoesNotExist:
+            await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
+            return
+        if member_db.discord_id:
+            member_discord = await UserConverter().convert(ctx, str(member_db.discord_id))
+            await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
+            return
+
+        member_db.discord_id = member_discord.id
+        try:
+            await database.update_member(member_db)
+        except Exception:
+            logging.exception(f"Could not link member {xbox_username} to Discord {member_discord.display_name} (id:{member_discord.id}")
+            return
+        await ctx.send(f"Linked Gamertag \"{xbox_username} to Discord user \"{member_discord.display_name}\"")
+
+
+@member.command()
+async def link(ctx, *, xbox_username: str):
+    try:
+        member_discord = await UserConverter().convert(ctx, str(ctx.message.author))
+    except Exception:
         return
 
     async with ctx.typing():
