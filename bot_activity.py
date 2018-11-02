@@ -1,5 +1,7 @@
-import pydest
+import logging
+
 import backoff
+import pydest
 
 from datetime import datetime, timedelta, timezone
 from peewee import DoesNotExist, IntegrityError, InternalError
@@ -45,6 +47,8 @@ PLAYER_COUNT = {
 }
 
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
+
+logging.getLogger(__name__)
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
@@ -104,9 +108,16 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
         except DoesNotExist:
             pass
         else:
-            if game_session.last_updated > (datetime.now(timezone.utc) - timedelta(hours = 1)) and check_date:
+            last_updated_string = game_session.last_updated.strftime('%Y-%m-%dT%H:%M:%S%z')
+            log_string = f"{game_mode} (id:{mode_id}) last updated {last_updated_string} for {member_name}"
+            if not check_date:
+                logging.info(f"Bypassing date check on {log_string}, refreshing from Bungie")
+            if check_date and game_session.last_updated > (datetime.now(timezone.utc) - timedelta(hours = 1)):
+                logging.info(f"Found {log_string}, returning {game_session.count} from db")
                 total_game_count += game_session.count
                 continue
+            else:
+                logging.info(f"Found {log_string}, refreshing from Bungie")
 
         player_threshold = int(PLAYER_COUNT[mode_id] / 2)
         if player_threshold < 2:
@@ -160,7 +171,8 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
                 try:
                     await database.create_game(game_details, players)
                 except IntegrityError:
-                    pass
+                    logging.info(f"Game id {activity_id} for {game_mode} (id: {mode_id}) exists for {member_name}, skipping")
+                    continue
                 else:
                     # Loop though all players and create/update their
                     # count as needed.
@@ -174,6 +186,7 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
                                 }
                             )
                         except (IntegrityError, InternalError):
+                            logging.info(f"Game session {game_mode} (id: {mode_id}) exists for {member_name}, updating count")
                             await database.update_game_session(player, mode_id, 1)
                         mode_count += 1
 
@@ -185,6 +198,8 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
         try:
             await database.update_game_session(member_name, mode_id, 0)
         except DoesNotExist:
+            logging.info(f"Member {member_name} has not yet played {game_mode} (id: {mode_id}), skipping")
             continue
+        logging.info(f"Updated mode {game_mode} (id: {mode_id}) for {member_name} with count {mode_count}")
     
     return total_game_count

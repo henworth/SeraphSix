@@ -90,7 +90,7 @@ async def games_all(ctx, game_mode: str):
         await ctx.send(f"This command is only for users with an Administrator role")
         return
 
-    game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp']
+    game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp', 'pvp']
 
     if game_mode not in game_modes:
         await ctx.send(f"Invalid game mode `{game_mode}`, supported are `{', '.join(game_modes)}`")
