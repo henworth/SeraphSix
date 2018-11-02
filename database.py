@@ -98,6 +98,9 @@ class Database:
     async def get_member(self, member_name):
         return await self.objects.get(Member, xbox_username=member_name)
 
+    async def get_member_by_discord(self, discord_id):
+        return await self.objects.get(Member, discord_id=discord_id)
+
     async def create_member(self, member_details):
         return await self.objects.create(Member, **member_details)
 

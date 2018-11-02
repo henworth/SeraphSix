@@ -6,7 +6,7 @@ import os
 import pydest
 
 from discord.errors import HTTPException
-from discord.ext.commands import Bot, UserConverter 
+from discord.ext.commands import Bot, UserConverter
 from discord.ext.commands.errors import BadArgument, CommandNotFound, CommandInvokeError
 
 from peewee import DoesNotExist
@@ -67,7 +67,7 @@ async def link(ctx, xbox_username: str, discord_username: str=None):
     else:
         is_admin = False
         for role in ctx.message.author.roles:
-            if role.permissions.administrator:    
+            if role.permissions.administrator:
                 is_admin = True
                 break
 
@@ -82,7 +82,11 @@ async def link(ctx, xbox_username: str, discord_username: str=None):
         return
 
     async with ctx.typing():
-        member_db = await database.get_member(xbox_username)
+        try:
+            member_db = await database.get_member(xbox_username)
+        except DoesNotExist:
+            await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
+            return
         if member_db.discord_id:
             member_discord = await UserConverter().convert(ctx, str(member_db.discord_id))
             await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
@@ -101,10 +105,10 @@ async def link(ctx, xbox_username: str, discord_username: str=None):
 async def games_all(ctx, game_mode: str):
     is_admin = False
     for role in ctx.message.author.roles:
-        if role.permissions.administrator:    
+        if role.permissions.administrator:
             is_admin = True
             break
-    
+
     if not is_admin:
         await ctx.send(f"This command is only for users with an Administrator role")
         return
@@ -127,10 +131,10 @@ async def games_all(ctx, game_mode: str):
 async def sync(ctx):
     is_admin = False
     for role in ctx.message.author.roles:
-        if role.permissions.administrator:    
+        if role.permissions.administrator:
             is_admin = True
             break
-    
+
     if not is_admin:
         await ctx.send(f"This command is only for users with an Administrator role")
         return
@@ -188,27 +192,37 @@ async def sync(ctx):
 
 
 @member.command()
-async def games(ctx, game_mode: str, member_name: str=None):
+async def games(ctx, *, command: str):
+    command = command.split()
+    game_mode = command[0]
+    member_name = ' '.join(command[1:])
+
     game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp', 'pvp']
-
-    if not member_name:
-        member_name = str(ctx.message.author).split('#')[0]
-
     if game_mode not in game_modes:
         await ctx.send(f"Invalid game mode `{game_mode}`, supported are `{', '.join(game_modes)}`")
         return
 
-    try:
-        await database.get_member(member_name)
-    except DoesNotExist:
-        await ctx.send(f"Invalid member name {member_name}")
-        return
-
     async with ctx.typing():
-        game_count = await get_member_history(database, destiny, member_name, game_mode)
+        if not member_name:
+            discord_id = ctx.author.id
+            try:
+                member_db = await database.get_member_by_discord(discord_id)
+            except DoesNotExist:
+                await ctx.send(f"User {ctx.author.display_name} has not been linked a Gamertag or is not a clan member")
+                return
+            logging.info(f"Getting {game_mode} games for {ctx.author.display_name} by Discord id {discord_id}")
+        else:
+            try:
+                member_db = await database.get_member(member_name)
+            except DoesNotExist:
+                await ctx.send(f"Invalid member name {member_name}")
+                return
+            logging.info(f"Getting {game_mode} games for {ctx.author.display_name} by Gamertag {member_name}")
+
+        game_count = await get_member_history(database, destiny, member_db.xbox_username, game_mode)
 
     embed = discord.Embed(
-        title=f"Eligible {game_mode.capitalize()} Games for {member_name}", 
+        title=f"Eligible {game_mode.capitalize()} Games for {member_db.xbox_username}",
         description=str(game_count)
     )
 
