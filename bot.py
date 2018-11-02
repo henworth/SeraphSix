@@ -87,10 +87,10 @@ async def link(ctx, xbox_username: str, discord_username: str=None):
             member_discord = await UserConverter().convert(ctx, str(member_db.discord_id))
             await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
             return
-        
+
         member_db.discord_id = member_discord.id
         try:
-        await database.update_member(member_db)
+            await database.update_member(member_db)
         except Exception:
             logging.exception(f"Could not link member {xbox_username} to Discord {member_discord.display_name} (id:{member_discord.id}")
             return
