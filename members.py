@@ -18,7 +18,7 @@ class Member(object):
     bungie_username = None
 
     def __init__(self, details):
-        self.bungie_id = details['destinyUserInfo']['membershipId']
+        self.bungie_id = int(details['destinyUserInfo']['membershipId'])
         self.xbox_username = details['destinyUserInfo']['displayName']
         self.join_date = details['joinDate']
         if 'bungieNetUserInfo' in details:
