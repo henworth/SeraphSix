@@ -45,7 +45,9 @@ async def get_all_games(game_mode: str):
 async def on_ready():
     logging.info(f"Logged in as {bot.user.name} ({bot.user.id})")
     logging.info(f"Invite: https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot")
-
+    bot.loop.create_task(get_all_games('raid'))
+    bot.loop.create_task(get_all_games('gambit'))
+    bot.loop.create_task(get_all_games('pvp'))
 
 @bot.command()
 async def greet(ctx):
