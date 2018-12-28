@@ -44,9 +44,7 @@ async def get_all_games(game_mode: str):
 @bot.event
 async def on_ready():
     logging.info(f"Logged in as {bot.user.name} ({bot.user.id})")
-    bot.loop.create_task(get_all_games('raid'))
-    bot.loop.create_task(get_all_games('gambit'))
-    bot.loop.create_task(get_all_games('pvp'))
+    logging.info(f"Invite: https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot")
 
 
 @bot.command()
@@ -93,9 +91,9 @@ async def link_other(ctx, xbox_username: str, discord_username: str):
         try:
             await database.update_member(member_db)
         except Exception:
-            logging.exception(f"Could not link member {xbox_username} to Discord {member_discord.display_name} (id:{member_discord.id}")
+            logging.exception(f"Could not link member \"{xbox_username}\" to Discord user \"{member_discord.display_name}\" (id:{member_discord.id}")
             return
-        await ctx.send(f"Linked Gamertag \"{xbox_username} to Discord user \"{member_discord.display_name}\"")
+        await ctx.send(f"Linked Gamertag \"{xbox_username}\" to Discord user \"{member_discord.display_name}\"")
 
 
 @member.command()
@@ -106,6 +104,7 @@ async def link(ctx, *, xbox_username: str):
         return
 
     async with ctx.typing():
+        xbox_username = xbox_username.replace('"', '')
         try:
             member_db = await database.get_member(xbox_username)
         except DoesNotExist:
@@ -120,9 +119,9 @@ async def link(ctx, *, xbox_username: str):
         try:
             await database.update_member(member_db)
         except Exception:
-            logging.exception(f"Could not link member {xbox_username} to Discord {member_discord.display_name} (id:{member_discord.id}")
+            logging.exception(f"Could not link member \"{xbox_username}\" to Discord user \"{member_discord.display_name}\" (id:{member_discord.id}")
             return
-        await ctx.send(f"Linked Gamertag \"{xbox_username} to Discord user \"{member_discord.display_name}\"")
+        await ctx.send(f"Linked Gamertag \"{xbox_username}\" to Discord user \"{member_discord.display_name}\"")
 
 
 @member.command()
@@ -166,7 +165,7 @@ async def sync(ctx):
     async with ctx.typing():
         bungie_members = {}
         async for member in get_all(destiny, GROUP_ID): # pylint: disable=not-an-iterable
-            bungie_members[member.xbox_username] = member
+            bungie_members[member.bungie_id] = member
 
         bungie_member_set = set(
             [member for member in bungie_members.keys()]
@@ -174,7 +173,7 @@ async def sync(ctx):
 
         db_members = {}
         for member in await database.get_members():
-            db_members[member.xbox_username] = member
+            db_members[member.bungie_id] = member
 
         db_member_set = set(
             [member for member in db_members.keys()]
@@ -196,12 +195,22 @@ async def sync(ctx):
     )
 
     if len(new_members) > 0:
-        added = sorted(new_members, key=lambda s: s.lower())
+        new_member_usernames = []
+        for bungie_id in new_members:
+            member_db = await database.get_member_by_bungie(bungie_id)
+            new_member_usernames.append(member_db.xbox_username)
+        added = sorted(new_member_usernames, key=lambda s: s.lower())
         embed.add_field(name="Members Added", value=', '.join(added), inline=False)
+        logging.info(f"Added members {added}")
 
     if len(purged_members) > 0:
-        purged = sorted(purged_members, key=lambda s: s.lower())
+        purged_member_usernames = []
+        for bungie_id in purged_members:
+            member_db = await database.get_member_by_bungie(bungie_id)
+            purged_member_usernames.append(member_db.xbox_username)
+        purged = sorted(purged_member_usernames, key=lambda s: s.lower())
         embed.add_field(name="Members Purged", value=', '.join(purged), inline=False)
+        logging.info(f"Purged members {purged}")
 
     if len(purged_members) == 0 and len(new_members) == 0:
         embed.description = "None"

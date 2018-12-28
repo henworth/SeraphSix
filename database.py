@@ -101,6 +101,9 @@ class Database:
     async def get_member_by_discord(self, discord_id):
         return await self.objects.get(Member, discord_id=discord_id)
 
+    async def get_member_by_bungie(self, bungie_id):
+        return await self.objects.get(Member, bungie_id=bungie_id)
+
     async def create_member(self, member_details):
         return await self.objects.create(Member, **member_details)
 
