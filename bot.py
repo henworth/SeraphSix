@@ -9,7 +9,7 @@ from discord.errors import HTTPException
 from discord.ext.commands import Bot, UserConverter
 from discord.ext.commands.errors import BadArgument, CommandNotFound, CommandInvokeError
 
-from peewee import DoesNotExist
+from peewee import DoesNotExist, IntegrityError
 
 from bot_activity import get_member_history
 from database import Database, Member, GameSession
@@ -184,8 +184,14 @@ async def sync(ctx):
         new_members = bungie_member_set - db_member_set
         purged_members = db_member_set - bungie_member_set
 
-        for member in new_members:
-            await database.create_member(bungie_members[member].__dict__)
+        for member_bungie_id in new_members:
+            try:
+                await database.create_member(bungie_members[member_bungie_id].__dict__)
+            except IntegrityError:
+                member_db = await database.get_member_by_bungie(member_bungie_id)
+                member_db.is_active = True
+                member_db.join_date = bungie_members[member_bungie_id].join_date
+                await database.update_member(member_db)
 
         for member in purged_members:
             member_db = db_members[member]
