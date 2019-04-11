@@ -12,12 +12,10 @@ PLATFORM_XBOX = 1
 
 COMPONENT_CHARACTERS = 200
 
-MODE_ALLPVP = 5
-MODE_GAMBIT = 63
+MODE_STRIKE = 3
 MODE_RAID = 4
+MODE_NIGHTFALL = 46
 
-MODE_PVP_CONTROL = 10
-MODE_PVP_CLASH = 12
 MODE_PVP_MAYHEM = 25
 MODE_PVP_SUPREMACY = 31
 MODE_PVP_SURVIVAL = 37
@@ -25,26 +23,59 @@ MODE_PVP_COUNTDOWN = 38
 MODE_PVP_IRONBANNER_CONTROL = 43
 MODE_PVP_IRONBANNER_CLASH = 44
 MODE_PVP_DOUBLES = 50
+MODE_PVP_LOCKDOWN = 60
 MODE_PVP_BREAKTHROUGH = 65
+MODE_PVP_CLASH_QUICK = 71
+MODE_PVP_CLASH_COMP = 72
+MODE_PVP_CONTROL_QUICK = 73
+MODE_PVP_CONTROL_COMP = 74
 
+MODE_GAMBIT = 63
+MODE_GAMBIT_PRIME = 75
+MODE_GAMBIT_RECKONING = 76
 
 MODES_PVP_QUICK = [
-    MODE_PVP_CONTROL, MODE_PVP_CLASH, MODE_PVP_MAYHEM,
-    MODE_PVP_SUPREMACY, MODE_PVP_DOUBLES,
-    MODE_PVP_IRONBANNER_CONTROL, MODE_PVP_IRONBANNER_CLASH
+    MODE_PVP_MAYHEM, MODE_PVP_SUPREMACY, MODE_PVP_DOUBLES,
+    MODE_PVP_LOCKDOWN, MODE_PVP_BREAKTHROUGH,
+    MODE_PVP_IRONBANNER_CONTROL, MODE_PVP_IRONBANNER_CLASH,
+    MODE_PVP_CLASH_QUICK, MODE_PVP_CONTROL_QUICK
 ]
 
 MODES_PVP_COMP = [
-    MODE_PVP_SURVIVAL, MODE_PVP_COUNTDOWN, MODE_PVP_BREAKTHROUGH,
+    MODE_PVP_SURVIVAL, MODE_PVP_COUNTDOWN, 
+    MODE_PVP_CLASH_COMP, MODE_PVP_CONTROL_COMP
 ]
 
-PLAYER_COUNT = {
-    MODE_GAMBIT: 4, MODE_RAID: 6, MODE_PVP_DOUBLES: 2,
-    MODE_PVP_CONTROL: 6, MODE_PVP_CLASH: 6, MODE_PVP_MAYHEM: 6,
-    MODE_PVP_SUPREMACY: 6, MODE_PVP_SURVIVAL: 4, MODE_PVP_COUNTDOWN: 4,
-    MODE_PVP_BREAKTHROUGH: 4, MODE_PVP_IRONBANNER_CONTROL: 6,
-    MODE_PVP_IRONBANNER_CLASH: 6
+MODES_GAMBIT = [
+    MODE_GAMBIT, MODE_GAMBIT_PRIME, MODE_GAMBIT_RECKONING
+]
+
+MODES_STRIKE = [
+    MODE_STRIKE, MODE_NIGHTFALL
+]
+
+MODE_MAP = {
+    MODE_STRIKE: {'title': 'strike', 'player_count': 3},
+    MODE_RAID: {'title': 'raid', 'player_count': 6},
+    MODE_NIGHTFALL: {'title': 'nightfall', 'player_count': 3},
+    MODE_PVP_MAYHEM: {'title': 'mayhem', 'player_count': 6},
+    MODE_PVP_SUPREMACY: {'title': 'supremacy', 'player_count': 4},
+    MODE_PVP_SURVIVAL: {'title': 'survival', 'player_count': 4},
+    MODE_PVP_COUNTDOWN: {'title': 'countdown', 'player_count': 4},
+    MODE_PVP_IRONBANNER_CONTROL: {'title': 'ironbanner control', 'player_count': 6},
+    MODE_PVP_IRONBANNER_CLASH: {'title': 'ironbanner clash', 'player_count': 6},
+    MODE_PVP_DOUBLES: {'title': 'doubles', 'player_count': 2},
+    MODE_PVP_LOCKDOWN: {'title': 'lockdown', 'player_count': 4},
+    MODE_PVP_BREAKTHROUGH: {'title': 'breakthrough', 'player_count': 4},
+    MODE_PVP_CLASH_QUICK: {'title': 'clash (quickplay)', 'player_count': 6},
+    MODE_PVP_CLASH_COMP: {'title': 'clash (competitive)', 'player_count': 4},
+    MODE_PVP_CONTROL_QUICK: {'title': 'control (quickplay)', 'player_count': 6},
+    MODE_PVP_CONTROL_COMP: {'title': 'control (competitive)', 'player_count': 4},
+    MODE_GAMBIT: {'title': 'gambit', 'player_count': 4},
+    MODE_GAMBIT_PRIME: {'title': 'gambit prime', 'player_count': 4},
+    MODE_GAMBIT_RECKONING: {'title': 'reckoning', 'player_count': 4}
 }
+
 
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
 
@@ -52,7 +83,7 @@ logging.getLogger(__name__)
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def get_activity_list(destiny, member_id, char_id, mode_id, count=5):
+async def get_activity_list(destiny, member_id, char_id, mode_id, count=10):
     return await destiny.api.get_activity_history(
         PLATFORM_XBOX, member_id, char_id, mode=mode_id, count=count
     )
@@ -74,23 +105,43 @@ async def get_profile(destiny, member_id):
     return await destiny.api.get_profile(PLATFORM_XBOX, member_id, [COMPONENT_CHARACTERS])
 
 
-async def get_member_history(database, destiny, member_name, game_mode, check_date=True):
-    
-    if game_mode == 'gambit':
-        game_mode_id = MODE_GAMBIT
-    elif game_mode == 'raid':
-        game_mode_id = MODE_RAID
-    elif game_mode == 'pvp':
-        game_mode_id = MODES_PVP_COMP + MODES_PVP_QUICK
-    elif game_mode == 'pvp-quick':
-        game_mode_id = MODES_PVP_QUICK
-    elif game_mode == 'pvp-comp':
-        game_mode_id = MODES_PVP_COMP
+async def get_member_history(database, destiny, member_name, game_mode):
 
-    if not isinstance(game_mode_id, list):
-        game_mode_list = [game_mode_id]
-    else:
-        game_mode_list = game_mode_id
+    if game_mode == 'gambit':
+        game_mode_list = MODES_GAMBIT
+    elif game_mode == 'strike':
+        game_mode_list = MODES_STRIKE
+    elif game_mode == 'raid':
+        game_mode_list = [MODE_RAID]
+    elif game_mode == 'pvp':
+        game_mode_list = MODES_PVP_COMP + MODES_PVP_QUICK
+    elif game_mode == 'pvp-quick':
+        game_mode_list = MODES_PVP_QUICK
+    elif game_mode == 'pvp-comp':
+        game_mode_list = MODES_PVP_COMP
+
+    total_game_count = 0
+    for mode_id in game_mode_list:
+        try:
+            count = await database.get_game_count(member_name, [mode_id])
+        except DoesNotExist:
+            continue
+        else:
+            total_game_count += count
+
+    return total_game_count
+
+
+async def store_member_history(database, destiny, member_name, game_mode):
+
+    if game_mode == 'gambit':
+        game_mode_list = MODES_GAMBIT
+    elif game_mode == 'strike':
+        game_mode_list = MODES_STRIKE
+    elif game_mode == 'raid':
+        game_mode_list = [MODE_RAID]
+    elif game_mode == 'pvp':
+        game_mode_list = MODES_PVP_COMP + MODES_PVP_QUICK
 
     members = [member.xbox_username for member in await database.get_members()]
 
@@ -101,32 +152,15 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
     profile = await get_profile(destiny, member_id)
     char_ids = list(profile['Response']['characters']['data'].keys())
 
-    total_game_count = 0
-    for mode_id in game_mode_list:
-        try:
-            game_session = await database.get_game_session(member_name, mode_id)
-        except DoesNotExist:
-            pass
-        else:
-            last_updated_string = game_session.last_updated.strftime('%Y-%m-%dT%H:%M:%S%z')
-            log_string = f"{game_mode} (id:{mode_id}) last updated {last_updated_string} for {member_name}"
-            if not check_date:
-                logging.info(f"Bypassing date check on {log_string}, refreshing from Bungie")
-            if check_date and game_session.last_updated > (datetime.now(timezone.utc) - timedelta(hours = 1)):
-                logging.info(f"Found {log_string}, returning {game_session.count} from db")
-                total_game_count += game_session.count
-                continue
-            else:
-                logging.info(f"Found {log_string}, refreshing from Bungie")
-
-        player_threshold = int(PLAYER_COUNT[mode_id] / 2)
+    mode_count = 0
+    for game_mode_id in game_mode_list:
+        player_threshold = int(MODE_MAP[game_mode_id]['player_count'] / 2)
         if player_threshold < 2:
             player_threshold = 2
-        mode_count = 0
-
+    
         for char_id in char_ids:
             activity = await get_activity_list(
-                destiny, member_id, char_id, mode_id
+                destiny, member_id, char_id, game_mode_id
             )
 
             try:
@@ -171,35 +205,10 @@ async def get_member_history(database, destiny, member_name, game_mode, check_da
                 try:
                     await database.create_game(game_details, players)
                 except IntegrityError:
-                    logging.info(f"Game id {activity_id} for {game_mode} (id: {mode_id}) exists for {member_name}, skipping")
+                    logging.info(f"{MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} exists for {member_name}, skipping")
                     continue
                 else:
-                    # Loop though all players and create/update their
-                    # count as needed.
-                    for player in players:
-                        try:
-                            await database.create_game_session(
-                                player,
-                                {
-                                    "game_mode_id": mode_id,
-                                    "count": 1,
-                                }
-                            )
-                        except (IntegrityError, InternalError):
-                            logging.info(f"Game session {game_mode} (id: {mode_id}) exists for {member_name}, updating count")
-                            await database.update_game_session(player, mode_id, 1)
-                        mode_count += 1
+                    mode_count += 1
+                    logging.info(f"{MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} created for {member_name}")
 
-        # Increment the total counter and update the date stamp in the database
-        # This happens with a count of zero so as to track update times 
-        # appropriately. If the update fails, there is no record and the
-        # member has yet to play that game mode.
-        total_game_count += mode_count
-        try:
-            await database.update_game_session(member_name, mode_id, 0)
-        except DoesNotExist:
-            logging.info(f"Member {member_name} has not yet played {game_mode} (id: {mode_id}), skipping")
-            continue
-        logging.info(f"Updated mode {game_mode} (id: {mode_id}) for {member_name} with count {mode_count}")
-    
-    return total_game_count
+    return mode_count

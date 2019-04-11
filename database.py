@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from peewee import Model, CharField, BigIntegerField, IntegerField, ForeignKeyField, Proxy, BooleanField
+from peewee import fn, Model, CharField, BigIntegerField, IntegerField, ForeignKeyField, Proxy, BooleanField, CompositeKey
 from peewee_async import Manager
 from peewee_asyncext import PostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
@@ -23,6 +23,8 @@ class Member(BaseModel):
     join_date = DateTimeTZField()
     xbox_username = CharField(unique=True)
     is_active = BooleanField(default=True)
+    the100_username = CharField(null=True)
+    timezone = CharField(null=True)
 
     class Meta:
         indexes = (
@@ -51,6 +53,11 @@ class Game(BaseModel):
 class GameMember(BaseModel):
     member = ForeignKeyField(Member)
     game = ForeignKeyField(Game)
+
+    class Meta:
+        indexes = (
+            (('member', 'game'), True),
+        )
 
 
 class ConnManager(Manager):
@@ -94,6 +101,28 @@ class Database:
     async def get_game_sessions(self, member_name):
         query = GameSession.select().join(Member).where(Member.xbox_username == member_name)
         return await self.objects.get(query)
+
+    async def get_game_session_sum(self, member_name, mode_ids):
+        query = GameSession.select(
+                fn.SUM(GameSession.game_mode_id)
+            ).join(Member).where(
+                (Member.xbox_username == member_name) &
+                (GameSession.game_mode_id << mode_ids)
+            )
+        return await self.objects.get(query)
+
+    async def get_game_count(self, member_name, mode_ids):
+        # select count(game.id) from game 
+        # join gamemember on gamemember.game_id = game.id 
+        # join member on member.id = gamemember.member_id
+        # where gamemember.member_id = member.id 
+        # and game.mode_id in (37, 38, 72, 74) 
+        # and member.xbox_username = 'lifeinchains';
+        query = Game.select().join(GameMember).join(Member).where(
+                (Member.xbox_username == member_name) &
+                (Game.mode_id << mode_ids)
+            ).distinct()
+        return await self.objects.count(query)
 
     async def get_member(self, member_name):
         return await self.objects.get(Member, xbox_username=member_name)
