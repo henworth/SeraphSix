@@ -26,9 +26,11 @@ class Member(object):
 
 
 class Game(object):
-
     def __init__(self, details):
         self.players = []
+        self.mode_id = details['activityDetails']['mode']
+        self.date = datetime.strptime(details['period'], '%Y-%m-%dT%H:%M:%S%z')
+
         for entry in details['entries']:
             completed = True
             if entry['values']['completed']['basic']['displayValue'] == 'No':
@@ -43,8 +45,6 @@ class Game(object):
                 'name': name,
                 'completed': completed
             })
-            self.mode_id = details['activityDetails']['mode']
-            self.date = datetime.strptime(details['period'], '%Y-%m-%dT%H:%M:%S%z')
 
 async def get_all(destiny, group_id):
     group = await destiny.api.get_group_members(group_id)

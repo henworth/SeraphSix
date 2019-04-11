@@ -11,7 +11,6 @@ pylint = "==2.1.1"
 peewee = ">=3.7.1"
 peewee-async = ">=0.6.0a0"
 aiopg = "==0.15.0"
-#pydest = {editable = true, file = "file:///Users/mhennessy/git/personal/pydest/"}
 pydest = {ref = "0ef6384f95c27ce7d60c00c634f0140b859ec6d6", git = "https://github.com/henworth/pydest"}
 astroid = "==2.0.4"
 isort = "==4.3.4"
@@ -20,6 +19,7 @@ mccabe = "==0.6.1"
 "psycopg2" = "==2.7.5"
 six = "==1.11.0"
 wrapt = "==1.10.11"
+pytz = "*"
 
 [dev-packages]
 

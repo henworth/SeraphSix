@@ -5,14 +5,16 @@ import logging
 import os
 import pydest
 
+from datetime import datetime
+
 from discord.errors import HTTPException
 from discord.ext.commands import Bot, UserConverter
 from discord.ext.commands.errors import BadArgument, CommandNotFound, CommandInvokeError
 
-from peewee import DoesNotExist, IntegrityError
+from peewee import DoesNotExist
 
-from bot_activity import get_member_history
-from database import Database, Member, GameSession
+from bot_activity import get_member_history, store_member_history
+from database import Database, Member
 from members import get_all
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -31,11 +33,11 @@ database.initialize()
 destiny = pydest.Pydest(BUNGIE_API_KEY, loop=loop)
 
 
-async def get_all_games(game_mode: str):
+async def store_all_games(game_mode: str):
     while True:
         logging.info(f"background: Finding all {game_mode} games for all members")
         for member in await database.get_members():
-            count = await get_member_history(database, destiny, member.xbox_username, game_mode, check_date=False)
+            count = await store_member_history(database, destiny, member.xbox_username, game_mode)
             logging.info(f"background: Found {count} {game_mode} games for {member.xbox_username}")
         logging.info(f"background: Found all {game_mode} games for all members")
         await asyncio.sleep(3600)
@@ -45,9 +47,11 @@ async def get_all_games(game_mode: str):
 async def on_ready():
     logging.info(f"Logged in as {bot.user.name} ({bot.user.id})")
     logging.info(f"Invite: https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot")
-    bot.loop.create_task(get_all_games('raid'))
-    bot.loop.create_task(get_all_games('gambit'))
-    bot.loop.create_task(get_all_games('pvp'))
+    bot.loop.create_task(store_all_games('raid'))
+    bot.loop.create_task(store_all_games('gambit'))
+    bot.loop.create_task(store_all_games('pvp'))
+    bot.loop.create_task(store_all_games('strike'))
+
 
 @bot.command()
 async def greet(ctx):
@@ -59,6 +63,44 @@ async def member(ctx):
     if ctx.invoked_subcommand is None:
         await ctx.send(f"Invalid command `{ctx.message.content}`")
 
+@member.command()
+async def info(ctx, *args):
+    member_name = ' '.join(args)
+
+    try:
+        member_discord = await UserConverter().convert(ctx, str(member_name))
+    except Exception:
+        return
+
+    async with ctx.typing():
+        try:
+            member_db = await database.get_member_by_discord(member_discord.id)
+        except DoesNotExist:
+            await ctx.send(f"Discord username \"{member_name}\" does not match a valid member")
+            return
+        member_discord = await UserConverter().convert(ctx, str(member_discord.id))
+
+    the100_link = None
+    if member_db.the100_username:
+        the100_link = f"[{member_db.the100_username}](https://www.the100.io/users/{member_db.the100_username})"
+
+    bungie_link = None
+    if member_db.bungie_id:
+        bungie_info = await destiny.api.get_membership_data_by_id(member_db.bungie_id)
+        bungie_member_id = bungie_info['Response']['bungieNetUser']['membershipId']
+        bungie_link = f"[{member_db.bungie_username}](https://www.bungie.net/en/Profile/{bungie_member_id})"
+
+    embed = discord.Embed(
+        title=f"Member Info: {member_db.xbox_username}"   
+    )
+    embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
+    embed.add_field(name="Discord Username", value=f"{member_discord.name}#{member_discord.discriminator}")
+    embed.add_field(name="Bungie Username", value=bungie_link)
+    embed.add_field(name="The100 Username", value=the100_link)
+    embed.add_field(name="Join Date", value=member_db.join_date.strftime('%Y-%m-%d %H:%M:%S'))
+    embed.add_field(name="Time Zone", value=f"{member_db.timezone} ({datetime.now(pytz.timezone(member_db.timezone)).strftime('UTC%z')})")
+
+    await ctx.send(embed=embed)
 
 @member.command()
 async def link_other(ctx, xbox_username: str, discord_username: str):
@@ -186,12 +228,18 @@ async def sync(ctx):
 
         for member_bungie_id in new_members:
             try:
-                await database.create_member(bungie_members[member_bungie_id].__dict__)
-            except IntegrityError:
                 member_db = await database.get_member_by_bungie(member_bungie_id)
-                member_db.is_active = True
-                member_db.join_date = bungie_members[member_bungie_id].join_date
-                await database.update_member(member_db)
+            except DoesNotExist:
+                await database.create_member(bungie_members[member_bungie_id].__dict__)
+            
+            if not member_db.is_active:
+                try:
+                    member_db.is_active = True
+                    member_db.join_date = bungie_members[member_bungie_id].join_date
+                    await database.update_member(member_db)
+                except Exception:
+                    logging.exception(f"Could update member \"{member_db.xbox_username}\"")
+                    return
 
         for member in purged_members:
             member_db = db_members[member]
@@ -238,7 +286,7 @@ async def games(ctx, *, command: str):
     game_mode = command[0]
     member_name = ' '.join(command[1:])
 
-    game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp', 'pvp']
+    game_modes = ['gambit', 'raid', 'pvp-quick', 'pvp-comp', 'pvp', 'strike']
     if game_mode not in game_modes:
         await ctx.send(f"Invalid game mode `{game_mode}`, supported are `{', '.join(game_modes)}`")
         return
@@ -251,19 +299,19 @@ async def games(ctx, *, command: str):
             except DoesNotExist:
                 await ctx.send(f"User {ctx.author.display_name} has not been linked a Gamertag or is not a clan member")
                 return
-            logging.info(f"Getting {game_mode} games for {ctx.author.display_name} by Discord id {discord_id}")
+            logging.info(f"Getting {game_mode} games by Discord id {discord_id} for {ctx.author.display_name}")
         else:
             try:
                 member_db = await database.get_member(member_name)
             except DoesNotExist:
                 await ctx.send(f"Invalid member name {member_name}")
                 return
-            logging.info(f"Getting {game_mode} games for {ctx.author.display_name} by Gamertag {member_name}")
+            logging.info(f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
 
         game_count = await get_member_history(database, destiny, member_db.xbox_username, game_mode)
 
     embed = discord.Embed(
-        title=f"Eligible {game_mode.capitalize()} Games for {member_db.xbox_username}",
+        title=f"Eligible {game_mode.title()} Games for {member_db.xbox_username}",
         description=str(game_count)
     )
 
