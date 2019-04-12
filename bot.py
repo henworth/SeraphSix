@@ -96,8 +96,11 @@ async def info(ctx, *args):
     bungie_link = None
     if member_db.bungie_id:
         bungie_info = await destiny.api.get_membership_data_by_id(member_db.bungie_id)
-        bungie_member_id = bungie_info['Response']['bungieNetUser']['membershipId']
-        bungie_link = f"[{member_db.bungie_username}](https://www.bungie.net/en/Profile/{bungie_member_id})"
+        membership_info = bungie_info['Response']['destinyMemberships'][0]
+        bungie_member_id = membership_info['membershipId']
+        bungie_member_type = membership_info['membershipType']
+        bungie_member_name = membership_info['displayName']
+        bungie_link = f"[{bungie_member_name}](https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id})"
 
     embed = discord.Embed(
         title=f"Member Info for {member_discord.display_name}"   
