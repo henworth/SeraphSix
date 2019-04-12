@@ -10,7 +10,7 @@ import pytz
 from datetime import datetime
 
 from discord.errors import HTTPException
-from discord.ext.commands import Bot, UserConverter
+from discord.ext.commands import Bot, MemberConverter
 from discord.ext.commands.errors import BadArgument, CommandNotFound, CommandInvokeError
 from iron_cache import IronCache
 from peewee import DoesNotExist
@@ -73,8 +73,11 @@ async def member(ctx):
 async def info(ctx, *args):
     member_name = ' '.join(args)
 
+    if not member_name:
+        member_name = ctx.message.author
+
     try:
-        member_discord = await UserConverter().convert(ctx, str(member_name))
+        member_discord = await MemberConverter().convert(ctx, str(member_name))
     except Exception:
         return
 
@@ -84,7 +87,7 @@ async def info(ctx, *args):
         except DoesNotExist:
             await ctx.send(f"Discord username \"{member_name}\" does not match a valid member")
             return
-        member_discord = await UserConverter().convert(ctx, str(member_discord.id))
+        member_discord = await MemberConverter().convert(ctx, str(member_discord.id))
 
     the100_link = None
     if member_db.the100_username:
@@ -97,14 +100,14 @@ async def info(ctx, *args):
         bungie_link = f"[{member_db.bungie_username}](https://www.bungie.net/en/Profile/{bungie_member_id})"
 
     embed = discord.Embed(
-        title=f"Member Info: {member_db.xbox_username}"   
+        title=f"Member Info for {member_discord.nick}"   
     )
     embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
     embed.add_field(name="Discord Username", value=f"{member_discord.name}#{member_discord.discriminator}")
     embed.add_field(name="Bungie Username", value=bungie_link)
     embed.add_field(name="The100 Username", value=the100_link)
     embed.add_field(name="Join Date", value=member_db.join_date.strftime('%Y-%m-%d %H:%M:%S'))
-    embed.add_field(name="Time Zone", value=f"{member_db.timezone} ({datetime.now(pytz.timezone(member_db.timezone)).strftime('UTC%z')})")
+    embed.add_field(name="Time Zone", value=f"{datetime.now(pytz.timezone(member_db.timezone)).strftime('UTC%z')}")
 
     await ctx.send(embed=embed)
 
@@ -121,7 +124,7 @@ async def link_other(ctx, xbox_username: str, discord_username: str):
         return
 
     try:
-        member_discord = await UserConverter().convert(ctx, discord_username)
+        member_discord = await MemberConverter().convert(ctx, discord_username)
     except BadArgument:
         await ctx.send(f"Discord user \"{discord_username}\" not found")
         return
@@ -133,7 +136,7 @@ async def link_other(ctx, xbox_username: str, discord_username: str):
             await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
             return
         if member_db.discord_id:
-            member_discord = await UserConverter().convert(ctx, str(member_db.discord_id))
+            member_discord = await MemberConverter().convert(ctx, str(member_db.discord_id))
             await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
             return
 
@@ -149,7 +152,7 @@ async def link_other(ctx, xbox_username: str, discord_username: str):
 @member.command()
 async def link(ctx, *, xbox_username: str):
     try:
-        member_discord = await UserConverter().convert(ctx, str(ctx.message.author))
+        member_discord = await MemberConverter().convert(ctx, str(ctx.message.author))
     except Exception:
         return
 
@@ -161,7 +164,7 @@ async def link(ctx, *, xbox_username: str):
             await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
             return
         if member_db.discord_id:
-            member_discord = await UserConverter().convert(ctx, str(member_db.discord_id))
+            member_discord = await MemberConverter().convert(ctx, str(member_db.discord_id))
             await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
             return
 
