@@ -20,6 +20,7 @@ mccabe = "==0.6.1"
 six = "==1.11.0"
 wrapt = "==1.10.11"
 pytz = "*"
+iron-cache = "*"
 
 [dev-packages]
 
