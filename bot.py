@@ -102,6 +102,10 @@ async def info(ctx, *args):
         bungie_member_name = membership_info['displayName']
         bungie_link = f"[{bungie_member_name}](https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id})"
 
+    timezone = None
+    if member_db.timezone:
+        timezone = datetime.now(pytz.timezone(member_db.timezone)).strftime('UTC%z')
+
     embed = discord.Embed(
         title=f"Member Info for {member_discord.display_name}"   
     )
@@ -110,7 +114,7 @@ async def info(ctx, *args):
     embed.add_field(name="Bungie Username", value=bungie_link)
     embed.add_field(name="The100 Username", value=the100_link)
     embed.add_field(name="Join Date", value=member_db.join_date.strftime('%Y-%m-%d %H:%M:%S'))
-    embed.add_field(name="Time Zone", value=f"{datetime.now(pytz.timezone(member_db.timezone)).strftime('UTC%z')}")
+    embed.add_field(name="Time Zone", value=timezone)
 
     await ctx.send(embed=embed)
 
