@@ -1,26 +1,24 @@
 #!/usr/bin/env python3.7
+import ast
 import asyncio
 import discord
 import logging
 import os
 import pydest
+import pytz
 
 from datetime import datetime
 
 from discord.errors import HTTPException
 from discord.ext.commands import Bot, UserConverter
 from discord.ext.commands.errors import BadArgument, CommandNotFound, CommandInvokeError
-
+from iron_cache import IronCache
 from peewee import DoesNotExist
 
 from bot_activity import get_member_history, store_member_history
+from constants import *
 from database import Database, Member
 from members import get_all
-
-DATABASE_URL = os.environ.get('DATABASE_URL')
-BUNGIE_API_KEY = os.environ.get('BUNGIE_API_KEY')
-DISCORD_API_KEY = os.environ.get('DISCORD_API_KEY')
-GROUP_ID = os.environ.get('GROUP_ID')
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('aiohttp.client').setLevel(logging.ERROR)
@@ -30,15 +28,18 @@ bot = Bot(loop=loop, command_prefix='?')
 database = Database(DATABASE_URL, loop=loop)
 database.initialize()
 
+cache = IronCache(name='bot', project_id=CACHE_PROJECT_ID, token=CACHE_TOKEN)
+
 destiny = pydest.Pydest(BUNGIE_API_KEY, loop=loop)
 
 
 async def store_all_games(game_mode: str):
     while True:
         logging.info(f"background: Finding all {game_mode} games for all members")
-        for member in await database.get_members():
-            count = await store_member_history(database, destiny, member.xbox_username, game_mode)
-            logging.info(f"background: Found {count} {game_mode} games for {member.xbox_username}")
+        members = ast.literal_eval(cache.get('members').value)
+        for member in members:
+            count = await store_member_history(database, destiny, member, game_mode)
+            logging.info(f"background: Found {count} {game_mode} games for {member}")
         logging.info(f"background: Found all {game_mode} games for all members")
         await asyncio.sleep(3600)
 
@@ -47,6 +48,11 @@ async def store_all_games(game_mode: str):
 async def on_ready():
     logging.info(f"Logged in as {bot.user.name} ({bot.user.id})")
     logging.info(f"Invite: https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot")
+    try:
+        members = cache.get('members')
+    except Exception:
+        members = [member.xbox_username for member in await database.get_members()]
+        cache.put('members', members)
     bot.loop.create_task(store_all_games('raid'))
     bot.loop.create_task(store_all_games('gambit'))
     bot.loop.create_task(store_all_games('pvp'))
@@ -246,6 +252,9 @@ async def sync(ctx):
             member_db.is_active = False
             await database.update_member(member_db)
 
+        members = [member.xbox_username for member in await database.get_members()]
+        cache.put('members', members)
+
     embed = discord.Embed(
         title="Membership Changes"
     )
@@ -308,12 +317,18 @@ async def games(ctx, *, command: str):
                 return
             logging.info(f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
 
-        game_count = await get_member_history(database, destiny, member_db.xbox_username, game_mode)
+        game_counts = await get_member_history(database, destiny, member_db.xbox_username, game_mode)
 
     embed = discord.Embed(
         title=f"Eligible {game_mode.title()} Games for {member_db.xbox_username}",
-        description=str(game_count)
     )
+
+    total_count = 0
+    for game, count in game_counts.items():
+        embed.add_field(name=game.title(), value=str(count))
+        total_count += count
+
+    embed.description=str(total_count)
 
     await ctx.send(embed=embed)
 

@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "6cbe9529a935beaab0769673317fc722c76a6c43bbaf27256699c408f5365fa7"
+            "sha256": "af8dcabcf6ddf715b217cc401c1d6dce463596154bea2fd64cfeae61be1cbd9f"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -39,6 +39,20 @@
             "index": "pypi",
             "version": "==1.6.0"
         },
+        "certifi": {
+            "hashes": [
+                "sha256:59b7658e26ca9c7339e00f8f4636cdfe59d34fa37b9b04f6f9e9926b3cece1a5",
+                "sha256:b26104d6835d1f5e49452a26eb2ff87fe7090b89dfcaee5ea2212697e1e1d7ae"
+            ],
+            "version": "==2019.3.9"
+        },
+        "chardet": {
+            "hashes": [
+                "sha256:84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae",
+                "sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691"
+            ],
+            "version": "==3.0.4"
+        },
         "discord-py": {
             "extras": [
                 "voice"
@@ -52,6 +66,26 @@
             ],
             "git": "https://github.com/Rapptz/discord.py",
             "ref": "860d6a9ace8248dfeec18b8b159e7b757d9f56bb"
+        },
+        "idna": {
+            "hashes": [
+                "sha256:c357b3f628cf53ae2c4c05627ecc484553142ca23264e593d327bcde5e9c3407",
+                "sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c"
+            ],
+            "version": "==2.8"
+        },
+        "iron-cache": {
+            "hashes": [
+                "sha256:77f5f827504bbb06cb9c5e81e3bca81275e4014acb584a8ba0fa66423ea2fad9"
+            ],
+            "index": "pypi",
+            "version": "==0.3.2"
+        },
+        "iron-core": {
+            "hashes": [
+                "sha256:38f0942e86bf72d426560a66e4e14ffafdc52da5bee9925a2ac3968b30c3725b"
+            ],
+            "version": "==1.2.0"
         },
         "isort": {
             "hashes": [
@@ -204,6 +238,13 @@
             "index": "pypi",
             "version": "==2.1.1"
         },
+        "python-dateutil": {
+            "hashes": [
+                "sha256:7e6584c74aeed623791615e26efd690f29817a27c73085b78e4bad02493df2fb",
+                "sha256:c89805f6f4d64db21ed966fda138f8a5ed7a4fdbc1a8ee329ce1b74e3c74da9e"
+            ],
+            "version": "==2.8.0"
+        },
         "pytz": {
             "hashes": [
                 "sha256:303879e36b721603cc54604edcac9d20401bdbe31e1e4fdee5b9f98d5d31dfda",
@@ -212,6 +253,13 @@
             "index": "pypi",
             "version": "==2019.1"
         },
+        "requests": {
+            "hashes": [
+                "sha256:502a824f31acdacb3a35b6690b5fbf0bc41d63a24a45c4004352b0242707598e",
+                "sha256:7bf2a778576d825600030a110f3c0e3e8edc51dfaafe1c146e39a2027784957b"
+            ],
+            "version": "==2.21.0"
+        },
         "six": {
             "hashes": [
                 "sha256:70e8a77beed4562e7f14fe23a786b54f6296e34344c23bc42f07b15018ff98e9",
@@ -219,6 +267,13 @@
             ],
             "index": "pypi",
             "version": "==1.11.0"
+        },
+        "urllib3": {
+            "hashes": [
+                "sha256:61bf29cada3fc2fbefad4fdf059ea4bd1b4a86d2b6d15e1c7c0b582b9752fe39",
+                "sha256:de9529817c93f27c8ccbfead6985011db27bd0ddfcdb2d86f3f663385c6a9c22"
+            ],
+            "version": "==1.24.1"
         },
         "wrapt": {
             "hashes": [
