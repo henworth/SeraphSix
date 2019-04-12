@@ -100,7 +100,7 @@ async def info(ctx, *args):
         bungie_link = f"[{member_db.bungie_username}](https://www.bungie.net/en/Profile/{bungie_member_id})"
 
     embed = discord.Embed(
-        title=f"Member Info for {member_discord.nick}"   
+        title=f"Member Info for {member_discord.display_name}"   
     )
     embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
     embed.add_field(name="Discord Username", value=f"{member_discord.name}#{member_discord.discriminator}")
