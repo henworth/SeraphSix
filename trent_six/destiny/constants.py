@@ -1,12 +1,5 @@
-import os
-from datetime import datetime
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-BUNGIE_API_KEY = os.environ.get('BUNGIE_API_KEY')
-DISCORD_API_KEY = os.environ.get('DISCORD_API_KEY')
-GROUP_ID = os.environ.get('GROUP_ID')
-CACHE_PROJECT_ID = os.environ.get('IRON_CACHE_PROJECT_ID')
-CACHE_TOKEN = os.environ.get('IRON_CACHE_TOKEN')
+from datetime import datetime
 
 PLATFORM_XBOX = 1
 
@@ -34,6 +27,8 @@ MODE_GAMBIT = 63
 MODE_GAMBIT_PRIME = 75
 MODE_GAMBIT_RECKONING = 76
 
+MODE_FORGE = 66
+
 MODES_PVP_QUICK = [
     MODE_PVP_MAYHEM, MODE_PVP_SUPREMACY, MODE_PVP_DOUBLES,
     MODE_PVP_LOCKDOWN, MODE_PVP_BREAKTHROUGH,
@@ -42,7 +37,7 @@ MODES_PVP_QUICK = [
 ]
 
 MODES_PVP_COMP = [
-    MODE_PVP_SURVIVAL, MODE_PVP_COUNTDOWN, 
+    MODE_PVP_SURVIVAL, MODE_PVP_COUNTDOWN,
     MODE_PVP_CLASH_COMP, MODE_PVP_CONTROL_COMP
 ]
 
@@ -58,6 +53,7 @@ MODE_MAP = {
     MODE_STRIKE: {'title': 'strike', 'player_count': 3},
     MODE_RAID: {'title': 'raid', 'player_count': 6},
     MODE_NIGHTFALL: {'title': 'nightfall', 'player_count': 3},
+    MODE_FORGE: {'title': 'forge', 'player_count': 3},
     MODE_PVP_MAYHEM: {'title': 'mayhem', 'player_count': 6},
     MODE_PVP_SUPREMACY: {'title': 'supremacy', 'player_count': 4},
     MODE_PVP_SURVIVAL: {'title': 'survival', 'player_count': 4},
@@ -76,5 +72,14 @@ MODE_MAP = {
     MODE_GAMBIT_RECKONING: {'title': 'reckoning', 'player_count': 4}
 }
 
+SUPPORTED_GAME_MODES = {
+    'gambit': MODES_GAMBIT,
+    'strike': MODES_STRIKE,
+    'raid': [MODE_RAID],
+    'forge': [MODE_FORGE],
+    'pvp': MODES_PVP_COMP + MODES_PVP_QUICK,
+    'pvp-quick': MODES_PVP_QUICK,
+    'pvp-comp': MODES_PVP_COMP
+}
 
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
