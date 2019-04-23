@@ -9,6 +9,7 @@ from discord.ext.commands.errors import BadArgument, CheckFailure
 from peewee import DoesNotExist
 
 from trent_six.bot import TrentSix
+from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.destiny.activity import get_member_history, store_member_history, get_all_history
 from trent_six.destiny.member import get_all
 from trent_six.errors import InvalidGameModeError
@@ -19,9 +20,9 @@ logging.getLogger(__name__)
 def is_valid_game_mode():
     def predicate(ctx):
         game_mode = ctx.message.content.split()[-1]
-        if game_mode in TrentSix.SUPPORTED_GAME_MODES:
+        if game_mode in list(SUPPORTED_GAME_MODES.keys()):
             return True
-        raise InvalidGameModeError(game_mode, TrentSix.SUPPORTED_GAME_MODES)
+        raise InvalidGameModeError(game_mode, list(SUPPORTED_GAME_MODES.keys()))
     return commands.check(predicate)
 
 
@@ -219,12 +220,12 @@ class MemberCog(commands.Cog, name='Member'):
             await ctx.send(embed=embed)
 
     @member.command(
-        usage=f"<{', '.join(TrentSix.SUPPORTED_GAME_MODES)}>",
+        usage=f"<{', '.join(SUPPORTED_GAME_MODES.keys())}>",
         help=f"""
 Show itemized list of all eligible clan games participated in
 Eligiblity is simply whether the fireteam is at least half clan members.
 
-Supported game modes: {', '.join(TrentSix.SUPPORTED_GAME_MODES)}
+Supported game modes: {', '.join(SUPPORTED_GAME_MODES.keys())}
 
 Example: ?member games raid
 """ )
@@ -269,7 +270,7 @@ Example: ?member games raid
 
     @member.command(
         help="Show totals of all eligible clan games for all members",
-        usage=f"<{', '.join(TrentSix.SUPPORTED_GAME_MODES)}>"
+        usage=f"<{', '.join(SUPPORTED_GAME_MODES.keys())}>"
     )
     @is_valid_game_mode()
     async def games_all(self, ctx, game_mode: str):
