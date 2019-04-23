@@ -69,7 +69,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
     member_join_date = member_db.join_date
 
     profile = await get_profile(destiny, member_id)
-    char_ids = list(profile['Response']['characters']['data'].keys())
+    char_ids = profile['Response']['characters']['data'].keys()
 
     mode_count = 0
     for game_mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
