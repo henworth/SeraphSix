@@ -1,26 +1,21 @@
 import ast
-import logging
-
 import backoff
+import logging
 import pydest
 
 from datetime import datetime, timedelta, timezone
-
-from iron_cache import IronCache
 from peewee import DoesNotExist, IntegrityError, InternalError
 
-from members import Game
-from constants import *
+from trent_six.destiny import constants
+from trent_six.destiny.member import Game
 
 logging.getLogger(__name__)
-
-cache = IronCache(name='bot', project_id=CACHE_PROJECT_ID, token=CACHE_TOKEN)
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
 async def get_activity_list(destiny, member_id, char_id, mode_id, count=10):
     return await destiny.api.get_activity_history(
-        PLATFORM_XBOX, member_id, char_id, mode=mode_id, count=count
+        constants.PLATFORM_XBOX, member_id, char_id, mode=mode_id, count=count
     )
 
 
@@ -37,23 +32,25 @@ async def decode_activity(destiny, reference_id):
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
 async def get_profile(destiny, member_id):
-    return await destiny.api.get_profile(PLATFORM_XBOX, member_id, [COMPONENT_CHARACTERS])
+    return await destiny.api.get_profile(constants.PLATFORM_XBOX, member_id, [constants.COMPONENT_CHARACTERS])
 
 
 async def get_member_history(database, destiny, member_name, game_mode):
 
     if game_mode == 'gambit':
-        game_mode_list = MODES_GAMBIT
+        game_mode_list = constants.MODES_GAMBIT
     elif game_mode == 'strike':
-        game_mode_list = MODES_STRIKE
+        game_mode_list = constants.MODES_STRIKE
     elif game_mode == 'raid':
-        game_mode_list = [MODE_RAID]
+        game_mode_list = [constants.MODE_RAID]
+    elif game_mode == 'forge':
+        game_mode_list = [constants.MODE_FORGE]
     elif game_mode == 'pvp':
-        game_mode_list = MODES_PVP_COMP + MODES_PVP_QUICK
+        game_mode_list = constants.MODES_PVP_COMP + constants.MODES_PVP_QUICK
     elif game_mode == 'pvp-quick':
-        game_mode_list = MODES_PVP_QUICK
+        game_mode_list = constants.MODES_PVP_QUICK
     elif game_mode == 'pvp-comp':
-        game_mode_list = MODES_PVP_COMP
+        game_mode_list = constants.MODES_PVP_COMP
 
     game_counts = {}
     for mode_id in game_mode_list:
@@ -62,21 +59,50 @@ async def get_member_history(database, destiny, member_name, game_mode):
         except DoesNotExist:
             continue
         else:
-            game_counts[MODE_MAP[mode_id]['title']] = count
+            game_counts[constants.MODE_MAP[mode_id]['title']] = count
 
     return game_counts
 
 
-async def store_member_history(database, destiny, member_name, game_mode):
+async def get_all_history(database, destiny, game_mode):
 
     if game_mode == 'gambit':
-        game_mode_list = MODES_GAMBIT
+        game_mode_list = constants.MODES_GAMBIT
     elif game_mode == 'strike':
-        game_mode_list = MODES_STRIKE
+        game_mode_list = constants.MODES_STRIKE
     elif game_mode == 'raid':
-        game_mode_list = [MODE_RAID]
+        game_mode_list = [constants.MODE_RAID]
+    elif game_mode == 'forge':
+        game_mode_list = [constants.MODE_FORGE]
     elif game_mode == 'pvp':
-        game_mode_list = MODES_PVP_COMP + MODES_PVP_QUICK
+        game_mode_list = constants.MODES_PVP_COMP + constants.MODES_PVP_QUICK
+    elif game_mode == 'pvp-quick':
+        game_mode_list = constants.MODES_PVP_QUICK
+    elif game_mode == 'pvp-comp':
+        game_mode_list = constants.MODES_PVP_COMP
+
+    game_counts = {}
+    for mode_id in game_mode_list:
+        try:
+            count = await database.get_all_game_count([mode_id])
+        except DoesNotExist:
+            continue
+        else:
+            game_counts[constants.MODE_MAP[mode_id]['title']] = count
+
+    return game_counts
+
+
+async def store_member_history(cache, database, destiny, member_name, game_mode):
+
+    if game_mode == 'gambit':
+        game_mode_list = constants.MODES_GAMBIT
+    elif game_mode == 'strike':
+        game_mode_list = constants.MODES_STRIKE
+    elif game_mode == 'raid':
+        game_mode_list = [constants.MODE_RAID]
+    elif game_mode == 'pvp':
+        game_mode_list = constants.MODES_PVP_COMP + constants.MODES_PVP_QUICK
 
     members = ast.literal_eval(cache.get('members').value)
 
@@ -89,10 +115,10 @@ async def store_member_history(database, destiny, member_name, game_mode):
 
     mode_count = 0
     for game_mode_id in game_mode_list:
-        player_threshold = int(MODE_MAP[game_mode_id]['player_count'] / 2)
+        player_threshold = int(constants.MODE_MAP[game_mode_id]['player_count'] / 2)
         if player_threshold < 2:
             player_threshold = 2
-    
+
         for char_id in char_ids:
             activity = await get_activity_list(
                 destiny, member_id, char_id, game_mode_id
@@ -111,7 +137,7 @@ async def store_member_history(database, destiny, member_name, game_mode):
             for activity_id in activity_ids:
                 pgcr = await get_activity(destiny, activity_id)
                 game = Game(pgcr['Response'])
-                
+
                 # Loop through all players to find any members that completed
                 # the game session. Also check if the member joined before
                 # the game time.
@@ -127,7 +153,7 @@ async def store_member_history(database, destiny, member_name, game_mode):
                 # member joined before game time. If any of those apply, the
                 # game is not eligible.
                 if (len(players) < player_threshold or
-                        game.date < FORSAKEN_RELEASE or 
+                        game.date < constants.FORSAKEN_RELEASE or
                         game.date < member_join_date):
                     continue
 
@@ -140,10 +166,10 @@ async def store_member_history(database, destiny, member_name, game_mode):
                 try:
                     await database.create_game(game_details, players)
                 except IntegrityError:
-                    logging.info(f"{MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} exists for {member_name}, skipping")
+                    logging.info(f"{constants.MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} exists for {member_name}, skipping")
                     continue
                 else:
                     mode_count += 1
-                    logging.info(f"{MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} created for {member_name}")
+                    logging.info(f"{constants.MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} created for {member_name}")
 
     return mode_count

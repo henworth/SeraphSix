@@ -1,12 +1,11 @@
 import asyncio
 
 from datetime import datetime, timezone
-from urllib.parse import urlparse
-
 from peewee import fn, Model, CharField, BigIntegerField, IntegerField, ForeignKeyField, Proxy, BooleanField, CompositeKey
 from peewee_async import Manager
 from peewee_asyncext import PostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
+from urllib.parse import urlparse
 
 database_proxy = Proxy()
 
@@ -60,6 +59,16 @@ class GameMember(BaseModel):
         )
 
 
+class TwitterChannel(BaseModel):
+    channel_id = BigIntegerField()
+    twitter_id = BigIntegerField()
+
+    class Meta:
+        indexes = (
+            (('channel_id', 'twitter_id'), True),
+        )
+
+
 class ConnManager(Manager):
     database = database_proxy
 
@@ -80,10 +89,11 @@ class Database:
         Game.create_table(True)
         GameMember.create_table(True)
         GameSession.create_table(True)
+        TwitterChannel.create_table(True)
 
     async def get_game_session(self, member_name, game_mode_id):
         query = GameSession.select().join(Member).where(
-            GameSession.game_mode_id == game_mode_id, 
+            GameSession.game_mode_id == game_mode_id,
             Member.xbox_username == member_name
         )
         return await self.objects.get(query)
@@ -112,16 +122,20 @@ class Database:
         return await self.objects.get(query)
 
     async def get_game_count(self, member_name, mode_ids):
-        # select count(game.id) from game 
-        # join gamemember on gamemember.game_id = game.id 
+        # select count(game.id) from game
+        # join gamemember on gamemember.game_id = game.id
         # join member on member.id = gamemember.member_id
-        # where gamemember.member_id = member.id 
-        # and game.mode_id in (37, 38, 72, 74) 
+        # where gamemember.member_id = member.id
+        # and game.mode_id in (37, 38, 72, 74)
         # and member.xbox_username = 'lifeinchains';
         query = Game.select().join(GameMember).join(Member).where(
                 (Member.xbox_username == member_name) &
                 (Game.mode_id << mode_ids)
             ).distinct()
+        return await self.objects.count(query)
+
+    async def get_all_game_count(self, mode_ids):
+        query = Game.select().where(Game.mode_id << mode_ids).distinct()
         return await self.objects.count(query)
 
     async def get_member(self, member_name):
@@ -152,6 +166,13 @@ class Database:
         for member in members:
             member_db = await self.get_member(member)
             await self.objects.create(GameMember, member=member_db.id, game=game.id)
+
+    async def create_twitter_channel(self, channel_id, twitter_id):
+        return await self.objects.create(
+            TwitterChannel, **{'channel_id': channel_id, 'twitter_id': twitter_id})
+
+    async def get_twitter_channel(self, twitter_id):
+        return await self.objects.get(TwitterChannel, twitter_id=twitter_id)
 
     def close(self):
         asyncio.ensure_future(self.objects.close())

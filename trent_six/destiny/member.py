@@ -35,12 +35,12 @@ class Game(object):
             completed = True
             if entry['values']['completed']['basic']['displayValue'] == 'No':
                 completed = False
-        
+
             try:
                 name = entry['player']['destinyUserInfo']['displayName']
             except KeyError:
                 name = None
-            
+
             self.players.append({
                 'name': name,
                 'completed': completed
