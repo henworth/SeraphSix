@@ -20,9 +20,9 @@ logging.getLogger(__name__)
 def is_valid_game_mode():
     def predicate(ctx):
         game_mode = ctx.message.content.split()[-1]
-        if game_mode in list(SUPPORTED_GAME_MODES.keys()):
+        if game_mode in SUPPORTED_GAME_MODES.keys():
             return True
-        raise InvalidGameModeError(game_mode, list(SUPPORTED_GAME_MODES.keys()))
+        raise InvalidGameModeError(game_mode, SUPPORTED_GAME_MODES.keys())
     return commands.check(predicate)
 
 

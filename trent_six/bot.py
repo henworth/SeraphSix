@@ -100,7 +100,7 @@ class TrentSix(commands.Bot):
             members = [member.xbox_username for member in await self.database.get_members()]
             self.cache.put('members', members)
         self.loop.create_task(self.track_tweets())
-        for game_mode in list(SUPPORTED_GAME_MODES.keys()):
+        for game_mode in SUPPORTED_GAME_MODES.keys():
             if '-' not in game_mode:
                 self.loop.create_task(self.store_all_games(game_mode))
 
