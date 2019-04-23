@@ -14,6 +14,7 @@ from iron_cache import IronCache
 from peewee import DoesNotExist
 
 from trent_six.destiny.activity import store_member_history
+from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import InvalidGameModeError
 
 logging.getLogger(__name__)
@@ -25,7 +26,6 @@ class TrentSix(commands.Bot):
 
     TWITTER_DTG = 2608131020
     TWITTER_XBOX_SUPPORT = 59804598
-    SUPPORTED_GAME_MODES = ['gambit', 'raid', 'pvp-quick', 'pvp-comp', 'pvp', 'strike', 'forge']
 
     def __init__(self, loop, database, destiny, command_prefix, config, twitter):
         super().__init__(
@@ -100,7 +100,7 @@ class TrentSix(commands.Bot):
             members = [member.xbox_username for member in await self.database.get_members()]
             self.cache.put('members', members)
         self.loop.create_task(self.track_tweets())
-        for game_mode in self.SUPPORTED_GAME_MODES:
+        for game_mode in list(SUPPORTED_GAME_MODES.keys()):
             if '-' not in game_mode:
                 self.loop.create_task(self.store_all_games(game_mode))
 

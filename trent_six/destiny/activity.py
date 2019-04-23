@@ -36,24 +36,8 @@ async def get_profile(destiny, member_id):
 
 
 async def get_member_history(database, destiny, member_name, game_mode):
-
-    if game_mode == 'gambit':
-        game_mode_list = constants.MODES_GAMBIT
-    elif game_mode == 'strike':
-        game_mode_list = constants.MODES_STRIKE
-    elif game_mode == 'raid':
-        game_mode_list = [constants.MODE_RAID]
-    elif game_mode == 'forge':
-        game_mode_list = [constants.MODE_FORGE]
-    elif game_mode == 'pvp':
-        game_mode_list = constants.MODES_PVP_COMP + constants.MODES_PVP_QUICK
-    elif game_mode == 'pvp-quick':
-        game_mode_list = constants.MODES_PVP_QUICK
-    elif game_mode == 'pvp-comp':
-        game_mode_list = constants.MODES_PVP_COMP
-
     game_counts = {}
-    for mode_id in game_mode_list:
+    for mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
         try:
             count = await database.get_game_count(member_name, [mode_id])
         except DoesNotExist:
@@ -65,24 +49,8 @@ async def get_member_history(database, destiny, member_name, game_mode):
 
 
 async def get_all_history(database, destiny, game_mode):
-
-    if game_mode == 'gambit':
-        game_mode_list = constants.MODES_GAMBIT
-    elif game_mode == 'strike':
-        game_mode_list = constants.MODES_STRIKE
-    elif game_mode == 'raid':
-        game_mode_list = [constants.MODE_RAID]
-    elif game_mode == 'forge':
-        game_mode_list = [constants.MODE_FORGE]
-    elif game_mode == 'pvp':
-        game_mode_list = constants.MODES_PVP_COMP + constants.MODES_PVP_QUICK
-    elif game_mode == 'pvp-quick':
-        game_mode_list = constants.MODES_PVP_QUICK
-    elif game_mode == 'pvp-comp':
-        game_mode_list = constants.MODES_PVP_COMP
-
     game_counts = {}
-    for mode_id in game_mode_list:
+    for mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
         try:
             count = await database.get_all_game_count([mode_id])
         except DoesNotExist:
@@ -94,16 +62,6 @@ async def get_all_history(database, destiny, game_mode):
 
 
 async def store_member_history(cache, database, destiny, member_name, game_mode):
-
-    if game_mode == 'gambit':
-        game_mode_list = constants.MODES_GAMBIT
-    elif game_mode == 'strike':
-        game_mode_list = constants.MODES_STRIKE
-    elif game_mode == 'raid':
-        game_mode_list = [constants.MODE_RAID]
-    elif game_mode == 'pvp':
-        game_mode_list = constants.MODES_PVP_COMP + constants.MODES_PVP_QUICK
-
     members = ast.literal_eval(cache.get('members').value)
 
     member_db = await database.get_member(member_name)
@@ -114,7 +72,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
     char_ids = list(profile['Response']['characters']['data'].keys())
 
     mode_count = 0
-    for game_mode_id in game_mode_list:
+    for game_mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
         player_threshold = int(constants.MODE_MAP[game_mode_id]['player_count'] / 2)
         if player_threshold < 2:
             player_threshold = 2

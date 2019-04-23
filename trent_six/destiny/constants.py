@@ -72,4 +72,14 @@ MODE_MAP = {
     MODE_GAMBIT_RECKONING: {'title': 'reckoning', 'player_count': 4}
 }
 
+SUPPORTED_GAME_MODES = {
+    'gambit': MODES_GAMBIT,
+    'strike': MODES_STRIKE,
+    'raid': [MODE_RAID],
+    'forge': [MODE_FORGE],
+    'pvp': MODES_PVP_COMP + MODES_PVP_QUICK,
+    'pvp-quick': MODES_PVP_QUICK,
+    'pvp-comp': MODES_PVP_COMP
+}
+
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
