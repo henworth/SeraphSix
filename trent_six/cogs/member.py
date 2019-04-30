@@ -263,6 +263,7 @@ Example: ?member games raid
             title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_db.xbox_username}",
         )
 
+        total_count = 0
         if len(game_counts) == 1:
             total_count, = game_counts.values()
         else:
