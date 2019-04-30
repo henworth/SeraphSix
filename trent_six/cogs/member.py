@@ -7,7 +7,7 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from discord.ext.commands.errors import BadArgument, CheckFailure
 from peewee import DoesNotExist
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
 from trent_six.bot import TrentSix
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
@@ -59,7 +59,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         the100_link = None
         if member_db.the100_username:
-            the100_url = f"https://www.the100.io/users/{quote_plus(member_db.the100_username)}"
+            the100_url = f"https://www.the100.io/users/{quote(member_db.the100_username)}"
             the100_link = f"[{member_db.the100_username}]({the100_url})"
 
         bungie_link = None
