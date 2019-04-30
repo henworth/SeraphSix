@@ -59,7 +59,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         the100_link = None
         if member_db.the100_username:
-            the100_url = quote_plus(f"https://www.the100.io/users/{member_db.the100_username}")
+            the100_url = f"https://www.the100.io/users/{quote_plus(member_db.the100_username)}"
             the100_link = f"[{member_db.the100_username}]({the100_url})"
 
         bungie_link = None
@@ -69,7 +69,7 @@ class MemberCog(commands.Cog, name='Member'):
             bungie_member_id = membership_info['membershipId']
             bungie_member_type = membership_info['membershipType']
             bungie_member_name = membership_info['displayName']
-            bungie_url = quote_plus(f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}")
+            bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
             bungie_link = f"[{bungie_member_name}]({bungie_url})"
 
         timezone = None
