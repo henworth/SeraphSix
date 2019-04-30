@@ -7,6 +7,7 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from discord.ext.commands.errors import BadArgument, CheckFailure
 from peewee import DoesNotExist
+from urllib.parse import quote_plus
 
 from trent_six.bot import TrentSix
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
@@ -58,7 +59,8 @@ class MemberCog(commands.Cog, name='Member'):
 
         the100_link = None
         if member_db.the100_username:
-            the100_link = f"[{member_db.the100_username}](https://www.the100.io/users/{member_db.the100_username})"
+            the100_url = f"https://www.the100.io/users/{quote_plus(member_db.the100_username)}"
+            the100_link = f"[{member_db.the100_username}]({the100_url})"
 
         bungie_link = None
         if member_db.bungie_id:
@@ -67,11 +69,13 @@ class MemberCog(commands.Cog, name='Member'):
             bungie_member_id = membership_info['membershipId']
             bungie_member_type = membership_info['membershipType']
             bungie_member_name = membership_info['displayName']
-            bungie_link = f"[{bungie_member_name}](https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id})"
+            bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
+            bungie_link = f"[{bungie_member_name}]({bungie_url})"
 
         timezone = None
         if member_db.timezone:
-            timezone = datetime.now(pytz.timezone(member_db.timezone)).strftime('UTC%z')
+            tz = datetime.now(pytz.timezone(member_db.timezone))
+            timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
 
         embed = discord.Embed(
             title=f"Member Info for {member_discord.display_name}"
@@ -256,13 +260,16 @@ Example: ?member games raid
                 self.bot.database, self.bot.destiny, member_db.xbox_username, game_mode)
 
         embed = discord.Embed(
-            title=f"Eligible {game_mode.title()} Games for {member_db.xbox_username}",
+            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_db.xbox_username}",
         )
 
         total_count = 0
-        for game, count in game_counts.items():
-            embed.add_field(name=game.title(), value=str(count))
-            total_count += count
+        if len(game_counts) == 1:
+            total_count, = game_counts.values()
+        else:
+            for game, count in game_counts.items():
+                embed.add_field(name=game.title(), value=str(count))
+                total_count += count
 
         embed.description=str(total_count)
 
@@ -289,7 +296,7 @@ Example: ?member games raid
                     games[game] = count
 
             embed = discord.Embed(
-                title=f"Eligible {game_mode.title()} Games for All Members",
+                title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for All Members",
             )
 
             total_count = 0
