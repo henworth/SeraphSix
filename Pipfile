@@ -23,6 +23,11 @@ pytz = "*"
 six = "==1.11.0"
 wrapt = "==1.10.11"
 "discord.py" = "==1.0.1"
+flask = "*"
+requests-oauth2 = "*"
+gunicorn = "*"
+aioredis = "*"
+redis = "*"
 
 [requires]
 python_version = "3.7"

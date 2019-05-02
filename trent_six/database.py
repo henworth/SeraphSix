@@ -24,6 +24,8 @@ class Member(BaseModel):
     is_active = BooleanField(default=True)
     the100_username = CharField(null=True)
     timezone = CharField(null=True)
+    bungie_access_token = CharField(unique=True, null=True)
+    bungie_refresh_token = CharField(unique=True, null=True)
 
     class Meta:
         indexes = (
