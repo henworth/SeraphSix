@@ -2,6 +2,8 @@
 from datetime import datetime
 
 PLATFORM_XBOX = 1
+PLATFORM_PSN = 2
+PLATFORM_BLIZ = 4
 
 COMPONENT_CHARACTERS = 200
 
@@ -82,4 +84,5 @@ SUPPORTED_GAME_MODES = {
     'pvp-comp': MODES_PVP_COMP
 }
 
-FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
+FORSAKEN_RELEASE = datetime.strptime(
+    '2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')

@@ -7,7 +7,7 @@ import redis
 import requests
 import secrets
 
-from flask import Flask, redirect, render_template, request, session
+from flask import Flask, redirect, render_template, request, session, url_for
 from requests_oauth2 import OAuth2, OAuth2BearerToken
 from urllib.parse import urlparse
 
@@ -58,22 +58,31 @@ red = redis.from_url(config['redis_url'])
 
 @app.route("/")
 def index():
-    if session.get('access_token'):
-        return render_template('redirect.html', site=BungieClient.site, message='Success!')
-    else:
+    if not session.get('access_token'):
         return redirect("/oauth/")
+
+    user_info = dict(
+        membership_id=session.get('membership_id'),
+        access_token=session.get('access_token'),
+        refresh_token=session.get('refresh_token')
+    )
+
+    pickled_info = pickle.dumps(user_info)
+    red.publish(session.get('state'), pickled_info)
+    return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
 
 @app.route('/oauth/')
 def oauth_index():
     if not session.get('access_token'):
-        return redirect('/oauth/callback')
-    
+        return redirect(url_for('oauth_callback', state=request.args.get('state')))
+
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
         s.headers.update({'X-API-KEY': config['bungie']['api_key']})
-        r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
-    
+        r = s.get(
+            f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
+
     r.raise_for_status()
     return redirect('/')
 
@@ -82,11 +91,11 @@ def oauth_index():
 def oauth_callback():
     code = request.args.get('code')
     error = request.args.get('error')
-    state = request.args.get('discord_id') or secrets.token_urlsafe(24)
+    state = request.args.get('state')
 
     if error:
-        return 'error :( {!r}'.format(error)
-    
+        return repr(error)
+
     if not code:
         return redirect(bungie_auth.authorize_url(
             response_type='code',
@@ -98,16 +107,10 @@ def oauth_callback():
         grant_type='authorization_code',
     )
 
-    user_info = dict(
-        membership_id = data.get('membership_id'),
-        access_token = data.get('access_token'),
-        refresh_token = data.get('refresh_token')
-    )
-
-    pickled_info = pickle.dumps(user_info)
-    red.publish(state, pickled_info)
-    session['access_token'] = user_info['access_token']
-    session['refresh_token'] = user_info['refresh_token']
+    session['access_token'] = data.get('access_token')
+    session['refresh_token'] = data.get('refresh_token')
+    session['membership_id'] = data.get('membership_id')
+    session['state'] = request.args.get('state')
     return redirect('/')
 
 

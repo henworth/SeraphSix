@@ -19,7 +19,10 @@ from trent_six.errors import InvalidGameModeError
 
 logging.getLogger(__name__)
 
-STARTUP_EXTENSIONS = ['trent_six.cogs.member', 'trent_six.cogs.server']
+STARTUP_EXTENSIONS = [
+    'trent_six.cogs.member', 'trent_six.cogs.register',
+    'trent_six.cogs.server'
+]
 
 
 class TrentSix(commands.Bot):
@@ -112,6 +115,9 @@ class TrentSix(commands.Bot):
             await ctx.send(error.message)
         elif isinstance(error, commands.CommandNotFound):
             await ctx.send(f"Invalid command `{ctx.message.content}`")
+        else:
+            logging.error(
+                f"{error}, Type: {type(error)}, Context: {ctx.__dict__}")
 
     async def on_message(self, message):
         if not message.author.bot:
