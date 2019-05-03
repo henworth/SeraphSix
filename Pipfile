@@ -9,7 +9,6 @@ verify_ssl = true
 aiopg = "==0.15.0"
 astroid = "==2.0.4"
 backoff = "==1.6.0"
-pydest = {git = "https://github.com/henworth/pydest",ref = "0ef6384f95c27ce7d60c00c634f0140b859ec6d6"}
 iron-cache = "==0.3.2"
 isort = "==4.3.4"
 lazy-object-proxy = "==1.3.1"
@@ -28,6 +27,7 @@ requests-oauth2 = "*"
 gunicorn = "*"
 aioredis = "*"
 redis = "*"
+pydest = {git = "https://github.com/henworth/pydest",ref = "oauth"}
 
 [requires]
 python_version = "3.7"
