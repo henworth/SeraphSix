@@ -7,6 +7,7 @@ import logging
 import os
 import peony
 import pytz
+import traceback
 
 from datetime import datetime
 from discord.ext import commands
@@ -15,14 +16,29 @@ from peewee import DoesNotExist
 
 from trent_six.destiny.activity import store_member_history
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
-from trent_six.errors import InvalidGameModeError
+from trent_six.errors import InvalidGameModeError, NotRegisteredError, ConfigurationError
 
 logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
-    'trent_six.cogs.member', 'trent_six.cogs.register',
-    'trent_six.cogs.server'
+    'trent_six.cogs.clan', 'trent_six.cogs.member',
+    'trent_six.cogs.register', 'trent_six.cogs.server'
 ]
+
+
+async def _prefix_callable(bot, message):
+    """Get current command prefix"""
+    base = [f'<@{bot.user.id}> ']
+    if isinstance(message.channel, discord.abc.PrivateChannel):
+        base.append('?')
+    else:
+        guild = await bot.database.get_guild(message.guild.id)
+        if guild:
+            base.append(guild.prefix)
+        else:
+            bot.db.add_guild(message.guild.id)
+            base.append('?')
+    return base
 
 
 class TrentSix(commands.Bot):
@@ -30,10 +46,11 @@ class TrentSix(commands.Bot):
     TWITTER_DTG = 2608131020
     TWITTER_XBOX_SUPPORT = 59804598
 
-    def __init__(self, loop, database, destiny, command_prefix, config, twitter):
+    def __init__(self, loop, config, database, destiny, twitter=None):
         super().__init__(
-            command_prefix='?', loop=loop, case_insensitive=True, 
-            help_command=commands.DefaultHelpCommand(no_category="Assorted", dm_help=True, verify_checks=False)
+            command_prefix=_prefix_callable, loop=loop, case_insensitive=True,
+            help_command=commands.DefaultHelpCommand(
+                no_category="Assorted", dm_help=True, verify_checks=False)
         )
 
         self.config = config
@@ -42,24 +59,29 @@ class TrentSix(commands.Bot):
         )
         self.database = database
         self.destiny = destiny
-        self.twitter = twitter
+
+        if twitter:
+            self.twitter = twitter
 
         for extension in STARTUP_EXTENSIONS:
             try:
                 self.load_extension(extension)
             except Exception as e:
-                exc = '{}: {}'.format(type(e).__name__, e)
-                logging.error('Failed to load extension {}\n{}'.format(extension, exc))
+                exc = traceback.format_exception(type(e), e, e.__traceback__)
+                logging.error(f"Failed to load extension {extension}: {exc}")
 
     async def store_all_games(self, game_mode: str):
         await self.wait_until_ready()
-        while True:
-            logging.info(f"background: Finding all {game_mode} games for all members")
+        while not self.is_closed():
+            logging.info(
+                f"background: Finding all {game_mode} games for all members")
             members = ast.literal_eval(self.cache.get('members').value)
             for member in members:
                 count = await store_member_history(self.cache, self.database, self.destiny, member, game_mode)
-                logging.info(f"background: Found {count} {game_mode} games for {member}")
-            logging.info(f"background: Found all {game_mode} games for all members")
+                logging.info(
+                    f"background: Found {count} {game_mode} games for {member}")
+            logging.info(
+                f"background: Found all {game_mode} games for all members")
             await asyncio.sleep(3600)
 
     async def track_tweets(self):
@@ -88,6 +110,8 @@ class TrentSix(commands.Bot):
         async with statuses as stream:
             async for tweet in stream:
                 if peony.events.tweet(tweet):
+                    if tweet.in_reply_to_status_id:
+                        continue
                     twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
                     if tweet.user.id == self.TWITTER_XBOX_SUPPORT and xbox_channel:
                         await xbox_channel.send(twitter_url)
@@ -96,13 +120,17 @@ class TrentSix(commands.Bot):
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} ({self.user.id})")
-        logging.info(f"Invite: https://discordapp.com/oauth2/authorize?client_id={self.user.id}&scope=bot")
+        logging.info(
+            f"Invite: https://discordapp.com/oauth2/authorize?client_id={self.user.id}&scope=bot")
         try:
             members = self.cache.get('members')
         except Exception:
             members = [member.xbox_username for member in await self.database.get_members()]
             self.cache.put('members', members)
-        self.loop.create_task(self.track_tweets())
+
+        if hasattr(self, 'twitter'):
+            self.loop.create_task(self.track_tweets())
+
         for game_mode in SUPPORTED_GAME_MODES.keys():
             if '-' not in game_mode:
                 self.loop.create_task(self.store_all_games(game_mode))
@@ -111,13 +139,15 @@ class TrentSix(commands.Bot):
         if isinstance(error, commands.MissingPermissions):
             text = f"{ctx.message.author.mention}: Sorry, but you do not have permissions to do that!"
             await ctx.send(text)
-        elif isinstance(error, InvalidGameModeError):
+        elif isinstance(error, (ConfigurationError, InvalidGameModeError, NotRegisteredError)):
             await ctx.send(error.message)
         elif isinstance(error, commands.CommandNotFound):
             await ctx.send(f"Invalid command `{ctx.message.content}`")
         else:
+            error_trace = traceback.format_exception(
+                type(error), error, error.__traceback__)
             logging.error(
-                f"{error}, Type: {type(error)}, Context: {ctx.__dict__}")
+                f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
 
     async def on_message(self, message):
         if not message.author.bot:

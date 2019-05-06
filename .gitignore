@@ -3,4 +3,4 @@
 *.content
 *.log
 *.csv
-*.json
+config.json

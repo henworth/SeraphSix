@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from peewee import DoesNotExist, IntegrityError, InternalError
 
 from trent_six.destiny import constants
-from trent_six.destiny.member import Game
+from trent_six.destiny.models import Game
 
 logging.getLogger(__name__)
 
@@ -64,16 +64,21 @@ async def get_all_history(database, destiny, game_mode):
 async def store_member_history(cache, database, destiny, member_name, game_mode):
     members = ast.literal_eval(cache.get('members').value)
 
-    member_db = await database.get_member(member_name)
-    member_id = member_db.bungie_id
+    member_db = await database.get_member_by_xbox_username(member_name)
+    member_id = member_db.xbox_id
     member_join_date = member_db.join_date
 
     profile = await get_profile(destiny, member_id)
-    char_ids = profile['Response']['characters']['data'].keys()
+    try:
+        char_ids = profile['Response']['characters']['data'].keys()
+    except KeyError:
+        logging.error(f"{member_name}: {profile}")
+        return
 
     mode_count = 0
     for game_mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
-        player_threshold = int(constants.MODE_MAP[game_mode_id]['player_count'] / 2)
+        player_threshold = int(
+            constants.MODE_MAP[game_mode_id]['player_count'] / 2)
         if player_threshold < 2:
             player_threshold = 2
 
@@ -102,7 +107,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
                 players = []
                 for player in game.players:
                     if player['completed'] and player['name'] in members:
-                        member_db = await database.get_member(player['name'])
+                        member_db = await database.get_member_by_xbox_username(player['name'])
                         if game.date > member_db.join_date:
                             players.append(player['name'])
 
@@ -118,16 +123,23 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
                 game_details = {
                     'date': game.date,
                     'mode_id': game.mode_id,
-                    'instance_id': activity_id,
+                    'instance_id': game.instance_id,
+                    'reference_id': game.reference_id
                 }
 
+                game_title = constants.MODE_MAP[game_mode_id]['title'].title()
                 try:
                     await database.create_game(game_details, players)
                 except IntegrityError:
-                    logging.info(f"{constants.MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} exists for {member_name}, skipping")
+                    game_db = await database.get_game(game.instance_id)
+                    game_db.reference_id = game.reference_id
+                    await database.update_game(game_db)
+                    logging.info(
+                        f"{game_title} game id {activity_id} exists for {member_name}, skipping")
                     continue
                 else:
                     mode_count += 1
-                    logging.info(f"{constants.MODE_MAP[game_mode_id]['title'].title()} game id {activity_id} created for {member_name}")
+                    logging.info(
+                        f"{game_title} game id {activity_id} created for {member_name}")
 
     return mode_count

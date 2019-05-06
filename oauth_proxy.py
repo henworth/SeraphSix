@@ -35,10 +35,9 @@ def config_loader(filename='config.json'):
         config = {
             'bungie': {
                 'api_key': os.environ.get('BUNGIE_API_KEY'),
-                'group_id': os.environ.get('GROUP_ID'),
-                'client_id': os.environ.get('CLIENT_ID'),
-                'client_secret': os.environ.get('CLIENT_SECRET'),
-                'redirect_host': os.environ.get('REDIRECT_HOST')
+                'client_id': os.environ.get('BUNGIE_CLIENT_ID'),
+                'client_secret': os.environ.get('BUNGIE_CLIENT_SECRET'),
+                'redirect_host': os.environ.get('BUNGIE_REDIRECT_HOST')
             },
             'redis_url': os.environ.get("REDIS_URL"),
         }

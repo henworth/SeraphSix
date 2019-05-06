@@ -1,5 +1,10 @@
 import discord
 
+from discord.ext import commands
+from peewee import DoesNotExist
+from trent_six.destiny.constants import SUPPORTED_GAME_MODES
+from trent_six.errors import ConfigurationError, InvalidGameModeError, InvalidMemberError, NotRegisteredError
+
 
 def is_event(message):
     """Check if a message contains event data"""
@@ -32,3 +37,42 @@ def is_private_channel(channel):
 
 def is_message(message):
     return True
+
+
+def is_valid_game_mode():
+    def predicate(ctx):
+        game_mode = ctx.message.content.split()[2]
+        if game_mode in SUPPORTED_GAME_MODES.keys():
+            return True
+        raise InvalidGameModeError(game_mode, SUPPORTED_GAME_MODES.keys())
+    return commands.check(predicate)
+
+
+def is_clan_member():
+    async def predicate(ctx):
+        try:
+            await ctx.bot.database.get_member_by_discord_id(ctx.author.id)
+        except DoesNotExist:
+            raise InvalidMemberError
+        return True
+    return commands.check(predicate)
+
+
+def is_registered():
+    async def predicate(ctx):
+        try:
+            member_db = await ctx.bot.database.get_member_by_discord_id(ctx.author.id)
+        except DoesNotExist:
+            raise NotRegisteredError(ctx.prefix)
+        if not member_db.bungie_access_token:
+            raise NotRegisteredError(ctx.prefix)
+        return True
+    return commands.check(predicate)
+
+
+def twitter_enabled():
+    def predicate(ctx):
+        if hasattr(ctx.bot, 'twitter'):
+            return True
+        raise ConfigurationError("Twitter support is not enabled at the bot level")
+    return commands.check(predicate)

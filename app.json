@@ -1,0 +1,53 @@
+{
+    "name": "trent-six",
+    "scripts": {},
+    "env": {
+        "BUNGIE_API_KEY": {
+            "required": true
+        },
+        "BUNGIE_CLIENT_ID": {
+            "required": false
+        },
+        "BUNGIE_CLIENT_SECRET": {
+            "required": false
+        },
+        "BUNGIE_REDIRECT_HOST": {
+            "required": false
+        },
+        "DISCORD_API_KEY": {
+            "required": true
+        },
+        "TWITTER_ACCESS_TOKEN": {
+            "required": false
+        },
+        "TWITTER_ACCESS_TOKEN_SECRET": {
+            "required": false
+        },
+        "TWITTER_CONSUMER_KEY": {
+            "required": false
+        },
+        "TWITTER_CONSUMER_SECRET": {
+            "required": false
+        }
+    },
+    "formation": {
+        "web": {
+            "quantity": 1
+        },
+        "bot": {
+            "quantity": 1
+        }
+    },
+    "addons": [
+        "iron_cache",
+        "heroku-postgresql:hobby-dev",
+        "heroku-redis",
+        "timber-logging"
+    ],
+    "buildpacks": [
+        {
+            "url": "heroku/python"
+        }
+    ],
+    "stack": "heroku-18"
+}
