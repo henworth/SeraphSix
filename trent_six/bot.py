@@ -54,9 +54,7 @@ class TrentSix(commands.Bot):
         )
 
         self.config = config
-        self.cache = IronCache(
-            name='bot', **self.config['iron_cache_creds']
-        )
+        self.cache = IronCache(name='bot', **self.config['iron_cache'])
         self.database = database
         self.destiny = destiny
 
