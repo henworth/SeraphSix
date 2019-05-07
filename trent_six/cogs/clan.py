@@ -21,12 +21,12 @@ class ClanCog(commands.Cog, name='Clan'):
         self.bot = bot
 
     @commands.group()
-    @clan_is_linked()
     async def clan(self, ctx):
         if ctx.invoked_subcommand is None:
             await ctx.send(f"Invalid command `{ctx.message.content}`")
 
     @clan.command()
+    @clan_is_linked()
     @commands.guild_only()
     async def info(self, ctx):
         async with ctx.typing():
@@ -62,6 +62,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(embed=embed)
 
     @clan.command()
+    @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
@@ -108,6 +109,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(embed=embed)
 
     @clan.command()
+    @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
@@ -154,6 +156,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(embed=embed)
 
     @clan.command()
+    @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
@@ -205,6 +208,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(f"Invited \"{gamertag}\" to clan. NOT REALLY, THIS IS A TEST")
 
     @clan.command(help="Sync member list with Bungie")
+    @clan_is_linked()
     @is_clan_member()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
@@ -301,6 +305,7 @@ class ClanCog(commands.Cog, name='Clan'):
         help="Show totals of all eligible clan games for all members",
         usage=f"<{', '.join(destiny_constants.SUPPORTED_GAME_MODES.keys())}>"
     )
+    @clan_is_linked()
     @is_valid_game_mode()
     @commands.guild_only()
     async def games(self, ctx, game_mode: str):
