@@ -6,10 +6,11 @@ from datetime import datetime
 from discord.ext import commands
 from discord.errors import HTTPException
 from peewee import DoesNotExist
-from trent_six.cogs.utils.checks import is_valid_game_mode, is_clan_member, is_registered
-from trent_six.destiny import constants
+
+from trent_six.cogs.utils import constants as util_constants
+from trent_six.cogs.utils.checks import is_valid_game_mode, is_registered, clan_is_linked
+from trent_six.destiny import constants as destiny_constants
 from trent_six.destiny.activity import get_all_history
-from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.destiny.models import User, Member
 
 logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class ClanCog(commands.Cog, name='Clan'):
         self.bot = bot
 
     @commands.group()
+    @clan_is_linked()
     async def clan(self, ctx):
         if ctx.invoked_subcommand is None:
             await ctx.send(f"Invalid command `{ctx.message.content}`")
@@ -33,6 +35,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
             group = res['Response']
             embed = discord.Embed(
+                colour=util_constants.BLUE,
                 title=group['detail']['motto'],
                 description=group['detail']['about']
             )
@@ -86,6 +89,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 await self.bot.database.update_member(member_db)
 
         embed = discord.Embed(
+            colour=util_constants.BLUE,
             title=f"Pending Clan Members"
         )
 
@@ -131,6 +135,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 await self.bot.database.update_member(member_db)
 
         embed = discord.Embed(
+            colour=util_constants.BLUE,
             title=f"Invited Clan Members"
         )
 
@@ -160,7 +165,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
             try:
                 player = await self.bot.destiny.api.search_destiny_player(
-                    constants.PLATFORM_XBOX, gamertag
+                    destiny_constants.PLATFORM_XBOX, gamertag
                 )
             except pydest.PydestException:
                 await ctx.send(f"Invalid gamertag {gamertag}")
@@ -168,7 +173,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
             membership_id = None
             for membership in player['Response']:
-                if membership['membershipType'] == constants.PLATFORM_XBOX and membership['displayName'] == gamertag:
+                if membership['membershipType'] == destiny_constants.PLATFORM_XBOX and membership['displayName'] == gamertag:
                     membership_id = membership['membershipId']
                     break
 
@@ -179,7 +184,7 @@ class ClanCog(commands.Cog, name='Clan'):
             try:
                 await self.bot.destiny.api.group_invite_member(
                     group_id=clan_db.clan_id,
-                    membership_type=constants.PLATFORM_XBOX,
+                    membership_type=destiny_constants.PLATFORM_XBOX,
                     membership_id=membership_id,
                     access_token=member_db.bungie_access_token
                 )
@@ -189,7 +194,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 )
                 await self.bot.destiny.api.group_invite_member(
                     group_id=clan_db.clan_id,
-                    membership_type=constants.PLATFORM_XBOX,
+                    membership_type=destiny_constants.PLATFORM_XBOX,
                     membership_id=membership_id,
                     access_token=tokens['access_token']
                 )
@@ -213,7 +218,7 @@ class ClanCog(commands.Cog, name='Clan'):
                     bungie_username=member.memberships.bungie.username,
                     join_date=member.join_date,
                     xbox_id=member.memberships.xbox.id,
-                    xbox_username=member.memberships.bungie.username
+                    xbox_username=member.memberships.xbox.username
                 )
 
             bungie_member_set = set(
@@ -294,7 +299,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
     @clan.command(
         help="Show totals of all eligible clan games for all members",
-        usage=f"<{', '.join(SUPPORTED_GAME_MODES.keys())}>"
+        usage=f"<{', '.join(destiny_constants.SUPPORTED_GAME_MODES.keys())}>"
     )
     @is_valid_game_mode()
     @commands.guild_only()
@@ -314,7 +319,8 @@ class ClanCog(commands.Cog, name='Clan'):
                     games[game] = count
 
             embed = discord.Embed(
-                title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for All Members",
+                colour=util_constants.BLUE,
+                title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for All Members"
             )
 
             total_count = 0

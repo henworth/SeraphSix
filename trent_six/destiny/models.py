@@ -2,38 +2,47 @@ from datetime import datetime
 from trent_six.destiny import constants
 
 
+class UserMembership(object):
+
+    def __init__(self):
+        self.id = None
+        self.username = None
+
+    def __call__(self, details):
+        self.id = int(details['membershipId'])
+        self.username = details['displayName']
+
+
 class User(object):
 
-    class memberships(object):
-        pass
+    class Memberships(object):
+        def __init__(self):
+            self.blizzard = UserMembership()
+            self.bungie = UserMembership()
+            self.psn = UserMembership()
+            self.xbox = UserMembership()
 
     def __init__(self, details):
+        self.memberships = self.Memberships()
+
         if details.get('destinyUserInfo'):
             self._process_membership(details['destinyUserInfo'])
         elif details.get('destinyMemberships'):
             for entry in details['destinyMemberships']:
                 self._process_membership(entry)
-            self.memberships.bungie = UserMembership(details['bungieNetUser'])
 
         if details.get('bungieNetUserInfo'):
             self._process_membership(details['bungieNetUserInfo'])
 
     def _process_membership(self, entry):
         if entry['membershipType'] == constants.PLATFORM_BLIZ:
-            self.memberships.blizzard = UserMembership(entry)
+            self.memberships.blizzard(entry)
         elif entry['membershipType'] == constants.PLATFORM_XBOX:
-            self.memberships.xbox = UserMembership(entry)
+            self.memberships.xbox(entry)
         elif entry['membershipType'] == constants.PLATFORM_PSN:
-            self.memberships.psn = UserMembership(entry)
+            self.memberships.psn(entry)
         elif entry['membershipType'] == constants.PLATFORM_BNG:
-            self.memberships.bungie = UserMembership(entry)
-
-
-class UserMembership(object):
-
-    def __init__(self, details):
-        self.id = int(details['membershipId'])
-        self.username = details['displayName']
+            self.memberships.bungie(entry)
 
 
 class Member(User):

@@ -76,3 +76,14 @@ def twitter_enabled():
             return True
         raise ConfigurationError("Twitter support is not enabled at the bot level")
     return commands.check(predicate)
+
+
+def clan_is_linked():
+    async def predicate(ctx):
+        try:
+            await ctx.bot.database.get_clan_by_guild(ctx.guild.id)
+        except DoesNotExist:
+            raise ConfigurationError(
+                f"Server **{ctx.message.guild.name}** has not been linked to a Bungie clan, please run `?server clanlink` first")
+        return True
+    return commands.check(predicate)

@@ -67,7 +67,7 @@ class ServerCog(commands.Cog, name='Server'):
         #     return await manager.clean_messages()
 
         await self.bot.database.create_guild(ctx.guild.id)
-        await manager.send_message(f"Guild **{ctx.message.guild.name}** setup")
+        await manager.send_message(f"Server **{ctx.message.guild.name}** setup")
         return await manager.clean_messages()
 
     @server.command()
@@ -86,7 +86,7 @@ class ServerCog(commands.Cog, name='Server'):
         group_name = res['Response']['detail']['name']
 
         await self.bot.database.create_clan(group_id, ctx.guild.id)
-        await manager.send_message(f"Guild **{ctx.message.guild.name}** linked to Clan **{group_name}**")
+        await manager.send_message(f"Server **{ctx.message.guild.name}** linked to Clan **{group_name}**")
         return await manager.clean_messages()
 
     @server.command()

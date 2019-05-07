@@ -32,12 +32,13 @@ async def _prefix_callable(bot, message):
     if isinstance(message.channel, discord.abc.PrivateChannel):
         base.append('?')
     else:
-        guild = await bot.database.get_guild(message.guild.id)
-        if guild:
-            base.append(guild.prefix)
-        else:
-            bot.db.add_guild(message.guild.id)
+        try:
+            guild = await bot.database.get_guild(message.guild.id)
+        except DoesNotExist:
+            await bot.database.create_guild(message.guild.id)
             base.append('?')
+        else:
+            base.append(guild.prefix)
     return base
 
 
