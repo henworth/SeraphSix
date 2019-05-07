@@ -99,7 +99,10 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
 
             for activity_id in activity_ids:
                 pgcr = await get_activity(destiny, activity_id)
-                game = Game(pgcr['Response'])
+                try:
+                    game = Game(pgcr['Response'])
+                except KeyError:
+                    continue
 
                 # Loop through all players to find any members that completed
                 # the game session. Also check if the member joined before
