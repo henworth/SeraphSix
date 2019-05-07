@@ -8,7 +8,7 @@ from discord.errors import HTTPException
 from peewee import DoesNotExist
 
 from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import is_valid_game_mode, is_registered, clan_is_linked
+from trent_six.cogs.utils.checks import is_clan_member, is_valid_game_mode, is_registered, clan_is_linked
 from trent_six.destiny import constants as destiny_constants
 from trent_six.destiny.activity import get_all_history
 from trent_six.destiny.models import User, Member
