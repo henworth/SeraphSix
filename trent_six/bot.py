@@ -108,17 +108,18 @@ class TrentSix(commands.Bot):
                 if peony.events.tweet(tweet):
                     if tweet.in_reply_to_status_id:
                         continue
-                    twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
+
+                    channel = None
                     if tweet.user.id == self.TWITTER_XBOX_SUPPORT and xbox_channels:
                         for xbox_channel in xbox_channels:
-                            xbox_channel = self.get_channel(
-                                xbox_channel.channel_id)
-                            await xbox_channel.send(twitter_url)
+                            channel = self.get_channel(xbox_channel.channel_id)
                     elif tweet.user.id == self.TWITTER_DTG and dtg_channels:
                         for dtg_channel in dtg_channels:
-                            dtg_channel = self.get_channel(
-                                xbox_channel.channel_id)
-                            await dtg_channel.send(twitter_url)
+                            channel = self.get_channel(dtg_channel.channel_id)
+
+                    if channel:
+                        twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
+                        await channel.send(twitter_url)
 
     async def build_cache(self, guild_id: int):
         self.caches[str(guild_id)] = IronCache(name=guild_id, **self.config['iron_cache'])
