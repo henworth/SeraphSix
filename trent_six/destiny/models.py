@@ -33,16 +33,22 @@ class User(object):
 
         if details.get('bungieNetUserInfo'):
             self._process_membership(details['bungieNetUserInfo'])
+        
+        if details.get('bungieNetUser'):
+            self._process_membership(details['bungieNetUser'])
 
     def _process_membership(self, entry):
-        if entry['membershipType'] == constants.PLATFORM_BLIZ:
-            self.memberships.blizzard(entry)
-        elif entry['membershipType'] == constants.PLATFORM_XBOX:
-            self.memberships.xbox(entry)
-        elif entry['membershipType'] == constants.PLATFORM_PSN:
-            self.memberships.psn(entry)
-        elif entry['membershipType'] == constants.PLATFORM_BNG:
+        if not 'membershipType' in entry.keys():
             self.memberships.bungie(entry)
+        else:
+            if entry['membershipType'] == constants.PLATFORM_BLIZ:
+                self.memberships.blizzard(entry)
+            elif entry['membershipType'] == constants.PLATFORM_XBOX:
+                self.memberships.xbox(entry)
+            elif entry['membershipType'] == constants.PLATFORM_PSN:
+                self.memberships.psn(entry)
+            elif entry['membershipType'] == constants.PLATFORM_BNG:
+                self.memberships.bungie(entry)
 
 
 class Member(User):

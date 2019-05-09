@@ -10,7 +10,7 @@ warnings.filterwarnings('ignore', category=UserWarning, module='psycopg2')
 
 from discord.ext.commands import Bot
 from trent_six.bot import TrentSix
-from trent_six.database import Database, Member
+from trent_six.database import Database
 
 
 def config_loader(filename='config.json'):

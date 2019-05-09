@@ -41,7 +41,11 @@ def is_message(message):
 
 def is_valid_game_mode():
     def predicate(ctx):
-        game_mode = ctx.message.content.split()[2]
+        try:
+            game_mode = ctx.message.content.split()[2]
+        except IndexError:
+            raise commands.CommandError(
+                f"Missing game mode, supported are `{', '.join(SUPPORTED_GAME_MODES.keys())}`")
         if game_mode in SUPPORTED_GAME_MODES.keys():
             return True
         raise InvalidGameModeError(game_mode, SUPPORTED_GAME_MODES.keys())
@@ -51,7 +55,13 @@ def is_valid_game_mode():
 def is_clan_member():
     async def predicate(ctx):
         try:
-            await ctx.bot.database.get_member_by_discord_id(ctx.author.id)
+            clan_db = await ctx.bot.database.get_clan_by_guild(ctx.message.guild.id)
+        except DoesNotExist:
+            raise ConfigurationError(
+                f"Server **{ctx.message.guild.name}** has not been linked to a Bungie clan, please run `?server clanlink` first")
+
+        try:
+            await ctx.bot.database.get_clan_member_by_discord_id(ctx.author.id, clan_db.clan_id)
         except DoesNotExist:
             raise InvalidMemberError
         return True

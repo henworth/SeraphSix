@@ -5,6 +5,7 @@ from peewee import fn, Model, CharField, BigIntegerField, IntegerField, ForeignK
 from peewee_async import Manager
 from peewee_asyncext import PostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
+from trent_six.destiny import constants
 from urllib.parse import urlparse
 
 database_proxy = Proxy()
@@ -24,27 +25,32 @@ class Guild(BaseModel):
 class Clan(BaseModel):
     clan_id = BigIntegerField(unique=True)
     guild = ForeignKeyField(Guild)
+    name = CharField()
+    callsign = CharField(max_length=4)
 
 
-class User(BaseModel):
+class Member(BaseModel):
     discord_id = BigIntegerField(null=True)
     
-    bungie_id = BigIntegerField(unique=True)
+    bungie_id = BigIntegerField(null=True)
     bungie_username = CharField(null=True)
 
-    xbox_id = BigIntegerField(unique=True, null=True)
+    xbox_id = BigIntegerField(null=True)
     xbox_username = CharField(unique=True, null=True)
     
-    psn_id = BigIntegerField(unique=True, null=True)
+    psn_id = BigIntegerField(null=True)
     psn_username = CharField(unique=True, null=True)
 
-    blizzard_id = BigIntegerField(unique=True, null=True)
+    blizzard_id = BigIntegerField(null=True)
     blizzard_username = CharField(unique=True, null=True)
 
-    the100_id = CharField(unique=True, null=True)
+    the100_id = CharField(null=True)
     the100_username = CharField(unique=True, null=True)
 
     timezone = CharField(null=True)
+
+    join_date = DateTimeTZField()
+    is_active = BooleanField(default=True)
 
     bungie_access_token = CharField(max_length=360, unique=True, null=True)
     bungie_refresh_token = CharField(max_length=360, unique=True, null=True)
@@ -58,40 +64,11 @@ class User(BaseModel):
 
 class ClanMember(BaseModel):
     clan = ForeignKeyField(Clan)
+    member = ForeignKeyField(Member)
+    platform_id = IntegerField()
     join_date = DateTimeTZField()
     is_active = BooleanField(default=True)
     last_active = DateTimeTZField(null=True)
-
-
-class Member(BaseModel):
-    bungie_id = BigIntegerField(unique=True)
-    bungie_username = CharField(null=True)
-    discord_id = BigIntegerField(null=True, index=True)
-    join_date = DateTimeTZField()
-    xbox_id = BigIntegerField(unique=True, null=True)
-    xbox_username = CharField(unique=True)
-    is_active = BooleanField(default=True)
-    the100_username = CharField(null=True)
-    timezone = CharField(null=True)
-    bungie_access_token = CharField(max_length=360, unique=True, null=True)
-    bungie_refresh_token = CharField(max_length=360, unique=True, null=True)
-
-    class Meta:
-        indexes = (
-            (('bungie_id', 'xbox_username'), True),
-        )
-
-
-class GameSession(BaseModel):
-    member = ForeignKeyField(Member, backref='gamesessions')
-    game_mode_id = IntegerField(index=True)
-    count = IntegerField()
-    last_updated = DateTimeTZField(default=datetime.now(timezone.utc))
-
-    class Meta:
-        indexes = (
-            (('member_id', 'game_mode_id'), True),
-        )
 
 
 class Game(BaseModel):
@@ -103,6 +80,16 @@ class Game(BaseModel):
     class Meta:
         indexes = (
             (('mode_id', 'reference_id'), False),
+        )
+
+
+class ClanGame(BaseModel):
+    clan = ForeignKeyField(Clan)
+    game = ForeignKeyField(Game)
+
+    class Meta:
+        indexes = (
+            (('clan', 'game'), True),
         )
 
 
@@ -142,46 +129,14 @@ class Database:
 
     def initialize(self):
         database_proxy.initialize(self._database)
-        Member.create_table(True)
-        Game.create_table(True)
-        GameMember.create_table(True)
-        GameSession.create_table(True)
-        TwitterChannel.create_table(True)
         Guild.create_table(True)
+        Member.create_table(True)
         Clan.create_table(True)
-        User.create_table(True)
         ClanMember.create_table(True)
-
-    async def get_game_session(self, member_name, game_mode_id):
-        query = GameSession.select().join(Member).where(
-            GameSession.game_mode_id == game_mode_id,
-            Member.xbox_username == member_name
-        )
-        return await self.objects.get(query)
-
-    async def create_game_session(self, member_name, game_details):
-        member = await self.get_member_by_xbox_username(member_name)
-        return await self.objects.create(GameSession, **{'member': member, **game_details})
-
-    async def update_game_session(self, member_name, game_mode_id, count):
-        game_session = await self.get_game_session(member_name, game_mode_id)
-        game_session.count = game_session.count + count
-        game_session.last_updated = datetime.now(timezone.utc)
-        return await self.objects.update(game_session)
-
-    async def get_game_sessions(self, member_name):
-        query = GameSession.select().join(Member).where(
-            Member.xbox_username == member_name)
-        return await self.objects.get(query)
-
-    async def get_game_session_sum(self, member_name, mode_ids):
-        query = GameSession.select(
-            fn.SUM(GameSession.game_mode_id)
-        ).join(Member).where(
-            (Member.xbox_username == member_name) &
-            (GameSession.game_mode_id << mode_ids)
-        )
-        return await self.objects.get(query)
+        Game.create_table(True)
+        ClanGame.create_table(True)
+        GameMember.create_table(True)
+        TwitterChannel.create_table(True)
 
     async def get_game_count(self, member_name, mode_ids):
         # select count(game.id) from game
@@ -208,28 +163,31 @@ class Database:
         )
         return await self.objects.execute(query)
 
-    async def get_member_by_xbox_username(self, member_name):
-        return await self.objects.get(Member, xbox_username=member_name)
+    async def get_member_by_platform(self, member_id, platform_id):
+        if platform_id == constants.PLATFORM_BLIZ:
+            query = Member.get(Member.blizzard_id == member_id)
+        elif platform_id == constants.PLATFORM_BNG:
+            query = Member.get(Member.bungie_id == member_id)
+        elif platform_id == constants.PLATFORM_PSN:
+            query = Member.get(Member.psn_id == member_id)
+        elif platform_id == constants.PLATFORM_XBOX:
+            query = Member.get(Member.xbox_id == member_id)
+        return await self.objects.execute(query)
+
+    async def get_member_by_xbox_username(self, username):
+        return await self.objects.get(Member, xbox_username=username)
 
     async def get_member_by_discord_id(self, discord_id):
         return await self.objects.get(Member, discord_id=discord_id)
 
     async def get_member_by_bungie_id(self, bungie_id):
-        return await self.objects.get(Member, bungie_id=bungie_id)
+        return await self.get_member_by_platform(bungie_id, constants.PLATFORM_BNG)
 
     async def get_member_by_xbox_id(self, xbox_id):
-        return await self.objects.get(Member, xbox_id=xbox_id)
+        return await self.get_member_by_platform(xbox_id, constants.PLATFORM_XBOX)
 
-    async def create_member(self, member_details):
-        return await self.objects.create(Member, **member_details)
-
-    async def update_member(self, member):
-        return await self.objects.update(member)
-
-    async def get_members(self, active_only=True):
-        return await self.objects.execute(
-            Member.select().where(Member.is_active == active_only)
-        )
+    async def update(self, db_object):
+        return await self.objects.update(db_object)
 
     async def get_game(self, instance_id):
         return await self.objects.get(Game, instance_id=instance_id)
@@ -239,6 +197,9 @@ class Database:
 
     async def create_game(self, game_details, members):
         game = await self.objects.create(Game, **game_details)
+        member_db = await self.get_member_by_xbox_username(members[0])
+        clan = await self.get_clan_by_member(member_db.id)
+        await self.objects.create(ClanGame, game=game, clan=clan)
         for member in members:
             member_db = await self.get_member_by_xbox_username(member)
             await self.objects.create(GameMember, member=member_db.id, game=game.id)
@@ -270,23 +231,69 @@ class Database:
     async def create_guild(self, guild_id):
         return await self.objects.create(Guild, **{'guild_id': guild_id})
 
+    async def get_guilds(self):
+        return await self.objects.execute(Guild.select())
+
     async def get_clan(self, clan_id):
         return await self.objects.get(Clan, clan_id=clan_id)
 
     async def update_clan(self, clan):
         return await self.objects.update(clan)
 
-    async def create_clan(self, clan_id, guild_id):
+    async def create_clan(self, guild_id, **clan_details):
         guild = await self.get_guild(guild_id)
-        return await self.objects.create(Clan, **{'clan_id': clan_id, 'guild': guild})
+        clan_details.update({'guild': guild})
+        return await self.objects.create(Clan, **clan_details)
+
+    async def create_clan_member(self, member_db, clan_id, **member_details):
+        clan = await self.get_clan(clan_id)
+        return await self.objects.create(
+            ClanMember, clan=clan, member=member_db, **member_details)
+
+    async def get_clan_members(self, clan_id, active_only=True):
+        return await self.objects.execute(
+            Member.select().join(ClanMember).join(Clan).where(
+                ClanMember.is_active == active_only,
+                Clan.clan_id == clan_id
+            )
+        )
+
+    async def get_clan_members_by_guild_id(self, guild_id, as_dict=False):
+        if as_dict:
+            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
+                Guild.guild_id == guild_id,
+            ).dicts()
+        else:
+            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
+                Guild.guild_id == guild_id,
+            )
+        return await self.objects.execute(query)
+
+    async def get_clan_member_by_discord_id(self, discord_id, clan_id):
+        return await self.objects.get(
+            Member.select().join(ClanMember).join(Clan).where(
+                Clan.clan_id == clan_id,
+                Member.discord_id == discord_id
+            )
+        )
 
     async def get_clan_by_guild(self, guild_id):
-        query = Clan.select(
-            Clan.clan_id
-        ).join(Guild).where(
+        query = Clan.select().join(Guild).where(
             Guild.guild_id == guild_id
         )
         return await self.objects.get(query)
+
+    async def get_clan_by_member(self, member_id):
+        query = Clan.select().join(ClanMember).join(Member).where(
+            Member.id == member_id
+        )
+        return await self.objects.get(query)
+
+    async def create_member(self, member_details):
+        return await self.objects.create(Member, **member_details)
+
+    async def get_members(self, is_active=False):
+        return await self.objects.execute(Member.select().where(Member.is_active == is_active))
 
     def close(self):
         asyncio.ensure_future(self.objects.close())

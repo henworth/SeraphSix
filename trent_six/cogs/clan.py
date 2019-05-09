@@ -1,5 +1,6 @@
 import discord
 import logging
+import jsonpickle
 import pydest
 
 from datetime import datetime
@@ -87,11 +88,11 @@ class ClanCog(commands.Cog, name='Clan'):
                 )
                 member_db.bungie_access_token = tokens['access_token']
                 member_db.bungie_refresh_token = tokens['refresh_token']
-                await self.bot.database.update_member(member_db)
+                await self.bot.database.update(member_db)
 
         embed = discord.Embed(
             colour=util_constants.BLUE,
-            title=f"Pending Clan Members"
+            title=f"Pending Clan Members in {clan_db.name}"
         )
 
         if len(members['Response']['results']) == 0:
@@ -101,10 +102,11 @@ class ClanCog(commands.Cog, name='Clan'):
                 bungie_name = member['destinyUserInfo']['displayName']
                 bungie_member_id = member['destinyUserInfo']['membershipId']
                 bungie_member_type = member['destinyUserInfo']['membershipType']
+                date_applied = datetime.strptime(
+                    member['creationDate'], '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%d %H:%M:%S %Z')
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
-                bungie_link = f"[{bungie_name}]({bungie_url})"
-                date_applied = member['resolveDate']
-                embed.add_field(name=bungie_link, value=date_applied)
+                member_info = f"Date Applied: {date_applied}\nProfile: {bungie_url}"
+                embed.add_field(name=bungie_name, value=member_info)
 
         await ctx.send(embed=embed)
 
@@ -134,11 +136,11 @@ class ClanCog(commands.Cog, name='Clan'):
                 )
                 member_db.bungie_access_token = tokens['access_token']
                 member_db.bungie_refresh_token = tokens['refresh_token']
-                await self.bot.database.update_member(member_db)
+                await self.bot.database.update(member_db)
 
         embed = discord.Embed(
             colour=util_constants.BLUE,
-            title=f"Invited Clan Members"
+            title=f"Invited Clan Members in {clan_db.name}"
         )
 
         if len(members['Response']['results']) == 0:
@@ -148,10 +150,11 @@ class ClanCog(commands.Cog, name='Clan'):
                 bungie_name = member['destinyUserInfo']['displayName']
                 bungie_member_id = member['destinyUserInfo']['membershipId']
                 bungie_member_type = member['destinyUserInfo']['membershipType']
+                date_applied = datetime.strptime(
+                    member['creationDate'], '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%d %H:%M:%S %Z')
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
-                bungie_link = f"[{bungie_name}]({bungie_url})"
-                date_applied = member['resolveDate']
-                embed.add_field(name=bungie_link, value=date_applied)
+                member_info = f"Date Invited: {date_applied}\nProfile: {bungie_url}"
+                embed.add_field(name=bungie_name, value=member_info)
 
         await ctx.send(embed=embed)
 
@@ -185,27 +188,34 @@ class ClanCog(commands.Cog, name='Clan'):
                 return
 
             try:
-                await self.bot.destiny.api.group_invite_member(
+                res = await self.bot.destiny.api.group_invite_member(
                     group_id=clan_db.clan_id,
                     membership_type=destiny_constants.PLATFORM_XBOX,
                     membership_id=membership_id,
+                    message=f"Join my clan {clan_db.name}!",
                     access_token=member_db.bungie_access_token
                 )
             except pydest.PydestTokenException:
                 tokens = await self.bot.destiny.api.refresh_oauth_token(
                     member_db.bungie_refresh_token
                 )
-                await self.bot.destiny.api.group_invite_member(
+                res = await self.bot.destiny.api.group_invite_member(
                     group_id=clan_db.clan_id,
                     membership_type=destiny_constants.PLATFORM_XBOX,
                     membership_id=membership_id,
+                    message=f"Join my clan {clan_db.name}!",
                     access_token=tokens['access_token']
                 )
                 member_db.bungie_access_token = tokens['access_token']
                 member_db.bungie_refresh_token = tokens['refresh_token']
-                await self.bot.database.update_member(member_db)
+                await self.bot.database.update(member_db)
 
-        await ctx.send(f"Invited \"{gamertag}\" to clan. NOT REALLY, THIS IS A TEST")
+            if res['ErrorStatus'] == 'ClanTargetDisallowsInvites':
+                message = f"User **{gamertag}** has disabled clan invites"
+            else:
+                message = f"Invited **{gamertag}** to clan **{clan_db.name}**"
+
+        await ctx.send(message)
 
     @clan.command(help="Sync member list with Bungie")
     @clan_is_linked()
@@ -230,7 +240,7 @@ class ClanCog(commands.Cog, name='Clan'):
             )
 
             db_members = {}
-            for member in await self.bot.database.get_members():
+            for member in await self.bot.database.get_clan_members(clan_db.clan_id):
                 db_members[member.xbox_id] = member
 
             db_member_set = set(
@@ -239,18 +249,27 @@ class ClanCog(commands.Cog, name='Clan'):
 
             new_members = bungie_member_set - db_member_set
             purged_members = db_member_set - bungie_member_set
-
             for member_xbox_id in new_members:
+                member_info = bungie_members[member_xbox_id]
                 try:
-                    member_db = await self.bot.database.get_member_by_xbox_id(member_xbox_id)
+                    member_db = await self.bot.database.get_member_by_platform(
+                        member_xbox_id, destiny_constants.PLATFORM_XBOX)
                 except DoesNotExist:
-                    member_db = await self.bot.database.create_member(bungie_members[member_xbox_id])
+                    join_date = member_info['join_date']
+                    member_db = await self.bot.database.create_member(member_info)
+                    await self.bot.database.create_clan_member(
+                        member_db,
+                        clan_db.clan_id,
+                        join_date=join_date,
+                        platform_id=destiny_constants.PLATFORM_XBOX,
+                        is_active=True
+                    )
 
                 if not member_db.is_active:
                     try:
                         member_db.is_active = True
-                        member_db.join_date = bungie_members[member_xbox_id]['join_date']
-                        await self.bot.database.update_member(member_db)
+                        member_db.join_date = member_info['join_date']
+                        await self.bot.database.update(member_db)
                     except Exception:
                         logging.exception(
                             f"Could update member \"{member_db.xbox_username}\"")
@@ -259,12 +278,16 @@ class ClanCog(commands.Cog, name='Clan'):
             for member in purged_members:
                 member_db = db_members[member]
                 member_db.is_active = False
-                await self.bot.database.update_member(member_db)
+                await self.bot.database.update(member_db)
 
-            members = [member.xbox_username for member in await self.bot.database.get_members()]
-            self.bot.cache.put('members', members)
+            members = [
+                jsonpickle.encode(member)
+                for member in await self.bot.database.get_clan_members_by_guild_id(ctx.guild.id)
+            ]
+            self.bot.caches[str(ctx.guild.id)].put('members', members)
 
         embed = discord.Embed(
+            colour=util_constants.BLUE,
             title="Membership Changes"
         )
 

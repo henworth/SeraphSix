@@ -160,7 +160,7 @@ Example: ?member games raid
                 try:
                     member_db = await self.bot.database.get_member_by_discord_id(discord_id)
                 except DoesNotExist:
-                    await ctx.send(f"User {ctx.author.display_name} has not been linked a Gamertag or is not a clan member")
+                    await ctx.send(f"User {ctx.author.display_name} has not registered or is not a clan member")
                     return
                 logging.info(
                     f"Getting {game_mode} games by Discord id {discord_id} for {ctx.author.display_name}")

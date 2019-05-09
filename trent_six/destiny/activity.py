@@ -1,5 +1,6 @@
 import ast
 import backoff
+import jsonpickle
 import logging
 import pydest
 
@@ -61,18 +62,14 @@ async def get_all_history(database, destiny, game_mode):
     return game_counts
 
 
-async def store_member_history(cache, database, destiny, member_name, game_mode):
-    members = ast.literal_eval(cache.get('members').value)
+async def store_member_history(members, database, destiny, member_db, game_mode):
+    members = [jsonpickle.decode(member).xbox_username for member in members]
 
-    member_db = await database.get_member_by_xbox_username(member_name)
-    member_id = member_db.xbox_id
-    member_join_date = member_db.join_date
-
-    profile = await get_profile(destiny, member_id)
+    profile = await get_profile(destiny, member_db.xbox_id)
     try:
         char_ids = profile['Response']['characters']['data'].keys()
     except KeyError:
-        logging.error(f"{member_name}: {profile}")
+        logging.error(f"{member_db.xbox_username}: {profile}")
         return
 
     mode_count = 0
@@ -84,7 +81,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
 
         for char_id in char_ids:
             activity = await get_activity_list(
-                destiny, member_id, char_id, game_mode_id
+                destiny, member_db.xbox_id, char_id, game_mode_id
             )
 
             try:
@@ -102,6 +99,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
                 try:
                     game = Game(pgcr['Response'])
                 except KeyError:
+                    logging.error(f"{member_db.xbox_username}: {pgcr}")
                     continue
 
                 # Loop through all players to find any members that completed
@@ -110,8 +108,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
                 players = []
                 for player in game.players:
                     if player['completed'] and player['name'] in members:
-                        member_db = await database.get_member_by_xbox_username(player['name'])
-                        if game.date > member_db.join_date:
+                        if game.date > member_db.clanmember.join_date:
                             players.append(player['name'])
 
                 # Check if player count is below the threshold, or if the game
@@ -120,7 +117,7 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
                 # game is not eligible.
                 if (len(players) < player_threshold or
                         game.date < constants.FORSAKEN_RELEASE or
-                        game.date < member_join_date):
+                        game.date < member_db.clanmember.join_date):
                     continue
 
                 game_details = {
@@ -138,11 +135,11 @@ async def store_member_history(cache, database, destiny, member_name, game_mode)
                     game_db.reference_id = game.reference_id
                     await database.update_game(game_db)
                     logging.info(
-                        f"{game_title} game id {activity_id} exists for {member_name}, skipping")
+                        f"{game_title} game id {activity_id} exists for {member_db.xbox_username}, skipping")
                     continue
                 else:
                     mode_count += 1
                     logging.info(
-                        f"{game_title} game id {activity_id} created for {member_name}")
+                        f"{game_title} game id {activity_id} created for {member_db.xbox_username}")
 
     return mode_count

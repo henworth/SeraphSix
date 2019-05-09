@@ -84,8 +84,9 @@ class ServerCog(commands.Cog, name='Server'):
 
         res = await self.bot.destiny.api.get_group(group_id)
         group_name = res['Response']['detail']['name']
+        callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 
-        await self.bot.database.create_clan(group_id, ctx.guild.id)
+        await self.bot.database.create_clan(ctx.guild.id, clan_id=group_id, name=group_name, callsign=callsign)
         await manager.send_message(f"Server **{ctx.message.guild.name}** linked to Clan **{group_name}**")
         return await manager.clean_messages()
 
