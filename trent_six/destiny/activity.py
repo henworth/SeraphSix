@@ -134,7 +134,7 @@ async def store_member_history(members, database, destiny, member_db, game_mode)
                     game_db = await database.get_game(game.instance_id)
                     game_db.reference_id = game.reference_id
                     await database.update_game(game_db)
-                    logging.info(
+                    logging.debug(
                         f"{game_title} game id {activity_id} exists for {member_db.xbox_username}, skipping")
                     continue
                 else:

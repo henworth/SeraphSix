@@ -109,17 +109,19 @@ class TrentSix(commands.Bot):
                     if tweet.in_reply_to_status_id:
                         continue
 
-                    channel = None
+                    twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
                     if tweet.user.id == self.TWITTER_XBOX_SUPPORT and xbox_channels:
                         for xbox_channel in xbox_channels:
+                            logging.info(
+                                f"Sending tweet {tweet.id} by {tweet.user.screen_name} to {xbox_channel.channel_id}")
                             channel = self.get_channel(xbox_channel.channel_id)
+                            await channel.send(twitter_url)
                     elif tweet.user.id == self.TWITTER_DTG and dtg_channels:
                         for dtg_channel in dtg_channels:
+                            logging.info(
+                                f"Sending tweet {tweet.id} by {tweet.user.screen_name} to {dtg_channel.channel_id}")
                             channel = self.get_channel(dtg_channel.channel_id)
-
-                    if channel:
-                        twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
-                        await channel.send(twitter_url)
+                            await channel.send(twitter_url)
 
     async def build_cache(self, guild_id: int):
         self.caches[str(guild_id)] = IronCache(name=guild_id, **self.config['iron_cache'])
