@@ -219,8 +219,12 @@ class Database:
         return await self.objects.create(
             TwitterChannel, **{'channel_id': channel_id, 'twitter_id': twitter_id})
 
-    async def get_twitter_channel(self, twitter_id):
-        return await self.objects.get(TwitterChannel, twitter_id=twitter_id)
+    async def get_twitter_channels(self, twitter_id):
+        # pylint: disable=assignment-from-no-return
+        query = TwitterChannel.select().where(
+            TwitterChannel.twitter_id == twitter_id
+        )
+        return await self.objects.execute(query)
 
     async def get_guild(self, guild_id):
         return await self.objects.get(Guild, guild_id=guild_id)
