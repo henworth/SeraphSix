@@ -361,7 +361,7 @@
         },
         "pydest": {
             "git": "https://github.com/henworth/pydest",
-            "ref": "c79d9fb954444aea5a393dc7aaf191607ef0bba2"
+            "ref": "2bc46377d2a9da9ec4ea93fb400592614863e919"
         },
         "pylint": {
             "hashes": [
