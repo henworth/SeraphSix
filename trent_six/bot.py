@@ -90,24 +90,18 @@ class TrentSix(commands.Bot):
         statuses = self.twitter.stream.statuses.filter.post(
             follow=[self.TWITTER_XBOX_SUPPORT, self.TWITTER_DTG])
 
-        dtg_channels = []
-        xbox_channels = []
+        dtg_channels = None
+        xbox_channels = None
 
         try:
-            xbox_channel_ids = await self.database.get_twitter_channels(self.TWITTER_XBOX_SUPPORT)
+            xbox_channels= await self.database.get_twitter_channels(self.TWITTER_XBOX_SUPPORT)
         except DoesNotExist:
             pass
-        else:
-            for xbox_channel_id in xbox_channel_ids:
-                xbox_channels.append(self.get_channel(xbox_channel_id))
 
         try:
-            dtg_channel_ids = await self.database.get_twitter_channels(self.TWITTER_DTG)
+            dtg_channels = await self.database.get_twitter_channels(self.TWITTER_DTG)
         except DoesNotExist:
             pass
-        else:
-            for dtg_channel_id in dtg_channel_ids:
-                dtg_channels.append(self.get_channel(dtg_channel_id))
 
         async with statuses as stream:
             async for tweet in stream:
@@ -117,9 +111,13 @@ class TrentSix(commands.Bot):
                     twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
                     if tweet.user.id == self.TWITTER_XBOX_SUPPORT and xbox_channels:
                         for xbox_channel in xbox_channels:
+                            xbox_channel = self.get_channel(
+                                xbox_channel.channel_id)
                             await xbox_channel.send(twitter_url)
                     elif tweet.user.id == self.TWITTER_DTG and dtg_channels:
                         for dtg_channel in dtg_channels:
+                            dtg_channel = self.get_channel(
+                                xbox_channel.channel_id)
                             await dtg_channel.send(twitter_url)
 
     async def build_cache(self, guild_id: int):
