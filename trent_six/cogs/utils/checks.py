@@ -3,7 +3,8 @@ import discord
 from discord.ext import commands
 from peewee import DoesNotExist
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
-from trent_six.errors import ConfigurationError, InvalidGameModeError, InvalidMemberError, NotRegisteredError
+from trent_six.errors import (ConfigurationError, InvalidCommandError,
+                              InvalidGameModeError, InvalidMemberError, NotRegisteredError)
 
 
 def is_event(message):
@@ -44,7 +45,7 @@ def is_valid_game_mode():
         try:
             game_mode = ctx.message.content.split()[2]
         except IndexError:
-            raise commands.CommandError(
+            raise InvalidCommandError(
                 f"Missing game mode, supported are `{', '.join(SUPPORTED_GAME_MODES.keys())}`")
         if game_mode in SUPPORTED_GAME_MODES.keys():
             return True
@@ -84,7 +85,8 @@ def twitter_enabled():
     def predicate(ctx):
         if hasattr(ctx.bot, 'twitter'):
             return True
-        raise ConfigurationError("Twitter support is not enabled at the bot level")
+        raise ConfigurationError(
+            "Twitter support is not enabled at the bot level")
     return commands.check(predicate)
 
 

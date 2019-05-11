@@ -17,7 +17,8 @@ from peewee import DoesNotExist
 
 from trent_six.destiny.activity import store_member_history
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
-from trent_six.errors import InvalidGameModeError, NotRegisteredError, ConfigurationError
+from trent_six.errors import (
+    InvalidCommandError, InvalidGameModeError, NotRegisteredError, ConfigurationError)
 
 logging.getLogger(__name__)
 
@@ -159,10 +160,8 @@ class TrentSix(commands.Bot):
         if isinstance(error, commands.MissingPermissions):
             text = f"{ctx.message.author.mention}: Sorry, but you do not have permissions to do that!"
             await ctx.send(text)
-        elif isinstance(error, (ConfigurationError, InvalidGameModeError, NotRegisteredError)):
+        elif isinstance(error, (ConfigurationError, InvalidCommandError, InvalidGameModeError, NotRegisteredError)):
             await ctx.send(error.message)
-        elif isinstance(error, commands.CommandError):
-            await ctx.send(error)
         elif isinstance(error, commands.CommandNotFound):
             await ctx.send(f"Invalid command `{ctx.message.content}`")
         else:

@@ -120,6 +120,10 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         gamertag = ' '.join(args)
 
+        if not gamertag:
+            await ctx.send(f"Gamertag is required")
+            return
+
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
 
