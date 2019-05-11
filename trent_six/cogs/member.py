@@ -10,9 +10,10 @@ from peewee import DoesNotExist
 from urllib.parse import quote
 
 from trent_six.bot import TrentSix
+from trent_six.cogs.utils import constants as util_constants
+from trent_six.cogs.utils.checks import is_valid_game_mode
 from trent_six.destiny.activity import get_member_history, store_member_history, get_all_history
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
-from trent_six.cogs.utils.checks import is_valid_game_mode
 
 logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ class MemberCog(commands.Cog, name='Member'):
             timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
 
         embed = discord.Embed(
+            colour=util_constants.BLUE,
             title=f"Member Info for {member_discord.display_name}"
         )
         embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
@@ -177,6 +179,7 @@ Example: ?member games raid
                 self.bot.database, self.bot.destiny, member_db.xbox_username, game_mode)
 
         embed = discord.Embed(
+            colour=util_constants.BLUE,
             title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_db.xbox_username}",
         )
 

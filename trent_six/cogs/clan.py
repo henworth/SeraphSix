@@ -332,19 +332,11 @@ class ClanCog(commands.Cog, name='Clan'):
     @is_valid_game_mode()
     @commands.guild_only()
     async def games(self, ctx, game_mode: str):
-        async with ctx.typing():
+        await ctx.trigger_typing()
             logging.info(f"Finding all {game_mode} games for all members")
 
-            games = {}
             game_counts = await get_all_history(
                 self.bot.database, self.bot.destiny, game_mode)
-
-            total_count = 0
-            for game, count in game_counts.items():
-                if game in games.keys():
-                    games[game] += count
-                else:
-                    games[game] = count
 
             embed = discord.Embed(
                 colour=util_constants.BLUE,
@@ -352,7 +344,10 @@ class ClanCog(commands.Cog, name='Clan'):
             )
 
             total_count = 0
-            for game, count in games.items():
+        if len(game_counts) == 1:
+            total_count, = game_counts.values()
+        else:
+            for game, count in game_counts.items():
                 embed.add_field(name=game.title(), value=str(count))
                 total_count += count
 
