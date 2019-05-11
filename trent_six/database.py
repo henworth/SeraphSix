@@ -165,13 +165,13 @@ class Database:
 
     async def get_member_by_platform(self, member_id, platform_id):
         if platform_id == constants.PLATFORM_BLIZ:
-            query = Member.get(Member.blizzard_id == member_id)
+            query = Member.get(Member, Member.blizzard_id == member_id)
         elif platform_id == constants.PLATFORM_BNG:
-            query = Member.get(Member.bungie_id == member_id)
+            query = Member.get(Member, Member.bungie_id == member_id)
         elif platform_id == constants.PLATFORM_PSN:
-            query = Member.get(Member.psn_id == member_id)
+            query = Member.get(Member, Member.psn_id == member_id)
         elif platform_id == constants.PLATFORM_XBOX:
-            query = Member.get(Member.xbox_id == member_id)
+            query = Member.get(Member, Member.xbox_id == member_id)
         return await self.objects.execute(query)
 
     async def get_member_by_xbox_username(self, username):
