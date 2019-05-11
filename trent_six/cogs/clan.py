@@ -333,17 +333,17 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.guild_only()
     async def games(self, ctx, game_mode: str):
         await ctx.trigger_typing()
-            logging.info(f"Finding all {game_mode} games for all members")
+        logging.info(f"Finding all {game_mode} games for all members")
 
-            game_counts = await get_all_history(
-                self.bot.database, self.bot.destiny, game_mode)
+        game_counts = await get_all_history(
+            self.bot.database, self.bot.destiny, game_mode)
 
-            embed = discord.Embed(
-                colour=util_constants.BLUE,
-                title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for All Members"
-            )
+        embed = discord.Embed(
+            colour=util_constants.BLUE,
+            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for All Members"
+        )
 
-            total_count = 0
+        total_count = 0
         if len(game_counts) == 1:
             total_count, = game_counts.values()
         else:
@@ -351,8 +351,8 @@ class ClanCog(commands.Cog, name='Clan'):
                 embed.add_field(name=game.title(), value=str(count))
                 total_count += count
 
-            embed.description = str(total_count)
-            await ctx.send(embed=embed)
+        embed.description = str(total_count)
+        await ctx.send(embed=embed)
 
     async def get_all_members(self, group_id):
         group = await self.bot.destiny.api.get_group_members(group_id)
