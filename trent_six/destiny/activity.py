@@ -63,7 +63,11 @@ async def get_all_history(database, destiny, game_mode):
 
 
 async def store_member_history(members, database, destiny, member_db, game_mode):
-    members = [jsonpickle.decode(member).xbox_username for member in members]
+    # Create a dict holding model references for all members key by their username
+    member_dbs = {}
+    for member in members:
+        temp = jsonpickle.decode(member)
+        member_dbs.update({temp.xbox_username: temp})
 
     profile = await get_profile(destiny, member_db.xbox_id)
     try:
@@ -107,8 +111,8 @@ async def store_member_history(members, database, destiny, member_db, game_mode)
                 # the game time.
                 players = []
                 for player in game.players:
-                    if player['completed'] and player['name'] in members:
-                        if game.date > member_db.clanmember.join_date:
+                    if player['completed'] and player['name'] in member_dbs.keys():
+                        if game.date > member_dbs[player['name']].clanmember.join_date:
                             players.append(player['name'])
 
                 # Check if player count is below the threshold, or if the game
