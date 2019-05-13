@@ -164,15 +164,16 @@ class Database:
         return await self.objects.execute(query)
 
     async def get_member_by_platform(self, member_id, platform_id):
+        # pylint: disable=assignment-from-no-return
         if platform_id == constants.PLATFORM_BLIZ:
-            query = Member.get(Member, Member.blizzard_id == member_id)
+            query = Member.select().where(Member.blizzard_id == member_id)
         elif platform_id == constants.PLATFORM_BNG:
-            query = Member.get(Member, Member.bungie_id == member_id)
+            query = Member.select().where(Member.bungie_id == member_id)
         elif platform_id == constants.PLATFORM_PSN:
-            query = Member.get(Member, Member.psn_id == member_id)
+            query = Member.select().where(Member.psn_id == member_id)
         elif platform_id == constants.PLATFORM_XBOX:
-            query = Member.get(Member, Member.xbox_id == member_id)
-        return await self.objects.execute(query)
+            query = Member.select().where(Member.xbox_id == member_id)
+        return await self.objects.get(query)
 
     async def get_member_by_xbox_username(self, username):
         return await self.objects.get(Member, xbox_username=username)
@@ -185,9 +186,6 @@ class Database:
 
     async def get_member_by_xbox_id(self, xbox_id):
         return await self.get_member_by_platform(xbox_id, constants.PLATFORM_XBOX)
-
-    async def update(self, db_object):
-        return await self.objects.update(db_object)
 
     async def get_game(self, instance_id):
         return await self.objects.get(Game, instance_id=instance_id)
@@ -275,7 +273,7 @@ class Database:
 
     async def get_clan_member_by_discord_id(self, discord_id, clan_id):
         return await self.objects.get(
-            Member.select().join(ClanMember).join(Clan).where(
+            Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
                 Clan.clan_id == clan_id,
                 Member.discord_id == discord_id
             )
@@ -298,6 +296,19 @@ class Database:
 
     async def get_members(self, is_active=False):
         return await self.objects.execute(Member.select().where(Member.is_active == is_active))
+
+    async def get_clan_member(self, member_id):
+        return await self.objects.get(
+            ClanMember.select().where(
+                ClanMember.member_id == member_id
+            )
+        )
+
+    async def update(self, db_object):
+        return await self.objects.update(db_object)
+
+    async def delete(self, db_object):
+        return await self.objects.delete(db_object)
 
     def close(self):
         asyncio.ensure_future(self.objects.close())
