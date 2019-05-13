@@ -125,6 +125,7 @@ class TrentSix(commands.Bot):
                             await channel.send(twitter_url)
 
     async def build_cache(self, guild_id: int):
+        await self.wait_until_ready()
         self.caches[str(guild_id)] = IronCache(name=guild_id, **self.config['iron_cache'])
         members = [
             jsonpickle.encode(member)

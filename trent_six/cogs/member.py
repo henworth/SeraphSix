@@ -30,6 +30,7 @@ class MemberCog(commands.Cog, name='Member'):
 
     @member.command(help="Show member information")
     async def info(self, ctx, *args):
+        await ctx.channel.trigger_typing()
         member_name = ' '.join(args)
 
         if not member_name:
@@ -40,13 +41,11 @@ class MemberCog(commands.Cog, name='Member'):
         except Exception:
             return
 
-        async with ctx.typing():
-            try:
-                member_db = await self.bot.database.get_member_by_discord_id(member_discord.id)
-            except DoesNotExist:
-                await ctx.send(f"Discord username \"{member_name}\" does not match a valid member")
-                return
-            member_discord = await commands.MemberConverter().convert(ctx, str(member_discord.id))
+        try:
+            member_db = await self.bot.database.get_clan_member_by_discord_id(member_discord.id)
+        except DoesNotExist:
+            await ctx.send(f"Discord username \"{member_name}\" does not match a valid member")
+            return
 
         the100_link = None
         if member_db.the100_username:
@@ -78,7 +77,7 @@ class MemberCog(commands.Cog, name='Member'):
         embed.add_field(name="Bungie Username", value=bungie_link)
         embed.add_field(name="The100 Username", value=the100_link)
         embed.add_field(
-            name="Join Date", value=member_db.join_date.strftime('%Y-%m-%d %H:%M:%S'))
+            name="Join Date", value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S'))
         embed.add_field(name="Time Zone", value=timezone)
 
         await ctx.send(embed=embed)

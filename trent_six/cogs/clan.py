@@ -321,30 +321,21 @@ class ClanCog(commands.Cog, name='Clan'):
                     member_db = await self.bot.database.get_member_by_platform(
                         member_xbox_id, destiny_constants.PLATFORM_XBOX)
                 except DoesNotExist:
-                    join_date = member_info['join_date']
                     member_db = await self.bot.database.create_member(member_info)
-                    await self.bot.database.create_clan_member(
-                        member_db,
-                        clan_db.clan_id,
-                        join_date=join_date,
-                        platform_id=destiny_constants.PLATFORM_XBOX,
-                        is_active=True
-                    )
 
-                if not member_db.is_active:
-                    try:
-                        member_db.is_active = True
-                        member_db.join_date = member_info['join_date']
-                        await self.bot.database.update(member_db)
-                    except Exception:
-                        logging.exception(
-                            f"Could update member \"{member_db.xbox_username}\"")
-                        return
+                await self.bot.database.create_clan_member(
+                    member_db,
+                    clan_db.clan_id,
+                    join_date=member_info['join_date'],
+                    platform_id=destiny_constants.PLATFORM_XBOX,
+                    is_active=True
+                )
 
-            for member in purged_members:
-                member_db = db_members[member]
-                member_db.is_active = False
-                await self.bot.database.update(member_db)
+            for member_xbox_id in purged_members:
+                member_db = await self.bot.database.get_member_by_platform(
+                    member_xbox_id, destiny_constants.PLATFORM_XBOX)
+                clanmember_db = await self.bot.database.get_clan_member(member_db.id)
+                await self.bot.database.delete(clanmember_db)
 
             members = [
                 jsonpickle.encode(member)
