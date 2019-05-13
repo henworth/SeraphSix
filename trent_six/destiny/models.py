@@ -2,39 +2,66 @@ from datetime import datetime
 from trent_six.destiny import constants
 
 
-class User(object):
-
-    class memberships(object):
-        pass
-
-    def __init__(self, details):
-        for entry in details['destinyMemberships']:
-            if entry['membershipType'] == constants.PLATFORM_BLIZ:
-                self.memberships.blizzard = UserMembership(entry)
-            elif entry['membershipType'] == constants.PLATFORM_XBOX:
-                self.memberships.xbox = UserMembership(entry)
-            elif entry['membershipType'] == constants.PLATFORM_PSN:
-                self.memberships.psn = UserMembership(entry)
-        self.memberships.bungie = UserMembership(details['bungieNetUser'])
-
-
 class UserMembership(object):
 
-    def __init__(self, details):
-        self.id = details['membershipId']
+    def __init__(self):
+        self.id = None
+        self.username = None
+
+    def __call__(self, details):
+        self.id = int(details['membershipId'])
         self.username = details['displayName']
 
 
-class Member(object):
-    bungie_username = None
+class User(object):
+
+    class Memberships(object):
+        def __init__(self):
+            self.blizzard = UserMembership()
+            self.bungie = UserMembership()
+            self.psn = UserMembership()
+            self.xbox = UserMembership()
 
     def __init__(self, details):
-        self.bungie_id = int(details['destinyUserInfo']['membershipId'])
-        self.xbox_id = int()
-        self.xbox_username = details['destinyUserInfo']['displayName']
-        self.join_date = details['joinDate']
-        if 'bungieNetUserInfo' in details:
-            self.bungie_username = details['bungieNetUserInfo']['displayName']
+        self.memberships = self.Memberships()
+
+        if details.get('destinyUserInfo'):
+            self._process_membership(details['destinyUserInfo'])
+        elif details.get('destinyMemberships'):
+            for entry in details['destinyMemberships']:
+                self._process_membership(entry)
+
+        if details.get('bungieNetUserInfo'):
+            self._process_membership(details['bungieNetUserInfo'])
+        
+        if details.get('bungieNetUser'):
+            self._process_membership(details['bungieNetUser'])
+
+    def _process_membership(self, entry):
+        if not 'membershipType' in entry.keys():
+            self.memberships.bungie(entry)
+        else:
+            if entry['membershipType'] == constants.PLATFORM_BLIZ:
+                self.memberships.blizzard(entry)
+            elif entry['membershipType'] == constants.PLATFORM_XBOX:
+                self.memberships.xbox(entry)
+            elif entry['membershipType'] == constants.PLATFORM_PSN:
+                self.memberships.psn(entry)
+            elif entry['membershipType'] == constants.PLATFORM_BNG:
+                self.memberships.bungie(entry)
+
+
+class Member(User):
+
+    def __init__(self, details):
+        super().__init__(details)
+        self.join_date = datetime.strptime(
+            details['joinDate'], '%Y-%m-%dT%H:%M:%S%z')
+        self.member_type = int(details['memberType'])
+        self.is_online = details['isOnline']
+        self.last_online_status_change = datetime.utcfromtimestamp(
+            int(details['lastOnlineStatusChange']))
+        self.group_id = int(details['groupId'])
 
 
 class Game(object):

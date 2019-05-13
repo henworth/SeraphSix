@@ -60,7 +60,7 @@ class RegisterCog(commands.Cog, name='Register'):
         await ctx.author.dm_channel.trigger_typing()
 
         # Save OAuth credentials and Bungie ID
-        member_db = await self.bot.database.get_member_by_discord(ctx.author.id)
+        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         member_db.bungie_id = user_info.get('membership_id')
         member_db.bungie_access_token = user_info.get('access_token')
         member_db.bungie_refresh_token = user_info.get('refresh_token')
