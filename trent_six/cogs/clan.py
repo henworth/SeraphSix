@@ -2,6 +2,7 @@ import discord
 import logging
 import jsonpickle
 import pydest
+import pytz
 
 from datetime import datetime
 from discord.ext import commands
@@ -10,6 +11,7 @@ from peewee import DoesNotExist
 
 from trent_six.cogs.utils import constants as util_constants
 from trent_six.cogs.utils.checks import is_clan_member, is_valid_game_mode, is_registered, clan_is_linked
+from trent_six.cogs.utils.paginator import FieldPages
 from trent_six.destiny import constants as destiny_constants
 from trent_six.destiny.activity import get_all_history
 from trent_six.destiny.models import User, Member
@@ -61,6 +63,30 @@ class ClanCog(commands.Cog, name='Clan'):
                 inline=True
             )
         await ctx.send(embed=embed)
+
+    @clan.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    async def roster(self, ctx):
+        await ctx.channel.trigger_typing()
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_members = await self.bot.database.get_clan_members(clan_db.clan_id, sorted_by='xbox_username')
+
+        members = []
+        for member in clan_members:
+            timezone = "Not Set"
+            if member.timezone:
+                tz = datetime.now(pytz.timezone(member.timezone))
+                timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
+            members.append(
+                (member.xbox_username, f"Join Date: {member.join_date.strftime('%Y-%m-%d %H:%M:%S')}\nTimezone: {timezone}"))
+
+        p = FieldPages(
+            ctx, entries=members,
+            per_page=5,
+            title=f"{clan_db.name} Clan Roster"
+        )
+        await p.paginate()
 
     @clan.command()
     @clan_is_linked()
@@ -289,59 +315,59 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
-        async with ctx.typing():
-            clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
-            bungie_members = {}
-            async for member in self.get_all_members(clan_db.clan_id):  # pylint: disable=not-an-iterable
-                bungie_members[member.memberships.xbox.id] = dict(
-                    bungie_id=member.memberships.bungie.id,
-                    bungie_username=member.memberships.bungie.username,
-                    join_date=member.join_date,
-                    xbox_id=member.memberships.xbox.id,
-                    xbox_username=member.memberships.xbox.username
-                )
-
-            bungie_member_set = set(
-                [member for member in bungie_members.keys()]
+        await ctx.trigger_typing()
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        bungie_members = {}
+        async for member in self.get_all_members(clan_db.clan_id):  # pylint: disable=not-an-iterable
+            bungie_members[member.memberships.xbox.id] = dict(
+                bungie_id=member.memberships.bungie.id,
+                bungie_username=member.memberships.bungie.username,
+                join_date=member.join_date,
+                xbox_id=member.memberships.xbox.id,
+                xbox_username=member.memberships.xbox.username
             )
 
-            db_members = {}
-            for member in await self.bot.database.get_clan_members(clan_db.clan_id):
-                db_members[member.xbox_id] = member
+        bungie_member_set = set(
+            [member for member in bungie_members.keys()]
+        )
 
-            db_member_set = set(
-                [member for member in db_members.keys()]
-            )
+        db_members = {}
+        for member in await self.bot.database.get_clan_members(clan_db.clan_id):
+            db_members[member.xbox_id] = member
 
-            new_members = bungie_member_set - db_member_set
-            purged_members = db_member_set - bungie_member_set
-            for member_xbox_id in new_members:
-                member_info = bungie_members[member_xbox_id]
-                try:
-                    member_db = await self.bot.database.get_member_by_platform(
-                        member_xbox_id, destiny_constants.PLATFORM_XBOX)
-                except DoesNotExist:
-                    member_db = await self.bot.database.create_member(member_info)
+        db_member_set = set(
+            [member for member in db_members.keys()]
+        )
 
-                await self.bot.database.create_clan_member(
-                    member_db,
-                    clan_db.clan_id,
-                    join_date=member_info['join_date'],
-                    platform_id=destiny_constants.PLATFORM_XBOX,
-                    is_active=True
-                )
-
-            for member_xbox_id in purged_members:
+        new_members = bungie_member_set - db_member_set
+        purged_members = db_member_set - bungie_member_set
+        for member_xbox_id in new_members:
+            member_info = bungie_members[member_xbox_id]
+            try:
                 member_db = await self.bot.database.get_member_by_platform(
                     member_xbox_id, destiny_constants.PLATFORM_XBOX)
-                clanmember_db = await self.bot.database.get_clan_member(member_db.id)
-                await self.bot.database.delete(clanmember_db)
+            except DoesNotExist:
+                member_db = await self.bot.database.create_member(member_info)
 
-            members = [
-                jsonpickle.encode(member)
-                for member in await self.bot.database.get_clan_members_by_guild_id(ctx.guild.id)
-            ]
-            self.bot.caches[str(ctx.guild.id)].put('members', members)
+            await self.bot.database.create_clan_member(
+                member_db,
+                clan_db.clan_id,
+                join_date=member_info['join_date'],
+                platform_id=destiny_constants.PLATFORM_XBOX,
+                is_active=True
+            )
+
+        for member_xbox_id in purged_members:
+            member_db = await self.bot.database.get_member_by_platform(
+                member_xbox_id, destiny_constants.PLATFORM_XBOX)
+            clanmember_db = await self.bot.database.get_clan_member(member_db.id)
+            await self.bot.database.delete(clanmember_db)
+
+        members = [
+            jsonpickle.encode(member)
+            for member in await self.bot.database.get_clan_members_by_guild_id(ctx.guild.id)
+        ]
+        self.bot.caches[str(ctx.guild.id)].put('members', members)
 
         embed = discord.Embed(
             colour=util_constants.BLUE,

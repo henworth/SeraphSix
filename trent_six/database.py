@@ -252,13 +252,20 @@ class Database:
         return await self.objects.create(
             ClanMember, clan=clan, member=member_db, **member_details)
 
-    async def get_clan_members(self, clan_id, active_only=True):
-        return await self.objects.execute(
-            Member.select().join(ClanMember).join(Clan).where(
-                ClanMember.is_active == active_only,
+    async def get_clan_members(self, clan_id, sorted_by=None):
+        if sorted_by == 'join_date':
+            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
+                Clan.clan_id == clan_id
+            ).order_by(ClanMember.join_date)
+        elif sorted_by == 'xbox_username':
+            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
+                Clan.clan_id == clan_id
+            ).order_by(Member.xbox_username)
+        else:
+            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
                 Clan.clan_id == clan_id
             )
-        )
+        return await self.objects.execute(query)
 
     async def get_clan_members_by_guild_id(self, guild_id, as_dict=False):
         if as_dict:
