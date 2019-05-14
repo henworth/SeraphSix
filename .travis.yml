@@ -5,5 +5,5 @@ python:
 install:
   - 'pip install pipenv'
   - 'pipenv sync'
-after_script:
+script:
   - python -m pylama || true
