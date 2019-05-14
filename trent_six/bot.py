@@ -15,7 +15,7 @@ from discord.ext import commands
 from iron_cache import IronCache
 from peewee import DoesNotExist
 
-from trent_six.destiny.activity import store_member_history
+from trent_six.destiny.activity import store_member_history, store_last_active
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import (
     InvalidCommandError, InvalidGameModeError, NotRegisteredError, ConfigurationError)
@@ -85,6 +85,19 @@ class TrentSix(commands.Bot):
                 f"background: Found all {game_mode} games for all members")
             await asyncio.sleep(3600)
 
+    async def update_last_active(self, guild_id):
+        await self.wait_until_ready()
+        while not self.is_closed():
+            logging.info(f"Finding last active dates for all members of {guild_id}")
+            members = ast.literal_eval(
+                self.caches[str(guild_id)].get('members').value)
+
+            for member in members:
+                member_db = jsonpickle.decode(member)
+                await store_last_active(self.database, self.destiny, member_db)
+
+            await asyncio.sleep(300)
+
     async def track_tweets(self):
         await self.wait_until_ready()
 
@@ -146,7 +159,8 @@ class TrentSix(commands.Bot):
             self.caches[guild_id] = IronCache(
                 name=guild_id, **self.config['iron_cache'])
 
-            await self.build_cache(guild_id)
+            self.loop.create_task(self.build_cache(guild_id))
+            self.loop.create_task(self.update_last_active(guild_id))
 
             for game_mode in SUPPORTED_GAME_MODES.keys():
                 if '-' not in game_mode:

@@ -3,10 +3,10 @@ import backoff
 import jsonpickle
 import logging
 import pydest
+import pytz
 
 from datetime import datetime, timedelta, timezone
 from peewee import DoesNotExist, IntegrityError, InternalError
-
 from trent_six.destiny import constants
 from trent_six.destiny.models import Game
 
@@ -32,8 +32,32 @@ async def decode_activity(destiny, reference_id):
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def get_profile(destiny, member_id):
-    return await destiny.api.get_profile(constants.PLATFORM_XBOX, member_id, [constants.COMPONENT_CHARACTERS])
+async def get_profile(destiny, member_id, platform_id=constants.PLATFORM_XBOX):
+    return await destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
+
+
+async def get_last_active(destiny, member_db):
+    if member_db.clanmember.platform_id == constants.PLATFORM_XBOX:
+        member_id = member_db.xbox_id
+    elif member_db.clanmember.platform_id == constants.PLATFORM_PSN:
+        member_id = member_db.psn_id
+    else:
+        member_id = member_db.blizzard_id
+
+    profile = await get_profile(destiny, member_id, member_db.clanmember.platform_id)
+    acct_last_active = None
+    for _, data in profile['Response']['characters']['data'].items():
+        char_last_active = datetime.strptime(
+            data['dateLastPlayed'], '%Y-%m-%dT%H:%M:%S%z')
+        if not acct_last_active or char_last_active > acct_last_active:
+            acct_last_active = char_last_active
+    return acct_last_active
+
+
+async def store_last_active(database, destiny, member_db):
+    last_active = await get_last_active(destiny, member_db)
+    member_db.clanmember.last_active = last_active
+    await database.update(member_db.clanmember)
 
 
 async def get_member_history(database, destiny, member_name, game_mode):
@@ -45,7 +69,6 @@ async def get_member_history(database, destiny, member_name, game_mode):
             continue
         else:
             game_counts[constants.MODE_MAP[mode_id]['title']] = count
-
     return game_counts
 
 
@@ -58,11 +81,18 @@ async def get_all_history(database, destiny, game_mode):
             continue
         else:
             game_counts[constants.MODE_MAP[mode_id]['title']] = count
-
     return game_counts
 
 
 async def store_member_history(members, database, destiny, member_db, game_mode):
+    # Check if member hasn't been active within the past hour
+    hour_ago = datetime.now(pytz.utc) - timedelta(hours=1)
+    if not member_db.clanmember.last_active > hour_ago:
+        return
+
+    logging.debug(
+        f"Member {member_db.id} was last active {member_db.clanmember.last_active}")
+
     # Create a dict holding model references for all members key by their username
     member_dbs = {}
     for member in members:
