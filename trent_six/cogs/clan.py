@@ -256,56 +256,62 @@ class ClanCog(commands.Cog, name='Clan'):
     @is_registered()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    async def invite(self, ctx, gamertag):
-        async with ctx.typing():
-            member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-            clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+    async def invite(self, ctx, *args):
+        await ctx.trigger_typing()
+        gamertag = ' '.join(args)
 
-            try:
-                player = await self.bot.destiny.api.search_destiny_player(
-                    destiny_constants.PLATFORM_XBOX, gamertag
-                )
-            except pydest.PydestException:
-                await ctx.send(f"Invalid gamertag {gamertag}")
-                return
+        if not gamertag:
+            await ctx.send(f"Gamertag is required")
+            return
 
-            membership_id = None
-            for membership in player['Response']:
-                if membership['membershipType'] == destiny_constants.PLATFORM_XBOX and membership['displayName'] == gamertag:
-                    membership_id = membership['membershipId']
-                    break
+        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
 
-            if not membership_id:
-                await ctx.send(f"Could not find Destiny player for gamertag {gamertag}")
-                return
+        try:
+            player = await self.bot.destiny.api.search_destiny_player(
+                destiny_constants.PLATFORM_XBOX, gamertag
+            )
+        except pydest.PydestException:
+            await ctx.send(f"Invalid gamertag {gamertag}")
+            return
 
-            try:
-                res = await self.bot.destiny.api.group_invite_member(
-                    group_id=clan_db.clan_id,
-                    membership_type=destiny_constants.PLATFORM_XBOX,
-                    membership_id=membership_id,
-                    message=f"Join my clan {clan_db.name}!",
-                    access_token=member_db.bungie_access_token
-                )
-            except pydest.PydestTokenException:
-                tokens = await self.bot.destiny.api.refresh_oauth_token(
-                    member_db.bungie_refresh_token
-                )
-                res = await self.bot.destiny.api.group_invite_member(
-                    group_id=clan_db.clan_id,
-                    membership_type=destiny_constants.PLATFORM_XBOX,
-                    membership_id=membership_id,
-                    message=f"Join my clan {clan_db.name}!",
-                    access_token=tokens['access_token']
-                )
-                member_db.bungie_access_token = tokens['access_token']
-                member_db.bungie_refresh_token = tokens['refresh_token']
-                await self.bot.database.update(member_db)
+        membership_id = None
+        for membership in player['Response']:
+            if membership['membershipType'] == destiny_constants.PLATFORM_XBOX and membership['displayName'] == gamertag:
+                membership_id = membership['membershipId']
+                break
 
-            if res['ErrorStatus'] == 'ClanTargetDisallowsInvites':
-                message = f"User **{gamertag}** has disabled clan invites"
-            else:
-                message = f"Invited **{gamertag}** to clan **{clan_db.name}**"
+        if not membership_id:
+            await ctx.send(f"Could not find Destiny player for gamertag {gamertag}")
+            return
+
+        try:
+            res = await self.bot.destiny.api.group_invite_member(
+                group_id=clan_db.clan_id,
+                membership_type=destiny_constants.PLATFORM_XBOX,
+                membership_id=membership_id,
+                message=f"Join my clan {clan_db.name}!",
+                access_token=member_db.bungie_access_token
+            )
+        except pydest.PydestTokenException:
+            tokens = await self.bot.destiny.api.refresh_oauth_token(
+                member_db.bungie_refresh_token
+            )
+            res = await self.bot.destiny.api.group_invite_member(
+                group_id=clan_db.clan_id,
+                membership_type=destiny_constants.PLATFORM_XBOX,
+                membership_id=membership_id,
+                message=f"Join my clan {clan_db.name}!",
+                access_token=tokens['access_token']
+            )
+            member_db.bungie_access_token = tokens['access_token']
+            member_db.bungie_refresh_token = tokens['refresh_token']
+            await self.bot.database.update(member_db)
+
+        if res['ErrorStatus'] == 'ClanTargetDisallowsInvites':
+            message = f"User **{gamertag}** has disabled clan invites"
+        else:
+            message = f"Invited **{gamertag}** to clan **{clan_db.name}**"
 
         await ctx.send(message)
 
