@@ -6,4 +6,4 @@ install:
   - 'pip install pipenv'
   - 'pipenv sync'
 after_script:
-  - python -m pylama trent_six/ || true
+  - python -m pylama || true
