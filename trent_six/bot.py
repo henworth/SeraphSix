@@ -12,6 +12,7 @@ from iron_cache import IronCache
 from peewee import DoesNotExist
 
 from trent_six.destiny.activity import store_member_history, store_last_active
+from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import (
     InvalidCommandError, InvalidGameModeError,
     NotRegisteredError, ConfigurationError)
