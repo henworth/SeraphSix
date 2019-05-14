@@ -2,23 +2,19 @@
 import ast
 import asyncio
 import discord
-import json
 import jsonpickle
 import logging
-import os
 import peony
-import pytz
 import traceback
 
-from datetime import datetime
 from discord.ext import commands
 from iron_cache import IronCache
 from peewee import DoesNotExist
 
 from trent_six.destiny.activity import store_member_history, store_last_active
-from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import (
-    InvalidCommandError, InvalidGameModeError, NotRegisteredError, ConfigurationError)
+    InvalidCommandError, InvalidGameModeError,
+    NotRegisteredError, ConfigurationError)
 
 logging.getLogger(__name__)
 
@@ -137,19 +133,25 @@ class TrentSix(commands.Bot):
                             channel = self.get_channel(dtg_channel.channel_id)
                             await channel.send(twitter_url)
 
-    async def build_cache(self, guild_id: int):
+    async def build_member_cache(self, guild_id: int):
         await self.wait_until_ready()
-        self.caches[str(guild_id)] = IronCache(name=guild_id, **self.config['iron_cache'])
+        self.caches[str(guild_id)] = IronCache(
+            name=guild_id, **self.config['iron_cache'])
         members = [
             jsonpickle.encode(member)
-            for member in await self.database.get_clan_members_by_guild_id(guild_id)
+            for member in await self.database.get_clan_members_by_guild_id(
+                guild_id)
         ]
         self.caches[str(guild_id)].put('members', members)
+        logging.info(f"Populated member cache for server {guild_id}")
 
     async def on_ready(self):
-        logging.info(f"Logged in as {self.user.name} ({self.user.id})")
-        logging.info(
-            f"Invite: https://discordapp.com/oauth2/authorize?client_id={self.user.id}&scope=bot")
+        start_message = (
+            f"Logged in as {self.user.name} ({self.user.id}) "
+            f"https://discordapp.com/oauth2/authorize?"
+            f"client_id={self.user.id}&scope=bot"
+        )
+        logging.info(start_message)
 
         self.caches = {}
         guilds = await self.database.get_guilds()
@@ -159,7 +161,7 @@ class TrentSix(commands.Bot):
             self.caches[guild_id] = IronCache(
                 name=guild_id, **self.config['iron_cache'])
 
-            self.loop.create_task(self.build_cache(guild_id))
+            await self.build_member_cache(guild_id)
             self.loop.create_task(self.update_last_active(guild_id))
 
             for game_mode in SUPPORTED_GAME_MODES.keys():
