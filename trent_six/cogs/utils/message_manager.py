@@ -1,7 +1,5 @@
 import asyncio
 
-import discord
-
 from trent_six.cogs.utils.constants import CLEANUP_DELAY
 from trent_six.cogs.utils.checks import is_private_channel
 

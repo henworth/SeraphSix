@@ -1,3 +1,4 @@
+# pylama:ignore=E722
 import asyncio
 import discord
 from discord.ext.commands import Paginator as CommandPaginator

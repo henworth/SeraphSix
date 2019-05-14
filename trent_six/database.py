@@ -1,9 +1,10 @@
 import asyncio
 
-from datetime import datetime, timezone
-from peewee import fn, Model, CharField, BigIntegerField, IntegerField, ForeignKeyField, Proxy, BooleanField, CompositeKey
+from peewee import (
+    Model, CharField, BigIntegerField, IntegerField,
+    ForeignKeyField, Proxy, BooleanField)
 from peewee_async import Manager
-from peewee_asyncext import PostgresqlExtDatabase
+from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
 from trent_six.destiny import constants
 from urllib.parse import urlparse
@@ -214,8 +215,8 @@ class Database:
             return True
 
     async def create_twitter_channel(self, channel_id, twitter_id):
-        return await self.objects.create(
-            TwitterChannel, **{'channel_id': channel_id, 'twitter_id': twitter_id})
+        details = {'channel_id': channel_id, 'twitter_id': twitter_id}
+        return await self.objects.create(TwitterChannel, **details)
 
     async def get_twitter_channels(self, twitter_id):
         # pylint: disable=assignment-from-no-return

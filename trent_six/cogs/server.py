@@ -1,4 +1,3 @@
-import discord
 import logging
 
 from discord.ext import commands
@@ -30,10 +29,14 @@ class ServerCog(commands.Cog, name='Server'):
 
         async with ctx.typing():
             try:
-                await self.bot.database.get_twitter_channel(self.bot.TWITTER_XBOX_SUPPORT)
+                await self.bot.database.get_twitter_channel(
+                    self.bot.TWITTER_XBOX_SUPPORT)
             except DoesNotExist:
-                await self.bot.database.create_twitter_channel(channel_id, self.bot.TWITTER_XBOX_SUPPORT)
-                await ctx.send(f"{message} now enabled and will post to **#{ctx.message.channel.name}**.")
+                await self.bot.database.create_twitter_channel(
+                    channel_id, self.bot.TWITTER_XBOX_SUPPORT)
+                await ctx.send((
+                    f"{message} now enabled and will post to "
+                    f"**#{ctx.message.channel.name}**."))
             else:
                 await ctx.send(f"{message} is already enabled.")
 
@@ -43,14 +46,21 @@ class ServerCog(commands.Cog, name='Server'):
     @commands.has_permissions(administrator=True)
     async def dtg(self, ctx):
         channel_id = ctx.message.channel.id
-        message = f"Destiny the Game Subreddit Posts for **{ctx.message.guild.name}**"
+        message = (
+            f"Destiny the Game Subreddit Posts "
+            f"for **{ctx.message.guild.name}**"
+        )
 
         async with ctx.typing():
             try:
-                await self.bot.database.get_twitter_channel(self.bot.TWITTER_DTG)
+                await self.bot.database.get_twitter_channel(
+                    self.bot.TWITTER_DTG)
             except DoesNotExist:
-                await self.bot.database.create_twitter_channel(channel_id, self.bot.TWITTER_DTG)
-                await ctx.send(f"{message} now enabled and will post to **#{ctx.message.channel.name}**.")
+                await self.bot.database.create_twitter_channel(
+                    channel_id, self.bot.TWITTER_DTG)
+                await ctx.send((
+                    f"{message} now enabled and will post to "
+                    f"**#{ctx.message.channel.name}**."))
             else:
                 await ctx.send(f"{message} is already enabled.")
 
@@ -59,15 +69,12 @@ class ServerCog(commands.Cog, name='Server'):
     @commands.has_permissions(administrator=True)
     async def setup(self, ctx):
         """
-        Change the server's command prefix (Admin only)
+        Initial setup of the server (Admin only)
         """
         manager = MessageManager(ctx)
-        # if len(new_prefix) > 5:
-        #     await manager.send_message("Prefix must be less than 6 characters.")
-        #     return await manager.clean_messages()
-
         await self.bot.database.create_guild(ctx.guild.id)
-        await manager.send_message(f"Server **{ctx.message.guild.name}** setup")
+        await manager.send_message(
+            f"Server **{ctx.message.guild.name}** setup")
         return await manager.clean_messages()
 
     @server.command()
@@ -79,15 +86,19 @@ class ServerCog(commands.Cog, name='Server'):
         """
         manager = MessageManager(ctx)
         if not group_id:
-            await manager.send_message("Command must include the Bungie group ID")
+            await manager.send_message(
+                "Command must include the Bungie group ID")
             return await manager.clean_messages()
 
         res = await self.bot.destiny.api.get_group(group_id)
         group_name = res['Response']['detail']['name']
         callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 
-        await self.bot.database.create_clan(ctx.guild.id, clan_id=group_id, name=group_name, callsign=callsign)
-        await manager.send_message(f"Server **{ctx.message.guild.name}** linked to Clan **{group_name}**")
+        await self.bot.database.create_clan(
+            ctx.guild.id, clan_id=group_id, name=group_name, callsign=callsign)
+        await manager.send_message((
+            f"Server **{ctx.message.guild.name}** "
+            f"linked to Clan **{group_name}**"))
         return await manager.clean_messages()
 
     @server.command()
@@ -99,13 +110,15 @@ class ServerCog(commands.Cog, name='Server'):
         """
         manager = MessageManager(ctx)
         if len(new_prefix) > 5:
-            await manager.send_message("Prefix must be less than 6 characters.")
+            await manager.send_message(
+                "Prefix must be less than 6 characters.")
             return await manager.clean_messages()
 
         guild_db = await self.bot.database.get_guild(ctx.guild.id)
         guild_db.prefix = new_prefix
         await self.bot.database.update_guild(guild_db)
-        await manager.send_message(f"Command prefix has been changed to `{new_prefix}`")
+        await manager.send_message(
+            f"Command prefix has been changed to `{new_prefix}`")
         return await manager.clean_messages()
 
 

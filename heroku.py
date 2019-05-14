@@ -1,3 +1,6 @@
+from trent_six.bot import TrentSix
+from trent_six.database import Database
+
 import asyncio
 import json
 import os
@@ -7,10 +10,6 @@ import pydest
 import warnings
 
 warnings.filterwarnings('ignore', category=UserWarning, module='psycopg2')
-
-from discord.ext.commands import Bot
-from trent_six.bot import TrentSix
-from trent_six.database import Database
 
 
 def config_loader(filename='config.json'):
@@ -71,9 +70,9 @@ if __name__ == '__main__':
 
     twitter = None
     if (config['twitter'].get('consumer_key') and
-        config['twitter'].get('consumer_secret') and
-        config['twitter'].get('access_token') and
-        config['twitter'].get('access_token_secret')):
+            config['twitter'].get('consumer_secret') and
+            config['twitter'].get('access_token') and
+            config['twitter'].get('access_token_secret')):
         twitter = peony.PeonyClient(loop=loop, **config['twitter'])
 
     bot = TrentSix(loop=loop, config=config, destiny=destiny,
@@ -87,4 +86,6 @@ if __name__ == '__main__':
     finally:
         destiny.close()
         database.close()
+        if twitter:
+            twitter.close()
     loop.close()
