@@ -4,7 +4,7 @@ from peewee import (
     Model, CharField, BigIntegerField, IntegerField,
     ForeignKeyField, Proxy, BooleanField)
 from peewee_async import Manager
-from peewee_asyncext import PooledPostgresqlExtDatabase
+from peewee_asyncext import PostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
 from trent_six.destiny import constants
 from urllib.parse import urlparse
@@ -32,13 +32,13 @@ class Clan(BaseModel):
 
 class Member(BaseModel):
     discord_id = BigIntegerField(null=True)
-    
+
     bungie_id = BigIntegerField(null=True)
     bungie_username = CharField(null=True)
 
     xbox_id = BigIntegerField(null=True)
     xbox_username = CharField(unique=True, null=True)
-    
+
     psn_id = BigIntegerField(null=True)
     psn_username = CharField(unique=True, null=True)
 
