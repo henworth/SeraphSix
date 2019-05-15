@@ -72,14 +72,21 @@ class TrentSix(commands.Bot):
         while not self.is_closed():
             logging.info(
                 f"background: Finding all {game_mode} games for all members")
-            members = ast.literal_eval(self.caches[str(guild_id)].get('members').value)
+            members = ast.literal_eval(
+                self.caches[str(guild_id)].get('members').value)
+
             for member in members:
                 member_db = jsonpickle.decode(member)
-                count = await store_member_history(members, self.database, self.destiny, member_db, game_mode)
+                count = await store_member_history(
+                    members, self.database, self.destiny, member_db, game_mode)
+                if count:
+                    logging.info((
+                        f"Found {count} {game_mode} games "
+                        f"for {member_db.xbox_username}"))
+
                 logging.info(
-                    f"background: Found {count} {game_mode} games for {member_db.xbox_username}")
-            logging.info(
-                f"background: Found all {game_mode} games for all members")
+                f"Found all {game_mode} games for all members")
+
             await asyncio.sleep(3600)
 
     async def update_last_active(self, guild_id):
