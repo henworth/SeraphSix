@@ -10,11 +10,12 @@ from discord.errors import HTTPException
 from peewee import DoesNotExist
 
 from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import is_clan_member, is_valid_game_mode, is_registered, clan_is_linked
+from trent_six.cogs.utils.checks import (
+    is_clan_member, is_valid_game_mode, is_registered, clan_is_linked)
 from trent_six.cogs.utils.paginator import FieldPages
 from trent_six.destiny import constants as destiny_constants
 from trent_six.destiny.activity import get_all_history
-from trent_six.destiny.models import User, Member
+from trent_six.destiny.models import Member
 
 logging.getLogger(__name__)
 
@@ -59,7 +60,8 @@ class ClanCog(commands.Cog, name='Clan'):
             embed.add_field(
                 name='Founded',
                 value=datetime.strptime(
-                    group['detail']['creationDate'], '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
+                    group['detail']['creationDate'],
+                    '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
                 inline=True
             )
         await ctx.send(embed=embed)

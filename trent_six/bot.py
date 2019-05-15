@@ -112,12 +112,14 @@ class TrentSix(commands.Bot):
         xbox_channels = None
 
         try:
-            xbox_channels= await self.database.get_twitter_channels(self.TWITTER_XBOX_SUPPORT)
+            xbox_channels = await self.database.get_twitter_channels(
+                self.TWITTER_XBOX_SUPPORT)
         except DoesNotExist:
             pass
 
         try:
-            dtg_channels = await self.database.get_twitter_channels(self.TWITTER_DTG)
+            dtg_channels = await self.database.get_twitter_channels(
+                self.TWITTER_DTG)
         except DoesNotExist:
             pass
 

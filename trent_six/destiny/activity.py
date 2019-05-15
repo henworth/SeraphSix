@@ -1,12 +1,11 @@
-import ast
 import backoff
 import jsonpickle
 import logging
 import pydest
 import pytz
 
-from datetime import datetime, timedelta, timezone
-from peewee import DoesNotExist, IntegrityError, InternalError
+from datetime import datetime, timedelta
+from peewee import DoesNotExist, IntegrityError
 from trent_six.destiny import constants
 from trent_six.destiny.models import Game
 
@@ -33,7 +32,8 @@ async def decode_activity(destiny, reference_id):
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
 async def get_profile(destiny, member_id, platform_id=constants.PLATFORM_XBOX):
-    return await destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
+    return await destiny.api.get_profile(
+        platform_id, member_id, [constants.COMPONENT_CHARACTERS])
 
 
 async def get_last_active(destiny, member_db):
@@ -44,7 +44,8 @@ async def get_last_active(destiny, member_db):
     else:
         member_id = member_db.blizzard_id
 
-    profile = await get_profile(destiny, member_id, member_db.clanmember.platform_id)
+    profile = await get_profile(
+        destiny, member_id, member_db.clanmember.platform_id)
     acct_last_active = None
     for _, data in profile['Response']['characters']['data'].items():
         char_last_active = datetime.strptime(
@@ -93,7 +94,8 @@ async def store_member_history(members, database, destiny, member_db, game_mode)
     logging.debug(
         f"Member {member_db.id} was last active {member_db.clanmember.last_active}")
 
-    # Create a dict holding model references for all members key by their username
+    # Create a dict holding model references for all members
+    # keyed by their username
     member_dbs = {}
     for member in members:
         temp = jsonpickle.decode(member)
@@ -169,11 +171,13 @@ async def store_member_history(members, database, destiny, member_db, game_mode)
                     game_db.reference_id = game.reference_id
                     await database.update_game(game_db)
                     logging.debug(
-                        f"{game_title} game id {activity_id} exists for {member_db.xbox_username}, skipping")
+                        f"{game_title} game id {activity_id} exists for "
+                        f"{member_db.xbox_username}, skipping")
                     continue
                 else:
                     mode_count += 1
                     logging.info(
-                        f"{game_title} game id {activity_id} created for {member_db.xbox_username}")
+                        f"{game_title} game id {activity_id} created for "
+                        f"{member_db.xbox_username}")
 
     return mode_count

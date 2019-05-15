@@ -9,7 +9,6 @@ import secrets
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from requests_oauth2 import OAuth2, OAuth2BearerToken
-from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.secret_key = secrets.os.urandom(20)

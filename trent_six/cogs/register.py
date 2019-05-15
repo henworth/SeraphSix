@@ -2,9 +2,7 @@ import aioredis
 import asyncio
 import discord
 import logging
-
 import pickle
-import sys
 
 from discord.ext import commands
 from trent_six.cogs.utils import constants
@@ -29,23 +27,29 @@ class RegisterCog(commands.Cog, name='Register'):
     async def register(self, ctx):
         """Register your Destiny 2 account with the bot
 
-        This command will let the bot know which Destiny 2 profile to associate with your Discord
-        profile. Registering is a prerequisite to using any commands that require knowledge of your
-        Destiny 2 profile.
+        This command will let the bot know which Destiny 2 profile to associate
+        with your Discord profile. Registering is a prerequisite to using any
+        commands that require knowledge of your Destiny 2 profile.
         """
         manager = MessageManager(ctx)
-        auth_url = f'https://{self.bot.config["bungie"]["redirect_host"]}/oauth?state={ctx.author.id}'
+        auth_url = (
+            f'https://{self.bot.config["bungie"]["redirect_host"]}'
+            f'/oauth?state={ctx.author.id}'
+        )
 
         if not isinstance(ctx.channel, discord.abc.PrivateChannel):
-            await manager.send_message("Registration instructions have been messaged to you.")
+            await manager.send_message(
+                "Registration instructions have been messaged to you.")
 
         # Prompt user with link to Bungie.net OAuth authentication
         e = discord.Embed(colour=constants.BLUE)
         e.title = "Click Here to Register"
         e.url = auth_url
-        e.description = ("Click the above link to register your Bungie.net account with Trent-Six. "
-                         + "Registering will allow Trent-Six to access your connected Destiny "
-                         + "2 accounts.")
+        e.description = (
+            "Click the above link to register your Bungie.net account with Trent-Six. "  # noqa
+            "Registering will allow Trent-Six to access your connected Destiny "  # noqa
+            "2 accounts."
+        )
         registration_msg = await manager.send_private_embed(e)
 
         # Wait for user info from the web server via Redis
@@ -68,18 +72,21 @@ class RegisterCog(commands.Cog, name='Register'):
         # Fetch platform specific display names and membership IDs
         try:
             res = await self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id)
-        except:
-            await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")
+        except Exception:
+            await manager.send_private_message(
+                "I can't seem to connect to Bungie right now. Try again later.")
             await registration_msg.delete()
             return await manager.clean_messages()
 
         if res['ErrorCode'] != 1:
-            await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
+            await manager.send_private_message(
+                "Oops, something went wrong during registration. Please try again.")
             await registration_msg.delete()
             return await manager.clean_messages()
 
         if not self.user_has_connected_accounts(res):
-            await manager.send_private_message("Oops, you don't have any public accounts attached to your Bungie.net profile.")
+            await manager.send_private_message(
+                "Oops, you don't have any public accounts attached to your Bungie.net profile.")
             await registration_msg.delete()
             return await manager.clean_messages()
 

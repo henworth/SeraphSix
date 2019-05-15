@@ -33,12 +33,12 @@ class User(object):
 
         if details.get('bungieNetUserInfo'):
             self._process_membership(details['bungieNetUserInfo'])
-        
+
         if details.get('bungieNetUser'):
             self._process_membership(details['bungieNetUser'])
 
     def _process_membership(self, entry):
-        if not 'membershipType' in entry.keys():
+        if 'membershipType' not in entry.keys():
             self.memberships.bungie(entry)
         else:
             if entry['membershipType'] == constants.PLATFORM_BLIZ:

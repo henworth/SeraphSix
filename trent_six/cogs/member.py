@@ -3,16 +3,14 @@ import logging
 import pytz
 
 from datetime import datetime
-from discord.errors import HTTPException
 from discord.ext import commands
-from discord.ext.commands.errors import BadArgument, CheckFailure
+from discord.ext.commands.errors import BadArgument
 from peewee import DoesNotExist
 from urllib.parse import quote
 
-from trent_six.bot import TrentSix
 from trent_six.cogs.utils import constants as util_constants
 from trent_six.cogs.utils.checks import is_valid_game_mode
-from trent_six.destiny.activity import get_member_history, store_member_history, get_all_history
+from trent_six.destiny.activity import get_member_history
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 
 logging.getLogger(__name__)
