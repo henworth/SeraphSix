@@ -84,7 +84,7 @@ class TrentSix(commands.Bot):
                         f"Found {count} {game_mode} games "
                         f"for {member_db.xbox_username}"))
 
-                logging.info(
+            logging.info(
                 f"Found all {game_mode} games for all members")
 
             await asyncio.sleep(3600)
