@@ -5,7 +5,6 @@ import discord
 import jsonpickle
 import logging
 import peony
-import re
 import traceback
 
 from discord.ext import commands
@@ -221,9 +220,7 @@ class TrentSix(commands.Bot):
         elif isinstance(error, commands.CommandNotFound):
             text = f"Invalid command `{ctx.message.content}`"
         elif isinstance(error, commands.MissingRequiredArgument):
-            missing_arg = re.match(
-                '(.*)\\ is\\ a\\ required\\ argument', error.message)[1]
-            text = f"Required argument `{missing_arg}` is missing"
+            text = f"Required argument `{error.param}` is missing"
         else:
             error_trace = traceback.format_exception(
                 type(error), error, error.__traceback__)

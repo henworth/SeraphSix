@@ -24,7 +24,7 @@ class MemberCog(commands.Cog, name='Member'):
     @commands.group(brief="Member Commands")
     async def member(self, ctx):
         if ctx.invoked_subcommand is None:
-            await ctx.send(f"Invalid command `{ctx.message.content}`")
+            raise commands.CommandNotFound()
 
     @clan_is_linked()
     @commands.guild_only()

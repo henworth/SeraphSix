@@ -18,7 +18,7 @@ class ServerCog(commands.Cog, name='Server'):
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
     async def server(self, ctx):
         if ctx.invoked_subcommand is None:
-            await ctx.send(f"Invalid command `{ctx.message.content}`")
+            raise commands.CommandNotFound()
 
     @server.command()
     @twitter_enabled()

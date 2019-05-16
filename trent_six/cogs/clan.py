@@ -27,7 +27,7 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.group()
     async def clan(self, ctx):
         if ctx.invoked_subcommand is None:
-            await ctx.send(f"Invalid command `{ctx.message.content}`")
+            raise commands.CommandNotFound()
 
     @clan.command(help="Show member information")
     @clan_is_linked()
