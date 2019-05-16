@@ -228,7 +228,8 @@ class TrentSix(commands.Bot):
                 f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
 
         if text:
-            await ctx.send(f"{ctx.message.author.mention}: {text} Type `{ctx.prefix}help` for more information.")
+            await ctx.send(
+                f"{ctx.message.author.mention}: {text} Type `{ctx.prefix}help` for more information.")
 
     async def on_message(self, message):
         if not message.author.bot:
