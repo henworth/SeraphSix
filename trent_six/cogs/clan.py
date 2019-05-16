@@ -161,6 +161,7 @@ class ClanCog(commands.Cog, name='Clan'):
             platform_id = destiny_constants.PLATFORM_MAP.get(platform_name)
             if not platform_id:
                 await ctx.send(f"Invalid platform `{platform_name}` was specified")
+                return
         else:
             gamertag = ' '.join(args)
 
@@ -292,6 +293,7 @@ class ClanCog(commands.Cog, name='Clan'):
             platform_id = destiny_constants.PLATFORM_MAP.get(platform_name)
             if not platform_id:
                 await ctx.send(f"Invalid platform `{platform_name}` was specified")
+                return
         else:
             gamertag = ' '.join(args)
 

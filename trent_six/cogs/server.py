@@ -25,45 +25,41 @@ class ServerCog(commands.Cog, name='Server'):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def xbox_support(self, ctx):
-        channel_id = ctx.message.channel.id
+        await ctx.trigger_typing()
         message = f"Xbox Support Information for **{ctx.message.guild.name}**"
-
-        async with ctx.typing():
-            try:
-                await self.bot.database.get_twitter_channel(
-                    self.bot.TWITTER_XBOX_SUPPORT)
-            except DoesNotExist:
-                await self.bot.database.create_twitter_channel(
-                    channel_id, self.bot.TWITTER_XBOX_SUPPORT)
-                await ctx.send((
-                    f"{message} now enabled and will post to "
-                    f"**#{ctx.message.channel.name}**."))
-            else:
-                await ctx.send(f"{message} is already enabled.")
+        try:
+            await self.bot.database.get_twitter_channel(
+                self.bot.TWITTER_XBOX_SUPPORT)
+        except DoesNotExist:
+            await self.bot.database.create_twitter_channel(
+                ctx.message.channel.id, self.bot.TWITTER_XBOX_SUPPORT)
+            await ctx.send((
+                f"{message} now enabled and will post to "
+                f"**#{ctx.message.channel.name}**."))
+        else:
+            await ctx.send(f"{message} is already enabled.")
 
     @server.command()
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def dtg(self, ctx):
-        channel_id = ctx.message.channel.id
+        await ctx.trigger_typing()
         message = (
             f"Destiny the Game Subreddit Posts "
             f"for **{ctx.message.guild.name}**"
         )
-
-        async with ctx.typing():
-            try:
-                await self.bot.database.get_twitter_channel(
-                    self.bot.TWITTER_DTG)
-            except DoesNotExist:
-                await self.bot.database.create_twitter_channel(
-                    channel_id, self.bot.TWITTER_DTG)
-                await ctx.send((
-                    f"{message} now enabled and will post to "
-                    f"**#{ctx.message.channel.name}**."))
-            else:
-                await ctx.send(f"{message} is already enabled.")
+        try:
+            await self.bot.database.get_twitter_channel(
+                self.bot.TWITTER_DTG)
+        except DoesNotExist:
+            await self.bot.database.create_twitter_channel(
+                ctx.message.channel.id, self.bot.TWITTER_DTG)
+            await ctx.send((
+                f"{message} now enabled and will post to "
+                f"**#{ctx.message.channel.name}**."))
+        else:
+            await ctx.send(f"{message} is already enabled.")
 
     @server.command()
     @commands.guild_only()
@@ -72,6 +68,7 @@ class ServerCog(commands.Cog, name='Server'):
         """
         Initial setup of the server (Admin only)
         """
+        await ctx.trigger_typing()
         manager = MessageManager(ctx)
         await self.bot.database.create_guild(ctx.guild.id)
         await manager.send_message(
@@ -85,7 +82,9 @@ class ServerCog(commands.Cog, name='Server'):
         """
         Link this server to a Bungie clan (Admin only)
         """
+        await ctx.trigger_typing()
         manager = MessageManager(ctx)
+
         if not clan_id:
             await manager.send_message(
                 "Command must include the Bungie clan ID")
@@ -124,19 +123,21 @@ class ServerCog(commands.Cog, name='Server'):
         """
         Change the server's command prefix (Admin only)
         """
+        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         try:
             clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
         except DoesNotExist:
-            await manager.send_message("No clan linked to this server.")
-            return await manager.clean_messages()
+            message = "No clan linked to this server."
+        else:
+            clan_db.guild_id = None
+            await self.bot.database.update(clan_db)
+            message = (
+                f"Server **{ctx.message.guild.name}** "
+                f"unlinked from **{clan_db.name} [{clan_db.callsign}]**")
 
-        clan_db.guild_id = None
-        await self.bot.database.update(clan_db)
-        await manager.send_message((
-            f"Server **{ctx.message.guild.name}** "
-            f"unlinked from **{clan_db.name} [{clan_db.callsign}]**"))
+        await manager.send_message(message)
         return await manager.clean_messages()
 
     @server.command()
@@ -146,16 +147,18 @@ class ServerCog(commands.Cog, name='Server'):
         """
         Change the server's command prefix (Manage Server only)
         """
+        await ctx.trigger_typing()
         manager = MessageManager(ctx)
-        if len(new_prefix) > 5:
-            await manager.send_message(
-                "Prefix must be less than 6 characters.")
-            return await manager.clean_messages()
 
-        guild_db = await self.bot.database.get_guild(ctx.guild.id)
-        guild_db.prefix = new_prefix
-        await self.bot.database.update(guild_db)
-        await manager.send_message(f"Command prefix has been changed to `{new_prefix}`")
+        if len(new_prefix) > 5:
+            message = "Prefix must be less than 6 characters."
+        else:
+            guild_db = await self.bot.database.get_guild(ctx.guild.id)
+            guild_db.prefix = new_prefix
+            await self.bot.database.update(guild_db)
+            message = f"Command prefix has been changed to `{new_prefix}`"
+
+        await manager.send_message(message)
         return await manager.clean_messages()
 
     @server.command()
@@ -166,17 +169,20 @@ class ServerCog(commands.Cog, name='Server'):
         """
         Change the server's default platform (Manage Server only)
         """
+        await ctx.trigger_typing()
         manager = MessageManager(ctx)
+        platform = platform.lower()
 
-        if platform not in PLATFORM_MAP.keys():
-            await manager.send_message(
-                f"Platform must be one of `{', '.join(PLATFORM_MAP.keys()).title()}`.`")
-            return await manager.clean_messages()
+        platform_id = PLATFORM_MAP.get(platform)
+        if not platform_id:
+            message = f"Platform must be one of `{', '.join(PLATFORM_MAP.keys()).title()}`.`"
+        else:
+            clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+            clan_db.platform = platform_id
+            await self.bot.database.update(clan_db)
+            message = f"Platform has been set to `{platform}`"
 
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
-        clan_db.platform = PLATFORM_MAP[platform]
-        await self.bot.database.update(clan_db)
-        await manager.send_message(f"Platform has been set to `{platform}`")
+        await manager.send_message(message)
         return await manager.clean_messages()
 
 

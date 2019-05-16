@@ -5,6 +5,7 @@ import discord
 import jsonpickle
 import logging
 import peony
+import re
 import traceback
 
 from discord.ext import commands
@@ -211,14 +212,18 @@ class TrentSix(commands.Bot):
     async def on_command_error(self, ctx, error):
         text = None
         if isinstance(error, commands.MissingPermissions):
-            text = f"{ctx.message.author.mention}: Sorry, but you do not have permissions to do that!"
+            text = "Sorry, but you do not have permissions to do that!"
         elif isinstance(error, (
             ConfigurationError, InvalidCommandError, InvalidMemberError,
             InvalidGameModeError, NotRegisteredError
         )):
-            text = f"{ctx.message.author.mention}: {error.message}"
+            text = error.message
         elif isinstance(error, commands.CommandNotFound):
-            text = f"{ctx.message.author.mention}: Invalid command `{ctx.message.content}`"
+            text = f"Invalid command `{ctx.message.content}`"
+        elif isinstance(error, commands.MissingRequiredArgument):
+            missing_arg = re.match(
+                '(.*)\\ is\\ a\\ required\\ argument', error.message)[1]
+            text = f"Required argument `{missing_arg}` is missing"
         else:
             error_trace = traceback.format_exception(
                 type(error), error, error.__traceback__)
@@ -226,7 +231,7 @@ class TrentSix(commands.Bot):
                 f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
 
         if text:
-            await ctx.send(text)
+            await ctx.send(f"{ctx.message.author.mention}: {text}")
 
     async def on_message(self, message):
         if not message.author.bot:
