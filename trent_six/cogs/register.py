@@ -31,6 +31,7 @@ class RegisterCog(commands.Cog, name='Register'):
         with your Discord profile. Registering is a prerequisite to using any
         commands that require knowledge of your Destiny 2 profile.
         """
+        await ctx.trigger_typing()
         manager = MessageManager(ctx)
         auth_url = (
             f'https://{self.bot.config["bungie"]["redirect_host"]}'
@@ -46,8 +47,8 @@ class RegisterCog(commands.Cog, name='Register'):
         e.title = "Click Here to Register"
         e.url = auth_url
         e.description = (
-            "Click the above link to register your Bungie.net account with Trent-Six. "  # noqa
-            "Registering will allow Trent-Six to access your connected Destiny "  # noqa
+            "Click the above link to register your Bungie.net account with Trent-Six. "
+            "Registering will allow Trent-Six to access your connected Destiny "
             "2 accounts."
         )
         registration_msg = await manager.send_private_embed(e)

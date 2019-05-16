@@ -1,13 +1,18 @@
 import asyncio
+import logging
+import pytz
 
+from datetime import datetime, timedelta
 from peewee import (
     Model, CharField, BigIntegerField, IntegerField,
-    ForeignKeyField, Proxy, BooleanField)
+    ForeignKeyField, Proxy, BooleanField, DoesNotExist, Check)
 from peewee_async import Manager
-from peewee_asyncext import PostgresqlExtDatabase
+from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
 from trent_six.destiny import constants
 from urllib.parse import urlparse
+
+logging.getLogger(__name__)
 
 database_proxy = Proxy()
 
@@ -28,6 +33,12 @@ class Clan(BaseModel):
     guild = ForeignKeyField(Guild)
     name = CharField()
     callsign = CharField(max_length=4)
+    platform = IntegerField(
+        null=True,
+        constraints=[Check(
+            f'platform in ({constants.PLATFORM_XBOX}, {constants.PLATFORM_PSN}, {constants.PLATFORM_BLIZ})'
+        )]
+    )
 
 
 class Member(BaseModel):
@@ -49,9 +60,6 @@ class Member(BaseModel):
     the100_username = CharField(unique=True, null=True)
 
     timezone = CharField(null=True)
-
-    join_date = DateTimeTZField()
-    is_active = BooleanField(default=True)
 
     bungie_access_token = CharField(max_length=360, unique=True, null=True)
     bungie_refresh_token = CharField(max_length=360, unique=True, null=True)
@@ -122,7 +130,7 @@ class Database:
 
     def __init__(self, url, loop=None):
         url = urlparse(url)
-        self._database = PostgresqlExtDatabase(
+        self._database = PooledPostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,
             host=url.hostname, port=url.port)
         self._loop = asyncio.get_event_loop() if loop is None else loop
@@ -194,17 +202,8 @@ class Database:
     async def get_games(self):
         return await self.objects.execute(Game.select())
 
-    async def create_game(self, game_details, members):
-        game = await self.objects.create(Game, **game_details)
-        member_db = await self.get_member_by_xbox_username(members[0])
-        clan = await self.get_clan_by_member(member_db.id)
-        await self.objects.create(ClanGame, game=game, clan=clan)
-        for member in members:
-            member_db = await self.get_member_by_xbox_username(member)
-            await self.objects.create(GameMember, member=member_db.id, game=game.id)
-
-    async def update_game(self, game):
-        return await self.objects.update(game)
+    async def create_game(self, game):
+        return await self.objects.create(Game, **game)
 
     async def update_game_bulk(self, game_list, fields, batch_size):
         query = Game.bulk_update(
@@ -228,9 +227,6 @@ class Database:
     async def get_guild(self, guild_id):
         return await self.objects.get(Guild, guild_id=guild_id)
 
-    async def update_guild(self, guild):
-        return await self.objects.update(guild)
-
     async def create_guild(self, guild_id):
         return await self.objects.create(Guild, **{'guild_id': guild_id})
 
@@ -239,9 +235,6 @@ class Database:
 
     async def get_clan(self, clan_id):
         return await self.objects.get(Clan, clan_id=clan_id)
-
-    async def update_clan(self, clan):
-        return await self.objects.update(clan)
 
     async def create_clan(self, guild_id, **clan_details):
         guild = await self.get_guild(guild_id)
@@ -282,10 +275,28 @@ class Database:
     async def get_clan_member_by_discord_id(self, discord_id, clan_id):
         return await self.objects.get(
             Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
-                Clan.clan_id == clan_id,
+                Clan.id == clan_id,
                 Member.discord_id == discord_id
             )
         )
+
+    async def get_clan_member_by_platform(self, member_id, platform_id, clan_id):
+        if platform_id == constants.PLATFORM_BLIZ:
+            query = Member.select(Member, ClanMember).join(ClanMember).where(
+                ClanMember.clan_id == clan_id,
+                Member.blizzard_id == member_id
+            )
+        elif platform_id == constants.PLATFORM_PSN:
+            query = Member.select(Member, ClanMember).join(ClanMember).where(
+                ClanMember.clan_id == clan_id,
+                Member.psn_id == member_id
+            )
+        elif platform_id == constants.PLATFORM_XBOX:
+            query = Member.select(Member, ClanMember).join(ClanMember).where(
+                ClanMember.clan_id == clan_id,
+                Member.xbox_id == member_id
+            )
+        return await self.objects.get(query)
 
     async def get_clan_by_guild(self, guild_id):
         query = Clan.select().join(Guild).where(
@@ -298,6 +309,28 @@ class Database:
             Member.id == member_id
         )
         return await self.objects.get(query)
+
+    async def create_clan_game(self, clan_id, game_id):
+        return await self.objects.create(ClanGame, game=game_id, clan=clan_id)
+
+    async def create_clan_game_members(self, clan_id, game_id, member_dbs):
+        for member_db in member_dbs:
+            platform_id = member_db.clanmember.platform_id
+
+            if platform_id == constants.PLATFORM_BLIZ:
+                membership_id = member_db.blizzard_id
+            elif platform_id == constants.PLATFORM_PSN:
+                membership_id = member_db.psn_id
+            elif platform_id == constants.PLATFORM_XBOX:
+                membership_id = member_db.xbox_id
+
+            try:
+                member_db = await self.get_clan_member_by_platform(
+                    membership_id, platform_id, clan_id)
+            except DoesNotExist:
+                logging.info((membership_id, platform_id, clan_id))
+                raise
+            await self.objects.create(GameMember, member=member_db.id, game=game_id)
 
     async def create_member(self, member_details):
         return await self.objects.create(Member, **member_details)
@@ -317,6 +350,16 @@ class Database:
 
     async def delete(self, db_object):
         return await self.objects.delete(db_object)
+
+    async def get_clan_members_active(self, clan_id, **kwargs):
+        if not kwargs:
+            kwargs = dict(hours=1)
+        query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
+            Clan.id == clan_id,
+            ClanMember.last_active > datetime.now(
+                pytz.utc) - timedelta(**kwargs)
+        )
+        return await self.objects.execute(query)
 
     def close(self):
         asyncio.ensure_future(self.objects.close())

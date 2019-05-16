@@ -14,7 +14,7 @@ from peewee import DoesNotExist
 from trent_six.destiny.activity import store_member_history, store_last_active
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import (
-    InvalidCommandError, InvalidGameModeError,
+    InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError)
 
 logging.getLogger(__name__)
@@ -70,37 +70,60 @@ class TrentSix(commands.Bot):
     async def store_all_games(self, game_mode: str, guild_id: int):
         await self.wait_until_ready()
         while not self.is_closed():
-            logging.info(
-                f"background: Finding all {game_mode} games for all members")
-            members = ast.literal_eval(
-                self.caches[str(guild_id)].get('members').value)
-
-            for member in members:
-                member_db = jsonpickle.decode(member)
-                count = await store_member_history(
-                    members, self.database, self.destiny, member_db, game_mode)
-                if count:
-                    logging.info((
-                        f"Found {count} {game_mode} games "
-                        f"for {member_db.xbox_username}"))
+            try:
+                clan_db = await self.database.get_clan_by_guild(guild_id)
+            except DoesNotExist:
+                return
+            member_dbs = await self.database.get_clan_members_active(clan_db.id, hours=1)
 
             logging.info(
-                f"Found all {game_mode} games for all members")
+                f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
 
+            for member_db in member_dbs:
+                self.loop.create_task(store_member_history(
+                    member_dbs, self.database, self.destiny, member_db, game_mode))
+
+            logging.info(
+                f"Found all {game_mode} games for members of server {guild_id} active in the last hour")
             await asyncio.sleep(3600)
 
-    async def update_last_active(self, guild_id):
+    async def update_last_active(self, guild_id: int):
+        await self.wait_until_ready()
+        logging.info(
+            f"Finding last active dates for all members of {guild_id}")
+
+        members = ast.literal_eval(
+            self.caches[guild_id].get('members').value)
+
+        for member in members:
+            member_db = jsonpickle.decode(member)
+            self.loop.create_task(
+                store_last_active(self.database, self.destiny, member_db)
+            )
+
+    async def update_last_active_task(self, guild_id):
         await self.wait_until_ready()
         while not self.is_closed():
-            logging.info(f"Finding last active dates for all members of {guild_id}")
-            members = ast.literal_eval(
-                self.caches[str(guild_id)].get('members').value)
-
-            for member in members:
-                member_db = jsonpickle.decode(member)
-                await store_last_active(self.database, self.destiny, member_db)
-
             await asyncio.sleep(300)
+            self.loop.create_task(self.update_last_active(guild_id))
+
+    async def process_tweet(self, tweet, twitter_channels: list):
+        twitter_url = (
+            f"https://twitter.com/"
+            f"{tweet.user.screen_name}"
+            f"/status/{tweet.id}"
+        )
+
+        log_message = (
+            f"Sending tweet {tweet.id} "
+            f"by {tweet.user.screen_name} "
+            f"to "
+        )
+
+        for channel in twitter_channels:
+            logging.info(log_message + channel.channel_id)
+            channel = self.get_channel(channel.channel_id)
+            await channel.send(twitter_url)
 
     async def track_tweets(self):
         await self.wait_until_ready()
@@ -123,36 +146,39 @@ class TrentSix(commands.Bot):
         except DoesNotExist:
             pass
 
+        twitter_channels = dict(
+            xbox=xbox_channels,
+            dtg=dtg_channels
+        )
+
         async with statuses as stream:
             async for tweet in stream:
                 if peony.events.tweet(tweet):
                     if tweet.in_reply_to_status_id:
                         continue
 
-                    twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
-                    if tweet.user.id == self.TWITTER_XBOX_SUPPORT and xbox_channels:
-                        for xbox_channel in xbox_channels:
-                            logging.info(
-                                f"Sending tweet {tweet.id} by {tweet.user.screen_name} to {xbox_channel.channel_id}")
-                            channel = self.get_channel(xbox_channel.channel_id)
-                            await channel.send(twitter_url)
-                    elif tweet.user.id == self.TWITTER_DTG and dtg_channels:
-                        for dtg_channel in dtg_channels:
-                            logging.info(
-                                f"Sending tweet {tweet.id} by {tweet.user.screen_name} to {dtg_channel.channel_id}")
-                            channel = self.get_channel(dtg_channel.channel_id)
-                            await channel.send(twitter_url)
+                    if tweet.user.id == self.TWITTER_XBOX_SUPPORT \
+                            and twitter_channels['xbox']:
+                        self.loop.create_task(self.process_tweet(
+                            tweet, twitter_channels['xbox']))
+                    elif tweet.user.id == self.TWITTER_DTG \
+                            and twitter_channels['dtg']:
+                        self.loop.create_task(self.process_tweet(
+                            tweet, twitter_channels['dtg']))
 
     async def build_member_cache(self, guild_id: int):
         await self.wait_until_ready()
-        self.caches[str(guild_id)] = IronCache(
-            name=guild_id, **self.config['iron_cache'])
+
+        self.caches[guild_id] = IronCache(
+            name=str(guild_id), **self.config['iron_cache'])
+
         members = [
             jsonpickle.encode(member)
             for member in await self.database.get_clan_members_by_guild_id(
                 guild_id)
         ]
-        self.caches[str(guild_id)].put('members', members)
+
+        self.caches[guild_id].put('members', members)
         logging.info(f"Populated member cache for server {guild_id}")
 
     async def on_ready(self):
@@ -166,36 +192,41 @@ class TrentSix(commands.Bot):
         self.caches = {}
         guilds = await self.database.get_guilds()
         for guild in guilds:
-            guild_id = str(guild.guild_id)
-
-            self.caches[guild_id] = IronCache(
-                name=guild_id, **self.config['iron_cache'])
+            guild_id = guild.guild_id
 
             await self.build_member_cache(guild_id)
-            self.loop.create_task(self.update_last_active(guild_id))
+            await self.update_last_active(guild_id)
 
             for game_mode in SUPPORTED_GAME_MODES.keys():
                 if '-' not in game_mode:
                     self.loop.create_task(
                         self.store_all_games(game_mode, guild_id))
 
+            self.loop.create_task(self.update_last_active_task(guild_id))
+
         if hasattr(self, 'twitter'):
             logging.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
 
     async def on_command_error(self, ctx, error):
+        text = None
         if isinstance(error, commands.MissingPermissions):
             text = f"{ctx.message.author.mention}: Sorry, but you do not have permissions to do that!"
-            await ctx.send(text)
-        elif isinstance(error, (ConfigurationError, InvalidCommandError, InvalidGameModeError, NotRegisteredError)):
-            await ctx.send(error.message)
+        elif isinstance(error, (
+            ConfigurationError, InvalidCommandError, InvalidMemberError,
+            InvalidGameModeError, NotRegisteredError
+        )):
+            text = f"{ctx.message.author.mention}: {error.message}"
         elif isinstance(error, commands.CommandNotFound):
-            await ctx.send(f"Invalid command `{ctx.message.content}`")
+            text = f"{ctx.message.author.mention}: Invalid command `{ctx.message.content}`"
         else:
             error_trace = traceback.format_exception(
                 type(error), error, error.__traceback__)
             logging.error(
                 f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
+
+        if text:
+            await ctx.send(text)
 
     async def on_message(self, message):
         if not message.author.bot:

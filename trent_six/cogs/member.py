@@ -9,7 +9,7 @@ from peewee import DoesNotExist
 from urllib.parse import quote
 
 from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import is_valid_game_mode
+from trent_six.cogs.utils.checks import is_valid_game_mode, clan_is_linked
 from trent_six.destiny.activity import get_member_history
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 
@@ -26,9 +26,11 @@ class MemberCog(commands.Cog, name='Member'):
         if ctx.invoked_subcommand is None:
             await ctx.send(f"Invalid command `{ctx.message.content}`")
 
+    @clan_is_linked()
+    @commands.guild_only()
     @member.command(help="Show member information")
     async def info(self, ctx, *args):
-        await ctx.channel.trigger_typing()
+        await ctx.trigger_typing()
         member_name = ' '.join(args)
 
         if not member_name:
@@ -39,8 +41,10 @@ class MemberCog(commands.Cog, name='Member'):
         except Exception:
             return
 
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+
         try:
-            member_db = await self.bot.database.get_clan_member_by_discord_id(member_discord.id)
+            member_db = await self.bot.database.get_clan_member_by_discord_id(member_discord.id, clan_db.id)
         except DoesNotExist:
             await ctx.send(f"Discord username \"{member_name}\" does not match a valid member")
             return
@@ -82,60 +86,70 @@ class MemberCog(commands.Cog, name='Member'):
 
     @member.command(help="Link Discord user to Xbox Gamertag")
     async def link(self, ctx, *, xbox_username: str):
+        await ctx.trigger_typing()
         try:
             member_discord = await commands.MemberConverter().convert(ctx, str(ctx.message.author))
         except Exception:
             return
 
-        async with ctx.typing():
-            xbox_username = xbox_username.replace('"', '')
-            try:
-                member_db = await self.bot.database.get_member_by_xbox_username(xbox_username)
-            except DoesNotExist:
-                await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
-                return
-            if member_db.discord_id:
-                member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
-                await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
-                return
+        xbox_username = xbox_username.replace('"', '')
+        try:
+            member_db = await self.bot.database.get_member_by_xbox_username(xbox_username)
+        except DoesNotExist:
+            await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
+            return
+        if member_db.discord_id:
+            member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
+            await ctx.send((
+                f"Gamertag \"{xbox_username}\" already linked to "
+                f"Discord user \"{member_discord.display_name}\""))
+            return
 
-            member_db.discord_id = member_discord.id
-            try:
-                await self.bot.database.update_member(member_db)
-            except Exception:
-                logging.exception(
-                    f"Could not link member \"{xbox_username}\" to Discord user \"{member_discord.display_name}\" (id:{member_discord.id}")
-                return
-            await ctx.send(f"Linked Gamertag \"{xbox_username}\" to Discord user \"{member_discord.display_name}\"")
+        member_db.discord_id = member_discord.id
+        try:
+            await self.bot.database.update_member(member_db)
+        except Exception:
+            logging.exception((
+                f"Could not link member \"{xbox_username}\" to "
+                f"Discord user \"{member_discord.display_name}\" (id:{member_discord.id}"))
+            return
+        await ctx.send((
+            f"Linked Gamertag \"{xbox_username}\" to "
+            f"Discord user \"{member_discord.display_name}\""))
 
     @member.command(help="Link other Discord user to Xbox Gamertag (Admin)")
     @commands.has_permissions(administrator=True)
     async def link_other(self, ctx, xbox_username: str, discord_username: str):
+        await ctx.trigger_typing()
         try:
             member_discord = await commands.MemberConverter().convert(ctx, discord_username)
         except BadArgument:
             await ctx.send(f"Discord user \"{discord_username}\" not found")
             return
 
-        async with ctx.typing():
-            try:
-                member_db = await self.bot.database.get_member_by_xbox_username(xbox_username)
-            except DoesNotExist:
-                await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
-                return
-            if member_db.discord_id:
-                member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
-                await ctx.send(f"Gamertag \"{xbox_username}\" already linked to Discord user \"{member_discord.display_name}\"")
-                return
+        try:
+            member_db = await self.bot.database.get_member_by_xbox_username(xbox_username)
+        except DoesNotExist:
+            await ctx.send(f"Gamertag \"{xbox_username}\" does not match a valid member")
+            return
+        if member_db.discord_id:
+            member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
+            await ctx.send((
+                f"Gamertag \"{xbox_username}\" already linked to "
+                f"Discord user \"{member_discord.display_name}\""))
+            return
 
-            member_db.discord_id = member_discord.id
-            try:
-                await self.bot.database.update_member(member_db)
-            except Exception:
-                logging.exception(
-                    f"Could not link member \"{xbox_username}\" to Discord user \"{member_discord.display_name}\" (id:{member_discord.id}")
-                return
-            await ctx.send(f"Linked Gamertag \"{xbox_username}\" to Discord user \"{member_discord.display_name}\"")
+        member_db.discord_id = member_discord.id
+        try:
+            await self.bot.database.update_member(member_db)
+        except Exception:
+            logging.exception((
+                f"Could not link member \"{xbox_username}\" to "
+                f"Discord user \"{member_discord.display_name}\" (id:{member_discord.id}"))
+            return
+        await ctx.send((
+            f"Linked Gamertag \"{xbox_username}\" to "
+            f"Discord user \"{member_discord.display_name}\""))
 
     @member.command(
         usage=f"<{', '.join(SUPPORTED_GAME_MODES.keys())}>",
@@ -149,31 +163,32 @@ Example: ?member games raid
 """)
     @is_valid_game_mode()
     async def games(self, ctx, *, command: str):
+        await ctx.trigger_typing()
         command = command.split()
         game_mode = command[0]
         member_name = ' '.join(command[1:])
 
-        async with ctx.typing():
-            if not member_name:
-                discord_id = ctx.author.id
-                try:
-                    member_db = await self.bot.database.get_member_by_discord_id(discord_id)
-                except DoesNotExist:
-                    await ctx.send(f"User {ctx.author.display_name} has not registered or is not a clan member")
-                    return
-                logging.info(
-                    f"Getting {game_mode} games by Discord id {discord_id} for {ctx.author.display_name}")
-            else:
-                try:
-                    member_db = await self.bot.database.get_member_by_xbox_username(member_name)
-                except DoesNotExist:
-                    await ctx.send(f"Invalid member name {member_name}")
-                    return
-                logging.info(
-                    f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
+        if not member_name:
+            discord_id = ctx.author.id
+            try:
+                member_db = await self.bot.database.get_member_by_discord_id(discord_id)
+            except DoesNotExist:
+                await ctx.send(
+                    f"User {ctx.author.display_name} has not registered or is not a clan member")
+                return
+            logging.info(
+                f"Getting {game_mode} games by Discord id {discord_id} for {ctx.author.display_name}")
+        else:
+            try:
+                member_db = await self.bot.database.get_member_by_xbox_username(member_name)
+            except DoesNotExist:
+                await ctx.send(f"Invalid member name {member_name}")
+                return
+            logging.info(
+                f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
 
-            game_counts = await get_member_history(
-                self.bot.database, self.bot.destiny, member_db.xbox_username, game_mode)
+        game_counts = await get_member_history(
+            self.bot.database, self.bot.destiny, member_db.xbox_username, game_mode)
 
         embed = discord.Embed(
             colour=util_constants.BLUE,
@@ -189,7 +204,6 @@ Example: ?member games raid
                 total_count += count
 
         embed.description = str(total_count)
-
         await ctx.send(embed=embed)
 
 
