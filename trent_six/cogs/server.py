@@ -13,14 +13,14 @@ class ServerCog(commands.Cog, name='Server'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group()
+    @commands.group(help="Server Specific Commands (Admin only)")
     @commands.guild_only()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
     async def server(self, ctx):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @server.command()
+    @server.command(help="Enable sending tweets from XboxSupport to the current channel (Admin only)")
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
@@ -39,7 +39,7 @@ class ServerCog(commands.Cog, name='Server'):
         else:
             await ctx.send(f"{message} is already enabled.")
 
-    @server.command()
+    @server.command(help="Enable sending tweets from DestinyTheGame to the current channel (Admin only)")
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
@@ -61,7 +61,7 @@ class ServerCog(commands.Cog, name='Server'):
         else:
             await ctx.send(f"{message} is already enabled.")
 
-    @server.command()
+    @server.command(help="Trigger initial setup of this server (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def setup(self, ctx):
@@ -75,7 +75,7 @@ class ServerCog(commands.Cog, name='Server'):
             f"Server **{ctx.message.guild.name}** setup")
         return await manager.clean_messages()
 
-    @server.command()
+    @server.command(help="Link this server to the specified Bungie clan (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanlink(self, ctx, clan_id=None):
@@ -116,7 +116,7 @@ class ServerCog(commands.Cog, name='Server'):
             f"linked to **{clan_name} [{callsign}]**"))
         return await manager.clean_messages()
 
-    @server.command()
+    @server.command(help="Unlink this server from a linked Bungie clan (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanunlink(self, ctx):
@@ -140,7 +140,7 @@ class ServerCog(commands.Cog, name='Server'):
         await manager.send_message(message)
         return await manager.clean_messages()
 
-    @server.command()
+    @server.command(help="Set the server's command prefix (Admin only)")
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def setprefix(self, ctx, new_prefix):
@@ -161,7 +161,7 @@ class ServerCog(commands.Cog, name='Server'):
         await manager.send_message(message)
         return await manager.clean_messages()
 
-    @server.command()
+    @server.command(help="Set the server's default game platform (Admin only)")
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)

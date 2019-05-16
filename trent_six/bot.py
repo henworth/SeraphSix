@@ -218,9 +218,9 @@ class TrentSix(commands.Bot):
         )):
             text = error.message
         elif isinstance(error, commands.CommandNotFound):
-            text = f"Invalid command `{ctx.message.content}`"
+            text = f"Invalid command `{ctx.message.content}`."
         elif isinstance(error, commands.MissingRequiredArgument):
-            text = f"Required argument `{error.param}` is missing"
+            text = f"Required argument `{error.param}` is missing."
         else:
             error_trace = traceback.format_exception(
                 type(error), error, error.__traceback__)
@@ -228,7 +228,7 @@ class TrentSix(commands.Bot):
                 f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
 
         if text:
-            await ctx.send(f"{ctx.message.author.mention}: {text}")
+            await ctx.send(f"{ctx.message.author.mention}: {text} Type `{ctx.prefix}help` for more information.")
 
     async def on_message(self, message):
         if not message.author.bot:

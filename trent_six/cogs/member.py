@@ -21,14 +21,14 @@ class MemberCog(commands.Cog, name='Member'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(brief="Member Commands")
+    @commands.group(brief="Member Specific Commands")
     async def member(self, ctx):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
+    @member.command(help="Show member information")
     @clan_is_linked()
     @commands.guild_only()
-    @member.command(help="Show member information")
     async def info(self, ctx, *args):
         await ctx.trigger_typing()
         member_name = ' '.join(args)

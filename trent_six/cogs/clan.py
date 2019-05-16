@@ -24,12 +24,12 @@ class ClanCog(commands.Cog, name='Clan'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group()
+    @commands.group(help="Clan Specific Commands")
     async def clan(self, ctx):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @clan.command(help="Show member information")
+    @clan.command(help="Show clan information")
     @clan_is_linked()
     @commands.guild_only()
     async def info(self, ctx):
@@ -358,7 +358,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
         await ctx.send(message)
 
-    @clan.command(help="Sync member list with Bungie (Admin onlt)")
+    @clan.command(help="Sync member list with Bungie (Admin only)")
     @clan_is_linked()
     @is_clan_member()
     @commands.guild_only()
