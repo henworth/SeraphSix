@@ -75,7 +75,7 @@ class ServerCog(commands.Cog, name='Server'):
             f"Server **{ctx.message.guild.name}** setup")
         return await manager.clean_messages()
 
-    @server.command(help="Link this server to the specified Bungie clan (Admin only)")
+    @server.command()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanlink(self, ctx, clan_id=None):

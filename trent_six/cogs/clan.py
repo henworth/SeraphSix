@@ -12,6 +12,8 @@ from peewee import DoesNotExist
 from trent_six.cogs.utils import constants as util_constants
 from trent_six.cogs.utils.checks import (
     is_clan_member, is_valid_game_mode, is_registered, clan_is_linked)
+from trent_six.cogs.utils.message_manager import MessageManager
+
 from trent_six.cogs.utils.paginator import FieldPages
 from trent_six.destiny import constants as destiny_constants
 from trent_six.destiny.activity import get_all_history
@@ -28,6 +30,50 @@ class ClanCog(commands.Cog, name='Clan'):
     async def clan(self, ctx):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
+
+    @clan.group(help="The100 Specific Commands")
+    async def the100(self, ctx):
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @the100.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def link(self, ctx, group_id):
+        """
+        Link clan to the100 group (Admin only)
+        """
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        if not group_id:
+            await manager.send_message(
+                "Command must include the the100 group ID")
+            return await manager.clean_messages()
+
+        res = await self.bot.the100.get_group(group_id)
+        if res.get('error'):
+            await manager.send_message(
+                f"Could not locate the100 group {group_id}")
+            return await manager.clean_messages()
+
+        group_name = res['name']
+        callsign = res['clan_tag']
+
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        if clan_db.the100_group_id:
+            await manager.send_message(
+                f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
+            return await manager.clean_messages()
+        else:
+            clan_db.the100_group_id = res['id']
+            await self.bot.database.update(clan_db)
+
+        await manager.send_message((
+            f"**{clan_db.name} [{clan_db.callsign}]** "
+            f"linked to **{group_name} [{callsign}]**"))
+        return await manager.clean_messages()
 
     @clan.command(help="Show clan information")
     @clan_is_linked()
