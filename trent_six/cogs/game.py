@@ -8,6 +8,7 @@ from discord.ext import commands
 from peewee import DoesNotExist
 from trent_six.cogs.utils import constants as util_constants
 from trent_six.cogs.utils.checks import clan_is_linked
+from trent_six.cogs.utils.message_manager import MessageManager
 
 logging.getLogger(__name__)
 
@@ -26,8 +27,15 @@ class GameCog(commands.Cog, name='Clan'):
     @commands.guild_only()
     async def list(self, ctx):
         await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
         games = await self.bot.the100.get_group_gaming_sessions(clan_db.the100_group_id)
+
+        if not games:
+            await manager.send_message(
+                "No the100 game sessions found")
+            return await manager.clean_messages()
 
         for game in games:
             logging.info(json.dumps(game))
