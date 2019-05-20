@@ -6,6 +6,13 @@ PLATFORM_PSN = 2
 PLATFORM_BLIZ = 4
 PLATFORM_BNG = 254
 
+PLATFORM_MAP = {
+    'xbox': PLATFORM_XBOX,
+    'psn': PLATFORM_PSN,
+    'blizzard': PLATFORM_BLIZ,
+    'bungie': PLATFORM_BNG
+}
+
 COMPONENT_CHARACTERS = 200
 
 MODE_STRIKE = 3
@@ -53,26 +60,27 @@ MODES_STRIKE = [
 ]
 
 MODE_MAP = {
-    MODE_STRIKE: {'title': 'strike', 'player_count': 3},
-    MODE_RAID: {'title': 'raid', 'player_count': 6},
-    MODE_NIGHTFALL: {'title': 'nightfall', 'player_count': 3},
-    MODE_FORGE: {'title': 'forge', 'player_count': 3},
-    MODE_PVP_MAYHEM: {'title': 'mayhem', 'player_count': 6},
-    MODE_PVP_SUPREMACY: {'title': 'supremacy', 'player_count': 4},
-    MODE_PVP_SURVIVAL: {'title': 'survival', 'player_count': 4},
-    MODE_PVP_COUNTDOWN: {'title': 'countdown', 'player_count': 4},
-    MODE_PVP_IRONBANNER_CONTROL: {'title': 'ironbanner control', 'player_count': 6},
-    MODE_PVP_IRONBANNER_CLASH: {'title': 'ironbanner clash', 'player_count': 6},
-    MODE_PVP_DOUBLES: {'title': 'doubles', 'player_count': 2},
-    MODE_PVP_LOCKDOWN: {'title': 'lockdown', 'player_count': 4},
-    MODE_PVP_BREAKTHROUGH: {'title': 'breakthrough', 'player_count': 4},
-    MODE_PVP_CLASH_QUICK: {'title': 'clash (quickplay)', 'player_count': 6},
-    MODE_PVP_CLASH_COMP: {'title': 'clash (competitive)', 'player_count': 4},
-    MODE_PVP_CONTROL_QUICK: {'title': 'control (quickplay)', 'player_count': 6},
-    MODE_PVP_CONTROL_COMP: {'title': 'control (competitive)', 'player_count': 4},
-    MODE_GAMBIT: {'title': 'gambit', 'player_count': 4},
-    MODE_GAMBIT_PRIME: {'title': 'gambit prime', 'player_count': 4},
-    MODE_GAMBIT_RECKONING: {'title': 'reckoning', 'player_count': 4}
+    MODE_STRIKE: {'title': 'strike', 'player_count': 3, 'threshold': 2},
+    MODE_RAID: {'title': 'raid', 'player_count': 6, 'threshold': 3},
+    MODE_NIGHTFALL: {'title': 'nightfall', 'player_count': 3, 'threshold': 2},
+    MODE_FORGE: {'title': 'forge', 'player_count': 3, 'threshold': 2},
+    MODE_PVP_MAYHEM: {'title': 'mayhem', 'player_count': 6, 'threshold': 3},
+    MODE_PVP_SUPREMACY: {'title': 'supremacy', 'player_count': 4, 'threshold': 2},
+    MODE_PVP_SURVIVAL: {'title': 'survival', 'player_count': 4, 'threshold': 2},
+    MODE_PVP_COUNTDOWN: {'title': 'countdown', 'player_count': 4, 'threshold': 2},
+    MODE_PVP_IRONBANNER_CONTROL: {'title': 'ironbanner control', 'player_count': 6, 'threshold': 3},
+    MODE_PVP_IRONBANNER_CLASH: {'title': 'ironbanner clash', 'player_count': 6, 'threshold': 3},
+    MODE_PVP_DOUBLES: {'title': 'doubles', 'player_count': 2, 'threshold': 2},
+    MODE_PVP_LOCKDOWN: {'title': 'lockdown', 'player_count': 4, 'threshold': 2},
+    MODE_PVP_BREAKTHROUGH: {'title': 'breakthrough', 'player_count': 4, 'threshold': 2},
+    MODE_PVP_CLASH_QUICK: {'title': 'clash (quickplay)', 'player_count': 6, 'threshold': 3},
+    MODE_PVP_CLASH_COMP: {'title': 'clash (competitive)', 'player_count': 4, 'threshold': 2},
+    MODE_PVP_CONTROL_QUICK: {'title': 'control (quickplay)', 'player_count': 6, 'threshold': 3},
+    MODE_PVP_CONTROL_COMP: {'title': 'control (competitive)', 'player_count': 4, 'threshold': 2},
+    MODE_GAMBIT: {'title': 'gambit', 'player_count': 4, 'threshold': 2},
+    MODE_GAMBIT_PRIME: {'title': 'gambit prime', 'player_count': 4, 'threshold': 2},
+    MODE_GAMBIT_RECKONING: {'title': 'reckoning',
+                            'player_count': 4, 'threshold': 2}
 }
 
 SUPPORTED_GAME_MODES = {

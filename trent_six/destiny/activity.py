@@ -1,22 +1,33 @@
 import backoff
-import jsonpickle
 import logging
 import pydest
-import pytz
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from peewee import DoesNotExist, IntegrityError
 from trent_six.destiny import constants
-from trent_six.destiny.models import Game
+from trent_six.destiny.models import ClanGame
 
 logging.getLogger(__name__)
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def get_activity_list(destiny, member_id, char_id, mode_id, count=10):
-    return await destiny.api.get_activity_history(
-        constants.PLATFORM_XBOX, member_id, char_id, mode=mode_id, count=count
-    )
+async def get_activity_list(destiny, member_id, char_ids, mode_id, count=10):
+    all_activity_ids = []
+    for char_id in char_ids:
+        res = await destiny.api.get_activity_history(
+            constants.PLATFORM_XBOX, member_id, char_id, mode=mode_id, count=count
+        )
+
+        try:
+            activities = res['Response']['activities']
+        except KeyError:
+            return
+
+        all_activity_ids.extend([
+            activity['activityDetails']['instanceId']
+            for activity in activities
+        ])
+    return all_activity_ids
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
@@ -85,22 +96,7 @@ async def get_all_history(database, destiny, game_mode):
     return game_counts
 
 
-async def store_member_history(members, database, destiny, member_db, game_mode):
-    # Check if member hasn't been active within the past hour
-    hour_ago = datetime.now(pytz.utc) - timedelta(hours=1)
-    if not member_db.clanmember.last_active > hour_ago:
-        return
-
-    logging.debug(
-        f"Member {member_db.id} was last active {member_db.clanmember.last_active}")
-
-    # Create a dict holding model references for all members
-    # keyed by their username
-    member_dbs = {}
-    for member in members:
-        temp = jsonpickle.decode(member)
-        member_dbs.update({temp.xbox_username: temp})
-
+async def store_member_history(member_dbs, database, destiny, member_db, game_mode):
     profile = await get_profile(destiny, member_db.xbox_id)
     try:
         char_ids = profile['Response']['characters']['data'].keys()
@@ -108,76 +104,51 @@ async def store_member_history(members, database, destiny, member_db, game_mode)
         logging.error(f"{member_db.xbox_username}: {profile}")
         return
 
-    mode_count = 0
+    all_activity_ids = []
     for game_mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
-        player_threshold = int(
-            constants.MODE_MAP[game_mode_id]['player_count'] / 2)
-        if player_threshold < 2:
-            player_threshold = 2
+        activity_ids = await get_activity_list(
+            destiny, member_db.xbox_id, char_ids, game_mode_id
+        )
+        if activity_ids:
+            all_activity_ids.extend(activity_ids)
 
-        for char_id in char_ids:
-            activity = await get_activity_list(
-                destiny, member_db.xbox_id, char_id, game_mode_id
-            )
+    mode_count = 0
+    for activity_id in all_activity_ids:
+        pgcr = await get_activity(destiny, activity_id)
 
-            try:
-                activities = activity['Response']['activities']
-            except KeyError:
-                continue
+        if not pgcr.get('Response'):
+            logging.error(f"{member_db.xbox_username}: {pgcr}")
+            continue
 
-            activity_ids = [
-                activity['activityDetails']['instanceId']
-                for activity in activities
-            ]
+        game = ClanGame(pgcr['Response'], member_dbs)
 
-            for activity_id in activity_ids:
-                pgcr = await get_activity(destiny, activity_id)
-                try:
-                    game = Game(pgcr['Response'])
-                except KeyError:
-                    logging.error(f"{member_db.xbox_username}: {pgcr}")
-                    continue
+        game_mode_details = constants.MODE_MAP[game.mode_id]
 
-                # Loop through all players to find any members that completed
-                # the game session. Also check if the member joined before
-                # the game time.
-                players = []
-                for player in game.players:
-                    if player['completed'] and player['name'] in member_dbs.keys():
-                        if game.date > member_dbs[player['name']].clanmember.join_date:
-                            players.append(player['name'])
+        # Check if player count is below the threshold, or if the game
+        # occurred after Forsaken released (ie. Season 4) or if the
+        # member joined before game time. If any of those apply, the
+        # game is not eligible.
+        if (len(game.clan_players) < game_mode_details['threshold'] or
+                game.date < constants.FORSAKEN_RELEASE or
+                game.date < member_db.clanmember.join_date):
+            continue
 
-                # Check if player count is below the threshold, or if the game
-                # occurred after Forsaken released (ie. Season 4) or if the
-                # member joined before game time. If any of those apply, the
-                # game is not eligible.
-                if (len(players) < player_threshold or
-                        game.date < constants.FORSAKEN_RELEASE or
-                        game.date < member_db.clanmember.join_date):
-                    continue
+        game_title = game_mode_details['title'].title()
+        try:
+            game_db = await database.create_game(vars(game))
+        except IntegrityError:
+            game_db = await database.get_game(game.instance_id)
 
-                game_details = {
-                    'date': game.date,
-                    'mode_id': game.mode_id,
-                    'instance_id': game.instance_id,
-                    'reference_id': game.reference_id
-                }
+        try:
+            await database.create_clan_game(member_db.clanmember.clan_id, game_db.id)
+            await database.create_clan_game_members(
+                member_db.clanmember.clan_id, game_db.id, game.clan_players)
+        except IntegrityError:
+            continue
 
-                game_title = constants.MODE_MAP[game_mode_id]['title'].title()
-                try:
-                    await database.create_game(game_details, players)
-                except IntegrityError:
-                    game_db = await database.get_game(game.instance_id)
-                    game_db.reference_id = game.reference_id
-                    await database.update_game(game_db)
-                    logging.debug(
-                        f"{game_title} game id {activity_id} exists for "
-                        f"{member_db.xbox_username}, skipping")
-                    continue
-                else:
-                    mode_count += 1
-                    logging.info(
-                        f"{game_title} game id {activity_id} created for "
-                        f"{member_db.xbox_username}")
+        logging.info(f"{game_title} game id {activity_id} created")
+        mode_count += 1
 
-    return mode_count
+    if mode_count:
+        logging.debug(
+            f"Found {mode_count} {game_mode} games for {member_db.xbox_username}")

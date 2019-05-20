@@ -6,4 +6,4 @@ install:
   - 'pip install pipenv'
   - 'pipenv sync --dev'
 script:
-  - python -m pylama || true
+  - python -m pylama

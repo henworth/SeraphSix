@@ -64,25 +64,62 @@ class Member(User):
         self.group_id = int(details['groupId'])
 
 
+class Player(object):
+    def __init__(self, details):
+        self.membership_id = details['player']['destinyUserInfo']['membershipId']
+        self.membership_type = details['player']['destinyUserInfo']['membershipType']
+
+        self.completed = False
+        if details['values']['completed']['basic']['displayValue'] == 'Yes':
+            self.completed = True
+
+        try:
+            self.name = details['player']['destinyUserInfo']['displayName']
+        except KeyError:
+            self.name = None
+
+    def __repr__(self):
+        return f'<{type(self).__name__}: {self.membership_type}-{self.membership_id}>'
+
+
 class Game(object):
     def __init__(self, details):
-        self.players = []
         self.mode_id = details['activityDetails']['mode']
         self.instance_id = int(details['activityDetails']['instanceId'])
         self.reference_id = details['activityDetails']['referenceId']
         self.date = datetime.strptime(details['period'], '%Y-%m-%dT%H:%M:%S%z')
 
+        self.players = []
         for entry in details['entries']:
-            completed = True
-            if entry['values']['completed']['basic']['displayValue'] == 'No':
-                completed = False
+            player = Player(entry)
+            self.players.append(player)
 
-            try:
-                name = entry['player']['destinyUserInfo']['displayName']
-            except KeyError:
-                name = None
+    def __repr__(self):
+        return f'<{type(self).__name__}: {self.instance_id}>'
 
-            self.players.append({
-                'name': name,
-                'completed': completed
-            })
+
+class ClanGame(Game):
+    def __init__(self, details, member_dbs):
+        super().__init__(details)
+
+        members = {}
+        for member_db in member_dbs:
+            if member_db.blizzard_id:
+                members.update(
+                    {f'{constants.PLATFORM_BLIZ}-{member_db.blizzard_id}': member_db})
+            if member_db.psn_id:
+                members.update(
+                    {f'{constants.PLATFORM_PSN}-{member_db.psn_id}': member_db})
+            if member_db.xbox_id:
+                members.update(
+                    {f'{constants.PLATFORM_XBOX}-{member_db.xbox_id}': member_db})
+
+        # Loop through all players to find any members that completed
+        # the game session. Also check if the member joined before
+        # the game time.
+        self.clan_players = []
+        for player in self.players:
+            player_hash = f'{player.membership_type}-{player.membership_id}'
+            if player.completed and player_hash in members.keys():
+                if self.date > members[player_hash].clanmember.join_date:
+                    self.clan_players.append(members[player_hash])
