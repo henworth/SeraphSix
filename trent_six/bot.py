@@ -106,6 +106,7 @@ class TrentSix(commands.Bot):
 
         if period:
             await asyncio.sleep(300)
+            self.loop.create_task(self.update_last_active(guild_id))
 
     async def process_tweet(self, tweet, twitter_channels: list):
         twitter_url = (
