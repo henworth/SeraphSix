@@ -11,6 +11,7 @@ from discord.ext import commands
 from iron_cache import IronCache
 from peewee import DoesNotExist
 
+from trent_six.cogs.utils.message_manager import MessageManager
 from trent_six.destiny.activity import store_member_history, store_last_active
 from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import (
@@ -20,7 +21,7 @@ from trent_six.errors import (
 logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
-    'trent_six.cogs.clan', 'trent_six.cogs.member',
+    'trent_six.cogs.clan', 'trent_six.cogs.game', 'trent_six.cogs.member',
     'trent_six.cogs.register', 'trent_six.cogs.server'
 ]
 
@@ -46,7 +47,7 @@ class TrentSix(commands.Bot):
     TWITTER_DTG = 2608131020
     TWITTER_XBOX_SUPPORT = 59804598
 
-    def __init__(self, loop, config, database, destiny, twitter=None):
+    def __init__(self, loop, config, database, destiny, the100, twitter=None):
         super().__init__(
             command_prefix=_prefix_callable, loop=loop, case_insensitive=True,
             help_command=commands.DefaultHelpCommand(
@@ -56,6 +57,7 @@ class TrentSix(commands.Bot):
         self.config = config
         self.database = database
         self.destiny = destiny
+        self.the100 = the100
 
         if twitter:
             self.twitter = twitter
@@ -209,6 +211,8 @@ class TrentSix(commands.Bot):
             self.loop.create_task(self.track_tweets())
 
     async def on_command_error(self, ctx, error):
+        manager = MessageManager(ctx)
+
         text = None
         if isinstance(error, commands.MissingPermissions):
             text = "Sorry, but you do not have permissions to do that!"
@@ -216,7 +220,7 @@ class TrentSix(commands.Bot):
             ConfigurationError, InvalidCommandError, InvalidMemberError,
             InvalidGameModeError, NotRegisteredError
         )):
-            text = error.message
+            text = error
         elif isinstance(error, commands.CommandNotFound):
             text = f"Invalid command `{ctx.message.content}`."
         elif isinstance(error, commands.MissingRequiredArgument):
@@ -228,8 +232,9 @@ class TrentSix(commands.Bot):
                 f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
 
         if text:
-            await ctx.send(
-                f"{ctx.message.author.mention}: {text} Type `{ctx.prefix}help` for more information.")
+            await manager.send_message(
+                f"{text}\nType `{ctx.prefix}help` for more information.")
+            await manager.clean_messages()
 
     async def on_message(self, message):
         if not message.author.bot:

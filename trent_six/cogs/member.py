@@ -21,15 +21,17 @@ class MemberCog(commands.Cog, name='Member'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(brief="Member Specific Commands")
+    @commands.group()
     async def member(self, ctx):
+        """Member Specific Commands"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @member.command(help="Show member information")
+    @member.command()
     @clan_is_linked()
     @commands.guild_only()
     async def info(self, ctx, *args):
+        """Show member information"""
         await ctx.trigger_typing()
         member_name = ' '.join(args)
 
@@ -84,8 +86,9 @@ class MemberCog(commands.Cog, name='Member'):
 
         await ctx.send(embed=embed)
 
-    @member.command(help="Link Discord user to Xbox Gamertag")
+    @member.command()
     async def link(self, ctx, *, xbox_username: str):
+        """Link Discord user to Xbox Gamertag"""
         await ctx.trigger_typing()
         try:
             member_discord = await commands.MemberConverter().convert(ctx, str(ctx.message.author))
@@ -117,9 +120,10 @@ class MemberCog(commands.Cog, name='Member'):
             f"Linked Gamertag \"{xbox_username}\" to "
             f"Discord user \"{member_discord.display_name}\""))
 
-    @member.command(help="Link other Discord user to Xbox Gamertag (Admin)")
+    @member.command()
     @commands.has_permissions(administrator=True)
     async def link_other(self, ctx, xbox_username: str, discord_username: str):
+        """Link other Discord user to Xbox Gamertag (Admin)"""
         await ctx.trigger_typing()
         try:
             member_discord = await commands.MemberConverter().convert(ctx, discord_username)
@@ -163,6 +167,10 @@ Example: ?member games raid
 """)
     @is_valid_game_mode()
     async def games(self, ctx, *, command: str):
+        """
+        Show itemized list of all eligible clan games participated in
+        Eligiblity is simply whether the fireteam is at least half clan members.
+        """
         await ctx.trigger_typing()
         command = command.split()
         game_mode = command[0]

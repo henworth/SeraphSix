@@ -13,18 +13,20 @@ class ServerCog(commands.Cog, name='Server'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(help="Server Specific Commands (Admin only)")
+    @commands.group()
     @commands.guild_only()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
     async def server(self, ctx):
+        """Server Specific Commands (Admin only)"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @server.command(help="Enable sending tweets from XboxSupport to the current channel (Admin only)")
+    @server.command()
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def xbox_support(self, ctx):
+        """Enable sending tweets from XboxSupport to the current channel (Admin only)"""
         await ctx.trigger_typing()
         message = f"Xbox Support Information for **{ctx.message.guild.name}**"
         try:
@@ -39,11 +41,12 @@ class ServerCog(commands.Cog, name='Server'):
         else:
             await ctx.send(f"{message} is already enabled.")
 
-    @server.command(help="Enable sending tweets from DestinyTheGame to the current channel (Admin only)")
+    @server.command()
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def dtg(self, ctx):
+        """Enable sending tweets from DestinyTheGame to the current channel (Admin only)"""
         await ctx.trigger_typing()
         message = (
             f"Destiny the Game Subreddit Posts "
@@ -65,9 +68,7 @@ class ServerCog(commands.Cog, name='Server'):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def setup(self, ctx):
-        """
-        Initial setup of the server (Admin only)
-        """
+        """Initial setup of the server (Admin only)"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         await self.bot.database.create_guild(ctx.guild.id)
@@ -75,13 +76,11 @@ class ServerCog(commands.Cog, name='Server'):
             f"Server **{ctx.message.guild.name}** setup")
         return await manager.clean_messages()
 
-    @server.command(help="Link this server to the specified Bungie clan (Admin only)")
+    @server.command()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanlink(self, ctx, clan_id=None):
-        """
-        Link this server to a Bungie clan (Admin only)
-        """
+        """Link this server to a Bungie clan (Admin only)"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
@@ -116,13 +115,11 @@ class ServerCog(commands.Cog, name='Server'):
             f"linked to **{clan_name} [{callsign}]**"))
         return await manager.clean_messages()
 
-    @server.command(help="Unlink this server from a linked Bungie clan (Admin only)")
+    @server.command()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanunlink(self, ctx):
-        """
-        Change the server's command prefix (Admin only)
-        """
+        """Unlink this server from a linked Bungie clan (Admin only)"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
@@ -140,13 +137,11 @@ class ServerCog(commands.Cog, name='Server'):
         await manager.send_message(message)
         return await manager.clean_messages()
 
-    @server.command(help="Set the server's command prefix (Admin only)")
+    @server.command()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def setprefix(self, ctx, new_prefix):
-        """
-        Change the server's command prefix (Manage Server only)
-        """
+        """Change the server's command prefix (Manage Server only)"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
@@ -161,14 +156,12 @@ class ServerCog(commands.Cog, name='Server'):
         await manager.send_message(message)
         return await manager.clean_messages()
 
-    @server.command(help="Set the server's default game platform (Admin only)")
+    @server.command()
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def setplatform(self, ctx, platform):
-        """
-        Change the server's default platform (Manage Server only)
-        """
+        """Change the server's default platform (Manage Server only)"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         platform = platform.lower()

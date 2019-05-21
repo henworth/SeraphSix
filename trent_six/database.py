@@ -39,6 +39,7 @@ class Clan(BaseModel):
             f'platform in ({constants.PLATFORM_XBOX}, {constants.PLATFORM_PSN}, {constants.PLATFORM_BLIZ})'
         )]
     )
+    the100_group_id = IntegerField(unique=True, null=True)
 
 
 class Member(BaseModel):
@@ -56,7 +57,7 @@ class Member(BaseModel):
     blizzard_id = BigIntegerField(null=True)
     blizzard_username = CharField(unique=True, null=True)
 
-    the100_id = CharField(null=True)
+    the100_id = BigIntegerField(unique=True, null=True)
     the100_username = CharField(unique=True, null=True)
 
     timezone = CharField(null=True)
@@ -195,6 +196,9 @@ class Database:
 
     async def get_member_by_xbox_id(self, xbox_id):
         return await self.get_member_by_platform(xbox_id, constants.PLATFORM_XBOX)
+
+    async def get_member_by_the100_id(self, the100_id):
+        return await self.objects.get(Member, the100_id=the100_id)
 
     async def get_game(self, instance_id):
         return await self.objects.get(Game, instance_id=instance_id)
@@ -344,6 +348,11 @@ class Database:
                 ClanMember.member_id == member_id
             )
         )
+
+    async def get_clan_member_by_the100_id(self, the100_id):
+        query = Member.select(Member, ClanMember, Clan, Guild).join(ClanMember).join(
+            Clan).join(Guild).where(Member.the100_id == the100_id)
+        return await self.objects.get(query)
 
     async def update(self, db_object):
         return await self.objects.update(db_object)

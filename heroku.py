@@ -5,9 +5,11 @@ import asyncio
 import json
 import os
 import logging
-import peony
-import pydest
 import warnings
+
+from peony import PeonyClient
+from pydest import Pydest
+from the100 import The100
 
 warnings.filterwarnings('ignore', category=UserWarning, module='psycopg2')
 
@@ -36,7 +38,8 @@ def config_loader(filename='config.json'):
                 'project_id': os.environ.get('IRON_CACHE_PROJECT_ID'),
                 'token': os.environ.get('IRON_CACHE_TOKEN')
             },
-            'redis_url': os.environ.get("REDIS_URL"),
+            'redis_url': os.environ.get('REDIS_URL'),
+            'the100_api_key': os.environ.get('THE100_API_KEY'),
             'twitter': {
                 'consumer_key': os.environ.get('TWITTER_CONSUMER_KEY'),
                 'consumer_secret': os.environ.get('TWITTER_CONSUMER_SECRET'),
@@ -61,22 +64,24 @@ if __name__ == '__main__':
     database = Database(config['database_url'], loop=loop)
     database.initialize()
 
-    destiny = pydest.Pydest(
+    destiny = Pydest(
         api_key=config['bungie']['api_key'],
         loop=loop,
         client_id=config['bungie']['client_id'],
         client_secret=config['bungie']['client_secret']
     )
 
+    the100 = The100(config['the100_api_key'], loop=loop)
+
     twitter = None
     if (config['twitter'].get('consumer_key') and
             config['twitter'].get('consumer_secret') and
             config['twitter'].get('access_token') and
             config['twitter'].get('access_token_secret')):
-        twitter = peony.PeonyClient(loop=loop, **config['twitter'])
+        twitter = PeonyClient(loop=loop, **config['twitter'])
 
     bot = TrentSix(loop=loop, config=config, destiny=destiny,
-                   database=database, twitter=twitter)
+                   database=database, the100=the100, twitter=twitter)
     bot.run(config['discord_api_key'])
 
     try:
