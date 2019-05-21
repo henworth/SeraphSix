@@ -32,7 +32,7 @@ class ClanCog(commands.Cog, name='Clan'):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @clan.group()
+    @clan.group(invoke_without_command=True)
     async def the100(self, ctx):
         """The100 Specific Commands"""
         if ctx.invoked_subcommand is None:
