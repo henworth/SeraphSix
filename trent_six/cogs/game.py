@@ -17,15 +17,17 @@ class GameCog(commands.Cog, name='Clan'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(help="Game Specific Commands")
+    @commands.group(help="")
     async def game(self, ctx):
+        """Game Specific Commands"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @game.command(help="List games")
+    @game.command(help="")
     @clan_is_linked()
     @commands.guild_only()
     async def list(self, ctx):
+        """List games on the100 in the linked group(s)"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
@@ -33,8 +35,7 @@ class GameCog(commands.Cog, name='Clan'):
         games = await self.bot.the100.get_group_gaming_sessions(clan_db.the100_group_id)
 
         if not games:
-            await manager.send_message(
-                "No the100 game sessions found")
+            await manager.send_message("No the100 game sessions found")
             return await manager.clean_messages()
 
         for game in games:
