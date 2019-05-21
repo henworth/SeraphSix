@@ -66,13 +66,45 @@ class ClanCog(commands.Cog, name='Clan'):
             await manager.send_message(
                 f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
             return await manager.clean_messages()
-        else:
-            clan_db.the100_group_id = res['id']
-            await self.bot.database.update(clan_db)
+
+        clan_db.the100_group_id = res['id']
+        await self.bot.database.update(clan_db)
 
         await manager.send_message((
             f"**{clan_db.name} [{clan_db.callsign}]** "
             f"linked to **{group_name} [{callsign}]**"))
+        return await manager.clean_messages()
+
+    @the100.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def unlink(self, ctx, group_id):
+        """Unlink clan from the100 group (Admin only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        if not clan_db.the100_group_id:
+            await manager.send_message(
+                f"**{clan_db.name} [{clan_db.callsign}]** is not linked to a the100 group.")
+            return await manager.clean_messages()
+
+        res = await self.bot.the100.get_group(clan_db.the100_group_id)
+        if res.get('error'):
+            await manager.send_message(
+                f"Could not locate the100 group {clan_db.the100_group_id}")
+            return await manager.clean_messages()
+
+        group_name = res['name']
+        callsign = res['clan_tag']
+
+        clan_db.the100_group_id = None
+        await self.bot.database.update(clan_db)
+
+        await manager.send_message((
+            f"**{clan_db.name} [{clan_db.callsign}]** "
+            f"unlinked from **{group_name} [{callsign}]**"))
         return await manager.clean_messages()
 
     @clan.command()
