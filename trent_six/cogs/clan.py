@@ -12,6 +12,8 @@ from peewee import DoesNotExist
 from trent_six.cogs.utils import constants as util_constants
 from trent_six.cogs.utils.checks import (
     is_clan_member, is_valid_game_mode, is_registered, clan_is_linked)
+from trent_six.cogs.utils.message_manager import MessageManager
+
 from trent_six.cogs.utils.paginator import FieldPages
 from trent_six.destiny import constants as destiny_constants
 from trent_six.destiny.activity import get_all_history
@@ -24,15 +26,92 @@ class ClanCog(commands.Cog, name='Clan'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(help="Clan Specific Commands")
+    @commands.group()
     async def clan(self, ctx):
+        """Clan Specific Commands"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @clan.command(help="Show clan information")
+    @clan.group()
+    async def the100(self, ctx):
+        """The100 Specific Commands"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @the100.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def link(self, ctx, group_id):
+        """Link clan to the100 group (Admin only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        if not group_id:
+            await manager.send_message(
+                "Command must include the the100 group ID")
+            return await manager.clean_messages()
+
+        res = await self.bot.the100.get_group(group_id)
+        if res.get('error'):
+            await manager.send_message(
+                f"Could not locate the100 group {group_id}")
+            return await manager.clean_messages()
+
+        group_name = res['name']
+        callsign = res['clan_tag']
+
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        if clan_db.the100_group_id:
+            await manager.send_message(
+                f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
+            return await manager.clean_messages()
+
+        clan_db.the100_group_id = res['id']
+        await self.bot.database.update(clan_db)
+
+        await manager.send_message((
+            f"**{clan_db.name} [{clan_db.callsign}]** "
+            f"linked to **{group_name} [{callsign}]**"))
+        return await manager.clean_messages()
+
+    @the100.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def unlink(self, ctx, group_id):
+        """Unlink clan from the100 group (Admin only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        if not clan_db.the100_group_id:
+            await manager.send_message(
+                f"**{clan_db.name} [{clan_db.callsign}]** is not linked to a the100 group.")
+            return await manager.clean_messages()
+
+        res = await self.bot.the100.get_group(clan_db.the100_group_id)
+        if res.get('error'):
+            await manager.send_message(
+                f"Could not locate the100 group {clan_db.the100_group_id}")
+            return await manager.clean_messages()
+
+        group_name = res['name']
+        callsign = res['clan_tag']
+
+        clan_db.the100_group_id = None
+        await self.bot.database.update(clan_db)
+
+        await manager.send_message((
+            f"**{clan_db.name} [{clan_db.callsign}]** "
+            f"unlinked from **{group_name} [{callsign}]**"))
+        return await manager.clean_messages()
+
+    @clan.command()
     @clan_is_linked()
     @commands.guild_only()
     async def info(self, ctx):
+        """Show clan information"""
         await ctx.trigger_typing()
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
         res = await self.bot.destiny.api.get_group(clan_db.clan_id)
@@ -66,10 +145,11 @@ class ClanCog(commands.Cog, name='Clan'):
         )
         await ctx.send(embed=embed)
 
-    @clan.command(help="Show clan roster")
+    @clan.command()
     @clan_is_linked()
     @commands.guild_only()
     async def roster(self, ctx):
+        """Show clan roster"""
         await ctx.trigger_typing()
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
         clan_members = await self.bot.database.get_clan_members(clan_db.clan_id, sorted_by='xbox_username')
@@ -89,17 +169,19 @@ class ClanCog(commands.Cog, name='Clan'):
         p = FieldPages(
             ctx, entries=members,
             per_page=5,
-            title=f"{clan_db.name} [{clan_db.callsign}] - Clan Roster"
+            title=f"{clan_db.name} [{clan_db.callsign}] - Clan Roster",
+            color=util_constants.BLUE
         )
         await p.paginate()
 
-    @clan.command(help="Show a list of pending members (Admin only, requires registration)")
+    @clan.command()
     @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def pending(self, ctx):
+        """Show a list of pending members (Admin only, requires registration)"""
         await ctx.trigger_typing()
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
@@ -141,13 +223,14 @@ class ClanCog(commands.Cog, name='Clan'):
 
         await ctx.send(embed=embed)
 
-    @clan.command(help="Approve a pending member (Admin only, requires registration)")
+    @clan.command()
     @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def approve(self, ctx, *args):
+        """Approve a pending member (Admin only, requires registration)"""
         await ctx.trigger_typing()
         gamertag, platform_id, platform_name = (None,)*3
 
@@ -225,13 +308,14 @@ class ClanCog(commands.Cog, name='Clan'):
 
         await ctx.send(message)
 
-    @clan.command(help="Show a list of invited members (Admin only, requires registration)")
+    @clan.command()
     @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def invited(self, ctx):
+        """Show a list of invited members (Admin only, requires registration)"""
         await ctx.trigger_typing()
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
@@ -273,13 +357,14 @@ class ClanCog(commands.Cog, name='Clan'):
 
         await ctx.send(embed=embed)
 
-    @clan.command(help="Invite a member by gamertag (Admin only, requires registration)")
+    @clan.command()
     @clan_is_linked()
     @is_clan_member()
     @is_registered()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def invite(self, ctx, *args):
+        """Invite a member by gamertag (Admin only, requires registration)"""
         await ctx.trigger_typing()
         gamertag, platform_id, platform_name = (None,)*3
 
@@ -358,12 +443,13 @@ class ClanCog(commands.Cog, name='Clan'):
 
         await ctx.send(message)
 
-    @clan.command(help="Sync member list with Bungie (Admin only)")
+    @clan.command()
     @clan_is_linked()
     @is_clan_member()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
+        """Sync member list with Bungie (Admin only)"""
         await ctx.trigger_typing()
         clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
         bungie_members = {}
@@ -457,13 +543,13 @@ class ClanCog(commands.Cog, name='Clan'):
             await ctx.send(embed=embed)
 
     @clan.command(
-        help="Show totals of all eligible clan games for all members",
         usage=f"<{', '.join(destiny_constants.SUPPORTED_GAME_MODES.keys())}>"
     )
     @clan_is_linked()
     @is_valid_game_mode()
     @commands.guild_only()
     async def games(self, ctx, game_mode: str):
+        """Show totals of all eligible clan games for all members"""
         await ctx.trigger_typing()
         logging.info(f"Finding all {game_mode} games for all members")
 
