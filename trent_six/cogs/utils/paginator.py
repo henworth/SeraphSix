@@ -1,5 +1,6 @@
 # pylama:ignore=E722
 import asyncio
+import copy
 import discord
 from discord.ext.commands import Paginator as CommandPaginator
 
@@ -38,7 +39,8 @@ class Pages:
         Our permissions for the channel.
     """
 
-    def __init__(self, ctx, *, entries, per_page=12, show_entry_count=True, title=None):
+    def __init__(self, ctx, *, entries, per_page=12, show_entry_count=True, title=None, color=None):
+        embed_color = color or discord.Colour.blurple()
         self.bot = ctx.bot
         self.entries = entries
         self.message = ctx.message
@@ -49,7 +51,7 @@ class Pages:
         if left_over:
             pages += 1
         self.maximum_pages = pages
-        self.embed = discord.Embed(colour=discord.Colour.blurple(), title=title)
+        self.embed = discord.Embed(colour=embed_color, title=title)
         self.paginating = len(entries) > per_page
         self.show_entry_count = show_entry_count
         self.reaction_emojis = [
@@ -303,3 +305,22 @@ class TextPages(Pages):
         if self.maximum_pages > 1:
             return f'{entry}\nPage {page}/{self.maximum_pages}'
         return entry
+
+
+class EmbedPages(Pages):
+    def __init__(self, ctx, entries):
+        self.embeds = copy.deepcopy(entries)
+        super().__init__(ctx, entries=entries, per_page=1, show_entry_count=False)
+
+    def prepare_embed(self, entries, page, *, first=False):
+        self.embed = entries[0]
+
+        footer = []
+        if self.embeds[page - 1].footer.text:
+            footer.append(self.embeds[page - 1].footer.text)
+
+        if self.maximum_pages > 1:
+            text = f"Page {page}/{self.maximum_pages}"
+            footer.append(text)
+        
+        self.embed.set_footer(text=" | ".join(footer))

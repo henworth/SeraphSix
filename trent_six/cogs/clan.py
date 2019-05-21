@@ -169,7 +169,8 @@ class ClanCog(commands.Cog, name='Clan'):
         p = FieldPages(
             ctx, entries=members,
             per_page=5,
-            title=f"{clan_db.name} [{clan_db.callsign}] - Clan Roster"
+            title=f"{clan_db.name} [{clan_db.callsign}] - Clan Roster",
+            color=util_constants.BLUE
         )
         await p.paginate()
 

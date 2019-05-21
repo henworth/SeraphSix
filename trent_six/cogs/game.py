@@ -9,6 +9,7 @@ from peewee import DoesNotExist
 from trent_six.cogs.utils import constants as util_constants
 from trent_six.cogs.utils.checks import clan_is_linked
 from trent_six.cogs.utils.message_manager import MessageManager
+from trent_six.cogs.utils.paginator import EmbedPages
 
 logging.getLogger(__name__)
 
@@ -38,8 +39,8 @@ class GameCog(commands.Cog, name='Clan'):
             await manager.send_message("No the100 game sessions found")
             return await manager.clean_messages()
 
+        embeds = []
         for game in games:
-            logging.info(json.dumps(game))
             spots_reserved = game['party_size'] - 1
             start_time = datetime.fromisoformat(
                 game['start_time']).astimezone(tz=pytz.utc)
@@ -101,10 +102,14 @@ class GameCog(commands.Cog, name='Clan'):
                 text=(
                     f"Creator: {game['creator_gamertag']} | "
                     f"Group: {game['group_name']} | "
-                    f"Clan members indicated by (m)"
+                    f"(m) denotes clan member"
                 )
             )
-            await ctx.send(embed=embed)
+
+            embeds.append(embed)
+
+        paginator = EmbedPages(ctx, embeds)
+        await paginator.paginate()
 
 
 def setup(bot):
