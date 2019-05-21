@@ -38,7 +38,8 @@ def config_loader(filename='config.json'):
                 'project_id': os.environ.get('IRON_CACHE_PROJECT_ID'),
                 'token': os.environ.get('IRON_CACHE_TOKEN')
             },
-            'redis_url': os.environ.get("REDIS_URL"),
+            'redis_url': os.environ.get('REDIS_URL'),
+            'the100_api_key': os.environ.get('THE100_API_KEY'),
             'twitter': {
                 'consumer_key': os.environ.get('TWITTER_CONSUMER_KEY'),
                 'consumer_secret': os.environ.get('TWITTER_CONSUMER_SECRET'),
