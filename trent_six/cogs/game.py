@@ -1,7 +1,6 @@
 import discord
 import logging
 import pytz
-import json
 
 from datetime import datetime
 from discord.ext import commands
@@ -18,13 +17,13 @@ class GameCog(commands.Cog, name='Clan'):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(help="")
+    @commands.group()
     async def game(self, ctx):
         """Game Specific Commands"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @game.command(help="")
+    @game.command()
     @clan_is_linked()
     @commands.guild_only()
     async def list(self, ctx):
