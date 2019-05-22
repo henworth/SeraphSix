@@ -91,6 +91,7 @@ if __name__ == '__main__':
     finally:
         destiny.close()
         database.close()
+        the100.close()
         if twitter:
-            twitter.close()
+            asyncio.ensure_future(twitter.close())
     loop.close()

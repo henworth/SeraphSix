@@ -116,10 +116,11 @@ class GameMember(BaseModel):
 class TwitterChannel(BaseModel):
     channel_id = BigIntegerField()
     twitter_id = BigIntegerField()
+    guild_id = BigIntegerField()
 
     class Meta:
         indexes = (
-            (('channel_id', 'twitter_id'), True),
+            (('channel_id', 'twitter_id', 'guild_id'), True),
         )
 
 
@@ -217,9 +218,18 @@ class Database:
         except AttributeError:
             return True
 
-    async def create_twitter_channel(self, channel_id, twitter_id):
-        details = {'channel_id': channel_id, 'twitter_id': twitter_id}
+    async def create_twitter_channel(self, guild_id, channel_id, twitter_id):
+        details = {
+            'guild_id': guild_id, 'channel_id': channel_id, 'twitter_id': twitter_id}
         return await self.objects.create(TwitterChannel, **details)
+
+    async def get_twitter_channel_by_guild_id(self, guild_id, twitter_id):
+        # pylint: disable=assignment-from-no-return
+        query = TwitterChannel.select().where(
+            TwitterChannel.guild_id == guild_id,
+            TwitterChannel.twitter_id == twitter_id
+        )
+        return await self.objects.get(query)
 
     async def get_twitter_channels(self, twitter_id):
         # pylint: disable=assignment-from-no-return
