@@ -35,11 +35,11 @@ class ServerCog(commands.Cog, name='Server'):
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    async def dtg(self, ctx):
-        """Enable sending tweets from DestinyTheGame to the current channel (Admin only)"""
+    async def destinyreddit(self, ctx):
+        """Enable sending tweets from r/DestinyTheGame to the current channel (Admin only)"""
         await ctx.trigger_typing()
         message = f"Destiny the Game Subreddit Posts for **{ctx.message.guild.name}**"
-        self.bot.loop.create_task(self.twitter_channel(ctx, self.bot.TWITTER_DTG, message))
+        self.bot.loop.create_task(self.twitter_channel(ctx, self.bot.TWITTER_DESTINY_REDDIT, message))
 
     @server.command(help="Trigger initial setup of this server (Admin only)")
     @commands.guild_only()

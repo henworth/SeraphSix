@@ -44,7 +44,7 @@ async def _prefix_callable(bot, message):
 
 class TrentSix(commands.Bot):
 
-    TWITTER_DTG = 2608131020
+    TWITTER_DESTINY_REDDIT = 2608131020
     TWITTER_XBOX_SUPPORT = 59804598
 
     def __init__(self, loop, config, database, destiny, the100, twitter=None):
@@ -127,12 +127,13 @@ class TrentSix(commands.Bot):
     async def track_tweets(self):
         await self.wait_until_ready()
 
-        stream = self.twitter.stream.statuses.filter.post(
-            follow=[self.TWITTER_XBOX_SUPPORT, self.TWITTER_DTG])
-
+        follow_users = [self.TWITTER_XBOX_SUPPORT, self.TWITTER_DESTINY_REDDIT]
+        stream = self.twitter.stream.statuses.filter.post(follow=follow_users)
         async for tweet in stream:
             if peony.events.tweet(tweet):
                 if tweet.in_reply_to_status_id:
+                    continue
+                if tweet.user.id not in follow_users:
                     continue
                 self.loop.create_task(self.process_tweet(tweet))
 
