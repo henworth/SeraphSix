@@ -25,21 +25,11 @@ class ServerCog(commands.Cog, name='Server'):
     @twitter_enabled()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    async def xbox_support(self, ctx):
+    async def xboxsupport(self, ctx):
         """Enable sending tweets from XboxSupport to the current channel (Admin only)"""
         await ctx.trigger_typing()
         message = f"Xbox Support Information for **{ctx.message.guild.name}**"
-        try:
-            await self.bot.database.get_twitter_channel(
-                self.bot.TWITTER_XBOX_SUPPORT)
-        except DoesNotExist:
-            await self.bot.database.create_twitter_channel(
-                ctx.message.channel.id, self.bot.TWITTER_XBOX_SUPPORT)
-            await ctx.send((
-                f"{message} now enabled and will post to "
-                f"**#{ctx.message.channel.name}**."))
-        else:
-            await ctx.send(f"{message} is already enabled.")
+        self.bot.loop.create_task(self.twitter_channel(ctx, self.bot.TWITTER_XBOX_SUPPORT, message))
 
     @server.command()
     @twitter_enabled()
@@ -48,21 +38,8 @@ class ServerCog(commands.Cog, name='Server'):
     async def dtg(self, ctx):
         """Enable sending tweets from DestinyTheGame to the current channel (Admin only)"""
         await ctx.trigger_typing()
-        message = (
-            f"Destiny the Game Subreddit Posts "
-            f"for **{ctx.message.guild.name}**"
-        )
-        try:
-            await self.bot.database.get_twitter_channel(
-                self.bot.TWITTER_DTG)
-        except DoesNotExist:
-            await self.bot.database.create_twitter_channel(
-                ctx.message.channel.id, self.bot.TWITTER_DTG)
-            await ctx.send((
-                f"{message} now enabled and will post to "
-                f"**#{ctx.message.channel.name}**."))
-        else:
-            await ctx.send(f"{message} is already enabled.")
+        message = f"Destiny the Game Subreddit Posts for **{ctx.message.guild.name}**"
+        self.bot.loop.create_task(self.twitter_channel(ctx, self.bot.TWITTER_DTG, message))
 
     @server.command(help="Trigger initial setup of this server (Admin only)")
     @commands.guild_only()
@@ -177,6 +154,20 @@ class ServerCog(commands.Cog, name='Server'):
 
         await manager.send_message(message)
         return await manager.clean_messages()
+
+    async def twitter_channel(self, ctx, twitter_id, message):
+        try:
+            channel_db = await self.bot.database.get_twitter_channel_by_guild_id(
+                ctx.message.guild.id, twitter_id)
+        except DoesNotExist:
+            await self.bot.database.create_twitter_channel(
+                ctx.message.guild.id, ctx.message.channel.id, twitter_id)
+            await ctx.send((
+                f"{message} now enabled and will post to "
+                f"**#{ctx.message.channel.name}**."))
+        else:
+            channel = self.bot.get_channel(channel_db.channel_id)
+            await ctx.send(f"{message} is already enabled in {channel.mention}.")
 
 
 def setup(bot):

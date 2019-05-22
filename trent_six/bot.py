@@ -109,64 +109,32 @@ class TrentSix(commands.Bot):
             await asyncio.sleep(300)
             self.loop.create_task(self.update_last_active(guild_id))
 
-    async def process_tweet(self, tweet, twitter_channels: list):
-        twitter_url = (
-            f"https://twitter.com/"
-            f"{tweet.user.screen_name}"
-            f"/status/{tweet.id}"
-        )
+    async def process_tweet(self, tweet):
+        channels = await self.database.get_twitter_channels(tweet.user.id)
+        if not channels:
+            logging.info(
+                f"Could not find any Discord channels for {tweet.user.screen_name} ({tweet.user.id})")
+            return
 
-        log_message = (
-            f"Sending tweet {tweet.id} "
-            f"by {tweet.user.screen_name} "
-            f"to "
-        )
+        twitter_url = f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
+        log_message = f"Sending tweet {tweet.id} by {tweet.user.screen_name} to "
 
-        for channel in twitter_channels:
-            logging.info(log_message + channel.channel_id)
+        for channel in channels:
+            logging.info(log_message + str(channel.channel_id))
             channel = self.get_channel(channel.channel_id)
             await channel.send(twitter_url)
 
     async def track_tweets(self):
         await self.wait_until_ready()
 
-        statuses = self.twitter.stream.statuses.filter.post(
+        stream = self.twitter.stream.statuses.filter.post(
             follow=[self.TWITTER_XBOX_SUPPORT, self.TWITTER_DTG])
 
-        dtg_channels = None
-        xbox_channels = None
-
-        try:
-            xbox_channels = await self.database.get_twitter_channels(
-                self.TWITTER_XBOX_SUPPORT)
-        except DoesNotExist:
-            pass
-
-        try:
-            dtg_channels = await self.database.get_twitter_channels(
-                self.TWITTER_DTG)
-        except DoesNotExist:
-            pass
-
-        twitter_channels = dict(
-            xbox=xbox_channels,
-            dtg=dtg_channels
-        )
-
-        async with statuses as stream:
-            async for tweet in stream:
-                if peony.events.tweet(tweet):
-                    if tweet.in_reply_to_status_id:
-                        continue
-
-                    if tweet.user.id == self.TWITTER_XBOX_SUPPORT \
-                            and twitter_channels['xbox']:
-                        self.loop.create_task(self.process_tweet(
-                            tweet, twitter_channels['xbox']))
-                    elif tweet.user.id == self.TWITTER_DTG \
-                            and twitter_channels['dtg']:
-                        self.loop.create_task(self.process_tweet(
-                            tweet, twitter_channels['dtg']))
+        async for tweet in stream:
+            if peony.events.tweet(tweet):
+                if tweet.in_reply_to_status_id:
+                    continue
+                self.loop.create_task(self.process_tweet(tweet))
 
     async def build_member_cache(self, guild_id: int):
         await self.wait_until_ready()
