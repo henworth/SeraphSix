@@ -579,7 +579,5 @@ class ClanCog(commands.Cog, name='Clan'):
             yield Member(member)
 
 
-    async def active
-
 def setup(bot):
     bot.add_cog(ClanCog(bot))
