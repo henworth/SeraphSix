@@ -502,7 +502,7 @@ class ClanCog(commands.Cog, name='Clan'):
             jsonpickle.encode(member)
             for member in await self.bot.database.get_clan_members_by_guild_id(ctx.guild.id)
         ]
-        self.bot.caches[str(ctx.guild.id)].put('members', members)
+        self.bot.caches[ctx.guild.id].put('members', members)
 
         embed = discord.Embed(
             colour=util_constants.BLUE,
@@ -578,6 +578,8 @@ class ClanCog(commands.Cog, name='Clan'):
         for member in group_members:
             yield Member(member)
 
+
+    async def active
 
 def setup(bot):
     bot.add_cog(ClanCog(bot))
