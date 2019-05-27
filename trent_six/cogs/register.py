@@ -4,7 +4,6 @@ import backoff
 import discord
 import logging
 import pickle
-import os
 
 from discord.ext import commands
 from trent_six.cogs.utils import constants
