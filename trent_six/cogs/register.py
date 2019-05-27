@@ -1,8 +1,10 @@
 import aioredis
 import asyncio
+import backoff
 import discord
 import logging
 import pickle
+import os
 
 from discord.ext import commands
 from trent_six.cogs.utils import constants
@@ -17,10 +19,15 @@ class RegisterCog(commands.Cog, name='Register'):
     def __init__(self, bot):
         self.bot = bot
 
+    @backoff.on_exception(backoff.expo, ConnectionRefusedError, max_time=60)
+    async def redis_connect(self):
+        await self.bot.reload_config()
+        self.redis = await aioredis.create_redis(self.bot.config['redis_url'])
+
     @commands.Cog.listener()
     async def on_ready(self):
         """Initialize Redis connection when bot loads"""
-        self.redis = await aioredis.create_redis(self.bot.config['redis_url'])
+        await self.redis_connect()
 
     @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
@@ -54,7 +61,12 @@ class RegisterCog(commands.Cog, name='Register'):
         registration_msg = await manager.send_private_embed(e)
 
         # Wait for user info from the web server via Redis
-        res = await self.redis.subscribe(ctx.author.id)
+        try:
+            res = await self.redis.subscribe(ctx.author.id)
+        except aioredis.errors.ConnectionClosedError:
+            await self.redis_connect()
+            res = await self.redis.subscribe(ctx.author.id)
+
         tsk = asyncio.create_task(self.wait_for_msg(res[0]))
         try:
             user_info = await asyncio.wait_for(tsk, timeout=30)
@@ -96,7 +108,7 @@ class RegisterCog(commands.Cog, name='Register'):
         if hasattr(bungie_user.memberships, 'xbox'):
             member_db.xbox_username = bungie_user.memberships.xbox.username
 
-        await self.bot.database.update_member(member_db)
+        await self.bot.database.update(member_db)
 
         # Send confirmation of successful registration
         e = discord.Embed(

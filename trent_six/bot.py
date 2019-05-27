@@ -17,6 +17,7 @@ from trent_six.destiny.constants import SUPPORTED_GAME_MODES
 from trent_six.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError)
+from trent_six.tasks import config
 
 logging.getLogger(__name__)
 
@@ -209,3 +210,6 @@ class TrentSix(commands.Bot):
         if not message.author.bot:
             ctx = await self.get_context(message)
             await self.invoke(ctx)
+
+    async def reload_config(self):
+        self.config = config.load()
