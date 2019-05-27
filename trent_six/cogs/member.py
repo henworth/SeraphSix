@@ -110,7 +110,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         member_db.discord_id = member_discord.id
         try:
-            await self.bot.database.update_member(member_db)
+            await self.bot.database.update(member_db)
         except Exception:
             logging.exception((
                 f"Could not link member \"{xbox_username}\" to "
@@ -145,7 +145,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         member_db.discord_id = member_discord.id
         try:
-            await self.bot.database.update_member(member_db)
+            await self.bot.database.update(member_db)
         except Exception:
             logging.exception((
                 f"Could not link member \"{xbox_username}\" to "

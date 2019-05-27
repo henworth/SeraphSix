@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import json
 import logging
 import os
 import pickle
@@ -22,42 +21,17 @@ class BungieClient(OAuth2):
     token_url = '/platform/app/oauth/token/'
 
 
-def config_loader(filename='config.json'):
-    config = None
-    try:
-        with open(filename, encoding='utf-8', mode='r') as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.decoder.JSONDecodeError):
-        logging.info("Config file config.json does not exist. Ignoring...")
-
-    if not config or 'bungie' not in config.keys():
-        config = {
-            'bungie': {
-                'api_key': os.environ.get('BUNGIE_API_KEY'),
-                'client_id': os.environ.get('BUNGIE_CLIENT_ID'),
-                'client_secret': os.environ.get('BUNGIE_CLIENT_SECRET'),
-                'redirect_host': os.environ.get('BUNGIE_REDIRECT_HOST')
-            },
-            'redis_url': os.environ.get("REDIS_URL"),
-        }
-    return config
-
-
-config = config_loader()
-
 bungie_auth = BungieClient(
-    client_id=config['bungie']['client_id'],
-    client_secret=config['bungie']['client_secret'],
-    redirect_uri=f'https://{config["bungie"]["redirect_host"]}/oauth/callback'
+    client_id=os.environ.get('BUNGIE_CLIENT_ID'),
+    client_secret=os.environ.get('BUNGIE_CLIENT_SECRET'),
+    redirect_uri=f'https://{os.environ.get("BUNGIE_REDIRECT_HOST")}/oauth/callback'
 )
 
-red = redis.from_url(config['redis_url'])
 
-
-@app.route("/")
+@app.route('/')
 def index():
     if not session.get('access_token'):
-        return redirect("/oauth/")
+        return redirect('/oauth/')
 
     user_info = dict(
         membership_id=session.get('membership_id'),
@@ -66,6 +40,7 @@ def index():
     )
 
     pickled_info = pickle.dumps(user_info)
+    red = redis.from_url(os.environ.get('REDIS_URL'))
     red.publish(session.get('state'), pickled_info)
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
@@ -77,7 +52,7 @@ def oauth_index():
 
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
-        s.headers.update({'X-API-KEY': config['bungie']['api_key']})
+        s.headers.update({'X-API-KEY': os.environ.get('BUNGIE_API_KEY')})
         r = s.get(
             f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
