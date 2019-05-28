@@ -5,7 +5,8 @@ import pytz
 from datetime import datetime, timedelta
 from peewee import (
     Model, CharField, BigIntegerField, IntegerField,
-    ForeignKeyField, Proxy, BooleanField, DoesNotExist, Check)
+    ForeignKeyField, Proxy, BooleanField, DoesNotExist,
+    Check, SQL, fn)
 from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
@@ -141,6 +142,15 @@ class Database:
     def initialize(self):
         database_proxy.initialize(self._database)
         Guild.create_table(True)
+
+        member_indexes = self._database.get_indexes('member')
+        index_names = [index.name for index in member_indexes]
+        if 'member_xbox_username_lower' not in index_names:
+            Member.add_index(SQL(
+                'CREATE INDEX member_xbox_username_lower ON '
+                'member(lower(xbox_username) varchar_pattern_ops)'
+            ))
+
         Member.create_table(True)
         Clan.create_table(True)
         ClanMember.create_table(True)
@@ -187,7 +197,8 @@ class Database:
         return await self.objects.get(query)
 
     async def get_member_by_xbox_username(self, username):
-        return await self.objects.get(Member, xbox_username=username)
+        query = Member.select().where(fn.LOWER(Member.xbox_username) == username.lower())
+        return await self.objects.get(query)
 
     async def get_member_by_discord_id(self, discord_id):
         return await self.objects.get(Member, discord_id=discord_id)
