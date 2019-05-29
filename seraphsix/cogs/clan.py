@@ -9,15 +9,15 @@ from discord.ext import commands
 from discord.errors import HTTPException
 from peewee import DoesNotExist
 
-from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import (
+from seraphsix.cogs.utils import constants as util_constants
+from seraphsix.cogs.utils.checks import (
     is_clan_member, is_valid_game_mode, is_registered, clan_is_linked)
-from trent_six.cogs.utils.message_manager import MessageManager
+from seraphsix.cogs.utils.message_manager import MessageManager
 
-from trent_six.cogs.utils.paginator import FieldPages
-from trent_six.destiny import constants as destiny_constants
-from trent_six.destiny.activity import get_all_history
-from trent_six.destiny.models import Member
+from seraphsix.cogs.utils.paginator import FieldPages
+from seraphsix.destiny import constants as destiny_constants
+from seraphsix.destiny.activity import get_all_history
+from seraphsix.destiny.models import Member
 
 logging.getLogger(__name__)
 

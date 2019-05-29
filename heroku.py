@@ -1,6 +1,6 @@
-from trent_six.bot import TrentSix
-from trent_six.database import Database
-from trent_six.tasks import config
+from seraphsix.bot import SeraphSix
+from seraphsix.database import Database
+from seraphsix.tasks import config
 
 import asyncio
 import logging
@@ -42,8 +42,8 @@ if __name__ == '__main__':
             config['twitter'].get('access_token_secret')):
         twitter = PeonyClient(loop=loop, **config['twitter'])
 
-    bot = TrentSix(loop=loop, config=config, destiny=destiny,
-                   database=database, the100=the100, twitter=twitter)
+    bot = SeraphSix(loop=loop, config=config, destiny=destiny,
+                    database=database, the100=the100, twitter=twitter)
     bot.run(config['discord_api_key'])
 
     try:

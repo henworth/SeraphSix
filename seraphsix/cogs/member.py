@@ -8,10 +8,10 @@ from discord.ext.commands.errors import BadArgument
 from peewee import DoesNotExist
 from urllib.parse import quote
 
-from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import is_valid_game_mode, clan_is_linked
-from trent_six.destiny.activity import get_member_history
-from trent_six.destiny.constants import SUPPORTED_GAME_MODES
+from seraphsix.cogs.utils import constants as util_constants
+from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked
+from seraphsix.destiny.activity import get_member_history
+from seraphsix.destiny.constants import SUPPORTED_GAME_MODES
 
 logging.getLogger(__name__)
 

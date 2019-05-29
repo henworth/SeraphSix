@@ -11,19 +11,19 @@ from discord.ext import commands
 from iron_cache import IronCache
 from peewee import DoesNotExist
 
-from trent_six.cogs.utils.message_manager import MessageManager
-from trent_six.destiny.activity import store_member_history, store_last_active
-from trent_six.destiny.constants import SUPPORTED_GAME_MODES
-from trent_six.errors import (
+from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.destiny.activity import store_member_history, store_last_active
+from seraphsix.destiny.constants import SUPPORTED_GAME_MODES
+from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError)
-from trent_six.tasks import config
+from seraphsix.tasks import config
 
 logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
-    'trent_six.cogs.clan', 'trent_six.cogs.game', 'trent_six.cogs.member',
-    'trent_six.cogs.register', 'trent_six.cogs.server'
+    'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
+    'seraphsix.cogs.register', 'seraphsix.cogs.server'
 ]
 
 
@@ -43,7 +43,7 @@ async def _prefix_callable(bot, message):
     return base
 
 
-class TrentSix(commands.Bot):
+class SeraphSix(commands.Bot):
 
     TWITTER_DESTINY_REDDIT = 2608131020
     TWITTER_XBOX_SUPPORT = 59804598

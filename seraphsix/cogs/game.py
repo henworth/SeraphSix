@@ -5,10 +5,10 @@ import pytz
 from datetime import datetime
 from discord.ext import commands
 from peewee import DoesNotExist
-from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import clan_is_linked
-from trent_six.cogs.utils.message_manager import MessageManager
-from trent_six.cogs.utils.paginator import EmbedPages
+from seraphsix.cogs.utils import constants as util_constants
+from seraphsix.cogs.utils.checks import clan_is_linked
+from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.cogs.utils.paginator import EmbedPages
 
 logging.getLogger(__name__)
 

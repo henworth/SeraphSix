@@ -2,8 +2,8 @@ import discord
 
 from discord.ext import commands
 from peewee import DoesNotExist
-from trent_six.destiny.constants import SUPPORTED_GAME_MODES
-from trent_six.errors import (ConfigurationError, InvalidCommandError,
+from seraphsix.destiny.constants import SUPPORTED_GAME_MODES
+from seraphsix.errors import (ConfigurationError, InvalidCommandError,
                               InvalidGameModeError, InvalidMemberError, NotRegisteredError)
 
 

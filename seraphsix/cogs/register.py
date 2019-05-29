@@ -6,9 +6,9 @@ import logging
 import pickle
 
 from discord.ext import commands
-from trent_six.cogs.utils import constants
-from trent_six.cogs.utils.message_manager import MessageManager
-from trent_six.destiny.models import User
+from seraphsix.cogs.utils import constants
+from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.destiny.models import User
 
 logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ class RegisterCog(commands.Cog, name='Register'):
     @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
     async def register(self, ctx):
-        """Register your Destiny 2 account with the bot
+        """Register your Destiny 2 account with Seraph Six
 
-        This command will let the bot know which Destiny 2 profile to associate
+        This command will let Seraph Six know which Destiny 2 profile to associate
         with your Discord profile. Registering is a prerequisite to using any
         commands that require knowledge of your Destiny 2 profile.
         """
@@ -53,9 +53,9 @@ class RegisterCog(commands.Cog, name='Register'):
         e.title = "Click Here to Register"
         e.url = auth_url
         e.description = (
-            "Click the above link to register your Bungie.net account with Trent-Six. "
-            "Registering will allow Trent-Six to access your connected Destiny "
-            "2 accounts."
+            "Click the above link to register your Bungie.net account with Seraph Six. "
+            "Registering will allow Seraph Six to access your connected Destiny "
+            "2 accounts. At no point will Seraph Six have access to your password."
         )
         registration_msg = await manager.send_private_embed(e)
 

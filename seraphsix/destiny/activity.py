@@ -4,8 +4,8 @@ import pydest
 
 from datetime import datetime
 from peewee import DoesNotExist, IntegrityError
-from trent_six.destiny import constants
-from trent_six.destiny.models import ClanGame
+from seraphsix.destiny import constants
+from seraphsix.destiny.models import ClanGame
 
 logging.getLogger(__name__)
 

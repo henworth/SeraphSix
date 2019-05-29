@@ -2,9 +2,9 @@ import logging
 
 from discord.ext import commands
 from peewee import DoesNotExist
-from trent_six.cogs.utils.message_manager import MessageManager
-from trent_six.cogs.utils.checks import twitter_enabled, clan_is_linked
-from trent_six.destiny.constants import PLATFORM_MAP
+from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
+from seraphsix.destiny.constants import PLATFORM_MAP
 
 logging.getLogger(__name__)
 

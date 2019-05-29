@@ -1,7 +1,7 @@
 import asyncio
 
-from trent_six.cogs.utils.constants import CLEANUP_DELAY
-from trent_six.cogs.utils.checks import is_private_channel
+from seraphsix.cogs.utils.constants import CLEANUP_DELAY
+from seraphsix.cogs.utils.checks import is_private_channel
 
 
 class MessageManager:

@@ -10,7 +10,7 @@ from peewee import (
 from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
-from trent_six.destiny import constants
+from seraphsix.destiny import constants
 from urllib.parse import urlparse
 
 logging.getLogger(__name__)

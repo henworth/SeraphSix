@@ -1,5 +1,5 @@
 from datetime import datetime
-from trent_six.destiny import constants
+from seraphsix.destiny import constants
 
 
 class UserMembership(object):
