@@ -1,4 +1,4 @@
-# SeraphSix
+# Seraph Six
 
 <p align="center">
   <a href="https://github.com/henworth/SeraphSix/blob/master/LICENSE">
