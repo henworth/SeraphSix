@@ -54,7 +54,7 @@ class RegisterCog(commands.Cog, name='Register'):
         registration_msg = await manager.send_private_embed(e)
 
         # Wait for user info from the web server via Redis
-            res = await self.redis.subscribe(ctx.author.id)
+        res = await self.redis.subscribe(ctx.author.id)
 
         tsk = asyncio.create_task(self.wait_for_msg(res[0]))
         try:
