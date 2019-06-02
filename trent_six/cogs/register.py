@@ -1,6 +1,5 @@
 import aioredis
 import asyncio
-import backoff
 import discord
 import logging
 import pickle
@@ -18,15 +17,10 @@ class RegisterCog(commands.Cog, name='Register'):
     def __init__(self, bot):
         self.bot = bot
 
-    @backoff.on_exception(backoff.expo, ConnectionRefusedError, max_time=60)
-    async def redis_connect(self):
-        await self.bot.reload_config()
-        self.redis = await aioredis.create_redis(self.bot.config['redis_url'])
-
     @commands.Cog.listener()
     async def on_ready(self):
         """Initialize Redis connection when bot loads"""
-        await self.redis_connect()
+        self.redis = await aioredis.create_redis_pool(self.bot.config['redis_url'])
 
     @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
@@ -60,11 +54,7 @@ class RegisterCog(commands.Cog, name='Register'):
         registration_msg = await manager.send_private_embed(e)
 
         # Wait for user info from the web server via Redis
-        try:
-            res = await self.redis.subscribe(ctx.author.id)
-        except aioredis.errors.ConnectionClosedError:
-            await self.redis_connect()
-            res = await self.redis.subscribe(ctx.author.id)
+        res = await self.redis.subscribe(ctx.author.id)
 
         tsk = asyncio.create_task(self.wait_for_msg(res[0]))
         try:
