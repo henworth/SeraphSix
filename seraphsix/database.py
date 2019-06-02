@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 from peewee import (
     Model, CharField, BigIntegerField, IntegerField,
     ForeignKeyField, Proxy, BooleanField, DoesNotExist,
-    Check, SQL, fn)
+    Check, SQL, fn, Case)
 from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
-from seraphsix.destiny import constants
+from seraphsix import constants
 from urllib.parse import urlparse
 
 logging.getLogger(__name__)
@@ -80,6 +80,14 @@ class ClanMember(BaseModel):
     join_date = DateTimeTZField()
     is_active = BooleanField(default=True)
     last_active = DateTimeTZField(null=True)
+    member_type = IntegerField(
+        null=True,
+        constraints=[Check(
+            f'member_type in ({constants.CLAN_MEMBER_NONE}, {constants.CLAN_MEMBER_BEGINNER},'
+            f'{constants.CLAN_MEMBER_MEMBER}, {constants.CLAN_MEMBER_ADMIN}, '
+            f'{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})'
+        )]
+    )
 
 
 class Game(BaseModel):
@@ -196,8 +204,33 @@ class Database:
             query = Member.select().where(Member.xbox_id == member_id)
         return await self.objects.get(query)
 
+    async def get_member_by_naive_id(self, member_id):
+        query = Member.select().where(
+            (Member.xbox_id == member_id) |
+            (Member.psn_id == member_id) |
+            (Member.blizzard_id == member_id) |
+            (Member.discord_id == member_id) |
+            (Member.the100_id == member_id) |
+            (Member.bungie_id == member_id)
+        )
+        return await self.objects.get(query)
+
     async def get_member_by_xbox_username(self, username):
         query = Member.select().where(fn.LOWER(Member.xbox_username) == username.lower())
+        return await self.objects.get(query)
+
+    async def get_member_by_platform_username(self, platform_id, username):
+        # pylint: disable=assignment-from-no-return
+        query = Member.select()
+        username = username.lower()
+        if platform_id == constants.PLATFORM_BLIZ:
+            query = query.where(fn.LOWER(Member.blizzard_username) == username)
+        elif platform_id == constants.PLATFORM_BNG:
+            query = query.where(fn.LOWER(Member.bungie_username) == username)
+        elif platform_id == constants.PLATFORM_PSN:
+            query = query.where(fn.LOWER(Member.psn_username) == username)
+        elif platform_id == constants.PLATFORM_XBOX:
+            query = query.where(fn.LOWER(Member.xbox_username) == username)
         return await self.objects.get(query)
 
     async def get_member_by_discord_id(self, discord_id):
@@ -271,19 +304,20 @@ class Database:
         return await self.objects.create(
             ClanMember, clan=clan, member=member_db, **member_details)
 
-    async def get_clan_members(self, clan_id, sorted_by=None):
+    async def get_clan_members(self, clan_ids, sorted_by=None):
+        username = Case(ClanMember.platform_id, (
+            (1, Member.xbox_username),
+            (2, Member.psn_username),
+            (4, Member.blizzard_username))
+        )
+
+        query = Member.select(Member, ClanMember, Clan, username.alias('username')).join(
+            ClanMember).join(Clan).where(Clan.clan_id << clan_ids)
+
         if sorted_by == 'join_date':
-            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
-                Clan.clan_id == clan_id
-            ).order_by(ClanMember.join_date)
-        elif sorted_by == 'xbox_username':
-            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
-                Clan.clan_id == clan_id
-            ).order_by(Member.xbox_username)
-        else:
-            query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
-                Clan.clan_id == clan_id
-            )
+            query = query.order_by(ClanMember.join_date)
+        elif sorted_by == 'username':
+            query = query.order_by(username)
         return await self.objects.execute(query)
 
     async def get_clan_members_by_guild_id(self, guild_id, as_dict=False):
@@ -323,11 +357,11 @@ class Database:
             )
         return await self.objects.get(query)
 
-    async def get_clan_by_guild(self, guild_id):
+    async def get_clans_by_guild(self, guild_id):
         query = Clan.select().join(Guild).where(
             Guild.guild_id == guild_id
         )
-        return await self.objects.get(query)
+        return await self.objects.execute(query)
 
     async def get_clan_by_member(self, member_id):
         query = Clan.select().join(ClanMember).join(Member).where(

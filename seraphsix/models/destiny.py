@@ -1,5 +1,5 @@
 from datetime import datetime
-from seraphsix.destiny import constants
+from seraphsix import constants
 
 
 class UserMembership(object):
@@ -11,6 +11,9 @@ class UserMembership(object):
     def __call__(self, details):
         self.id = int(details['membershipId'])
         self.username = details['displayName']
+
+    def __repr__(self):
+        return f'<{type(self).__name__}: {self.username}-{self.id}>'
 
 
 class User(object):
@@ -57,11 +60,27 @@ class Member(User):
         super().__init__(details)
         self.join_date = datetime.strptime(
             details['joinDate'], '%Y-%m-%dT%H:%M:%S%z')
-        self.member_type = int(details['memberType'])
         self.is_online = details['isOnline']
         self.last_online_status_change = datetime.utcfromtimestamp(
             int(details['lastOnlineStatusChange']))
         self.group_id = int(details['groupId'])
+        self.member_type = details['memberType']
+
+        if self.memberships.blizzard.id:
+            self.platform_id = constants.PLATFORM_BLIZ
+            self.member_id = self.memberships.blizzard.id
+        elif self.memberships.xbox.id:
+            self.platform_id = constants.PLATFORM_XBOX
+            self.member_id = self.memberships.xbox.id
+        elif self.memberships.psn.id:
+            self.platform_id = constants.PLATFORM_PSN
+            self.member_id = self.memberships.psn.id
+
+    def __repr__(self):
+        return f'<{type(self).__name__}: {self.platform_id}-{self.member_id}>'
+
+    def __str__(self):
+        return f'{self.platform_id}-{self.member_id}'
 
 
 class Player(object):

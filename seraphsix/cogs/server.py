@@ -4,7 +4,7 @@ from discord.ext import commands
 from peewee import DoesNotExist
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
-from seraphsix.destiny.constants import PLATFORM_MAP
+from seraphsix.constants import PLATFORM_MAP
 
 logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class ServerCog(commands.Cog, name='Server'):
         manager = MessageManager(ctx)
 
         try:
-            clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+            clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         except DoesNotExist:
             message = "No clan linked to this server."
         else:
@@ -147,7 +147,7 @@ class ServerCog(commands.Cog, name='Server'):
         if not platform_id:
             message = f"Platform must be one of `{', '.join(PLATFORM_MAP.keys()).title()}`.`"
         else:
-            clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+            clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
             clan_db.platform = platform_id
             await self.bot.database.update(clan_db)
             message = f"Platform has been set to `{platform}`"

@@ -1,23 +1,20 @@
 import discord
 import logging
-import jsonpickle
 import pydest
 import pytz
 
 from datetime import datetime
 from discord.ext import commands
 from discord.errors import HTTPException
-from peewee import DoesNotExist
 
-from seraphsix.cogs.utils import constants as util_constants
+from seraphsix import constants
 from seraphsix.cogs.utils.checks import (
     is_clan_member, is_valid_game_mode, is_registered, clan_is_linked)
 from seraphsix.cogs.utils.message_manager import MessageManager
-
-from seraphsix.cogs.utils.paginator import FieldPages
-from seraphsix.destiny import constants as destiny_constants
-from seraphsix.destiny.activity import get_all_history
-from seraphsix.destiny.models import Member
+from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
+from seraphsix.models.destiny import Member
+from seraphsix.tasks.activity import get_all_history
+from seraphsix.tasks.clan import member_sync
 
 logging.getLogger(__name__)
 
@@ -61,7 +58,7 @@ class ClanCog(commands.Cog, name='Clan'):
         group_name = res['name']
         callsign = res['clan_tag']
 
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         if clan_db.the100_group_id:
             await manager.send_message(
                 f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
@@ -84,7 +81,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         if not clan_db.the100_group_id:
             await manager.send_message(
                 f"**{clan_db.name} [{clan_db.callsign}]** is not linked to a the100 group.")
@@ -113,37 +110,45 @@ class ClanCog(commands.Cog, name='Clan'):
     async def info(self, ctx):
         """Show clan information"""
         await ctx.trigger_typing()
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
-        res = await self.bot.destiny.api.get_group(clan_db.clan_id)
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
-        group = res['Response']
-        embed = discord.Embed(
-            colour=util_constants.BLUE,
-            title=group['detail']['motto'],
-            description=group['detail']['about']
-        )
-        embed.set_author(
-            name=f"{group['detail']['name']} [{group['detail']['clanInfo']['clanCallsign']}]",
-            url=f"https://www.bungie.net/en/ClanV2?groupid={clan_db.clan_id}"
-        )
-        embed.add_field(
-            name='Members',
-            value=group['detail']['memberCount'],
-            inline=True
-        )
-        embed.add_field(
-            name='Founder',
-            value=group['founder']['bungieNetUserInfo']['displayName'],
-            inline=True
-        )
-        embed.add_field(
-            name='Founded',
-            value=datetime.strptime(
-                group['detail']['creationDate'],
-                '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
-            inline=True
-        )
-        await ctx.send(embed=embed)
+        embeds = []
+        for clan_db in clan_dbs:
+            res = await self.bot.destiny.api.get_group(clan_db.clan_id)
+            group = res['Response']
+            embed = discord.Embed(
+                colour=constants.BLUE,
+                title=group['detail']['motto'],
+                description=group['detail']['about']
+            )
+            embed.set_author(
+                name=f"{group['detail']['name']} [{group['detail']['clanInfo']['clanCallsign']}]",
+                url=f"https://www.bungie.net/en/ClanV2?groupid={clan_db.clan_id}"
+            )
+            embed.add_field(
+                name='Members',
+                value=group['detail']['memberCount'],
+                inline=True
+            )
+            embed.add_field(
+                name='Founder',
+                value=group['founder']['bungieNetUserInfo']['displayName'],
+                inline=True
+            )
+            embed.add_field(
+                name='Founded',
+                value=datetime.strptime(
+                    group['detail']['creationDate'],
+                    '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
+                inline=True
+            )
+            embeds.append(embed)
+
+        if len(embeds) > 1:
+            paginator = EmbedPages(ctx, embeds)
+            await paginator.paginate()
+        else:
+            await ctx.send(embed=embeds[0])
 
     @clan.command()
     @clan_is_linked()
@@ -151,8 +156,9 @@ class ClanCog(commands.Cog, name='Clan'):
     async def roster(self, ctx):
         """Show clan roster"""
         await ctx.trigger_typing()
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
-        clan_members = await self.bot.database.get_clan_members(clan_db.clan_id, sorted_by='xbox_username')
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_members = await self.bot.database.get_clan_members(
+            [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
 
         members = []
         for member in clan_members:
@@ -161,16 +167,17 @@ class ClanCog(commands.Cog, name='Clan'):
                 tz = datetime.now(pytz.timezone(member.timezone))
                 timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
             members.append((
-                member.xbox_username,
-                f"Join Date: {member.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')}"
+                member.username,
+                f"Clan: {member.clanmember.clan.name} [{member.clanmember.clan.callsign}]"
+                f"\nJoin Date: {member.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')}"
                 f"\nTimezone: {timezone}"
             ))
 
         p = FieldPages(
             ctx, entries=members,
             per_page=5,
-            title=f"{clan_db.name} [{clan_db.callsign}] - Clan Roster",
-            color=util_constants.BLUE
+            title="Roster for All Connected Clans",
+            color=constants.BLUE
         )
         await p.paginate()
 
@@ -184,7 +191,7 @@ class ClanCog(commands.Cog, name='Clan'):
         """Show a list of pending members (Admin only, requires registration)"""
         await ctx.trigger_typing()
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         try:
             members = await self.bot.destiny.api.get_group_pending_members(
@@ -204,7 +211,7 @@ class ClanCog(commands.Cog, name='Clan'):
             await self.bot.database.update(member_db)
 
         embed = discord.Embed(
-            colour=util_constants.BLUE,
+            colour=constants.BLUE,
             title=f"Pending Clan Members in {clan_db.name}"
         )
 
@@ -241,7 +248,7 @@ class ClanCog(commands.Cog, name='Clan'):
         if '--platform' in args:
             platform_name = args[-1].lower()
             gamertag = ' '.join(args[0:-2])
-            platform_id = destiny_constants.PLATFORM_MAP.get(platform_name)
+            platform_id = constants.PLATFORM_MAP.get(platform_name)
             if not platform_id:
                 await ctx.send(f"Invalid platform `{platform_name}` was specified")
                 return
@@ -253,7 +260,7 @@ class ClanCog(commands.Cog, name='Clan'):
             return
 
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         if not platform_id and not clan_db.platform:
             await ctx.send("Platform was not specified and clan default platform is not set")
@@ -318,7 +325,7 @@ class ClanCog(commands.Cog, name='Clan'):
         """Show a list of invited members (Admin only, requires registration)"""
         await ctx.trigger_typing()
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         try:
             members = await self.bot.destiny.api.get_group_invited_members(
@@ -338,7 +345,7 @@ class ClanCog(commands.Cog, name='Clan'):
             await self.bot.database.update(member_db)
 
         embed = discord.Embed(
-            colour=util_constants.BLUE,
+            colour=constants.BLUE,
             title=f"Invited Clan Members in {clan_db.name}"
         )
 
@@ -375,7 +382,7 @@ class ClanCog(commands.Cog, name='Clan'):
         if '--platform' in args:
             platform_name = args[-1].lower()
             gamertag = ' '.join(args[0:-2])
-            platform_id = destiny_constants.PLATFORM_MAP.get(platform_name)
+            platform_id = constants.PLATFORM_MAP.get(platform_name)
             if not platform_id:
                 await ctx.send(f"Invalid platform `{platform_name}` was specified")
                 return
@@ -387,7 +394,7 @@ class ClanCog(commands.Cog, name='Clan'):
             return
 
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
+        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         if not platform_id and not clan_db.platform:
             await ctx.send("Platform was not specified and clan default platform is not set")
@@ -445,105 +452,50 @@ class ClanCog(commands.Cog, name='Clan'):
 
     @clan.command()
     @clan_is_linked()
-    @is_clan_member()
+    # @is_clan_member()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
         """Sync member list with Bungie (Admin only)"""
         await ctx.trigger_typing()
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
-        bungie_members = {}
-        async for member in self.get_all_members(clan_db.clan_id):  # pylint: disable=not-an-iterable
-            bungie_members[member.memberships.xbox.id] = dict(
-                bungie_id=member.memberships.bungie.id,
-                bungie_username=member.memberships.bungie.username,
-                join_date=member.join_date,
-                xbox_id=member.memberships.xbox.id,
-                xbox_username=member.memberships.xbox.username
-            )
-
-        bungie_member_set = set(
-            [member for member in bungie_members.keys()]
-        )
-
-        db_members = {}
-        for member in await self.bot.database.get_clan_members(clan_db.clan_id):
-            db_members[member.xbox_id] = member
-
-        db_member_set = set(
-            [member for member in db_members.keys()]
-        )
-
-        new_members = bungie_member_set - db_member_set
-        purged_members = db_member_set - bungie_member_set
-        for member_xbox_id in new_members:
-            member_info = bungie_members[member_xbox_id]
-            try:
-                member_db = await self.bot.database.get_member_by_platform(
-                    member_xbox_id, destiny_constants.PLATFORM_XBOX)
-            except DoesNotExist:
-                member_db = await self.bot.database.create_member(member_info)
-
-            await self.bot.database.create_clan_member(
-                member_db,
-                clan_db.clan_id,
-                join_date=member_info['join_date'],
-                platform_id=destiny_constants.PLATFORM_XBOX,
-                is_active=True
-            )
-
-        for member_xbox_id in purged_members:
-            member_db = await self.bot.database.get_member_by_platform(
-                member_xbox_id, destiny_constants.PLATFORM_XBOX)
-            clanmember_db = await self.bot.database.get_clan_member(member_db.id)
-            await self.bot.database.delete(clanmember_db)
-
-        members = [
-            jsonpickle.encode(member)
-            for member in await self.bot.database.get_clan_members_by_guild_id(ctx.guild.id)
-        ]
-        self.bot.caches[ctx.guild.id].put('members', members)
+        member_changes = await member_sync(
+            self.bot.database, self.bot.destiny, ctx.guild.id, self.bot.loop)  # , self.bot.caches[ctx.guild.id])
 
         embed = discord.Embed(
-            colour=util_constants.BLUE,
+            colour=constants.BLUE,
             title="Membership Changes"
         )
 
-        if len(new_members) > 0:
-            new_member_usernames = []
-            for xbox_id in new_members:
-                member_db = await self.bot.database.get_member_by_xbox_id(xbox_id)
-                new_member_usernames.append(member_db.xbox_username)
-            added = sorted(new_member_usernames, key=lambda s: s.lower())
-            embed.add_field(name="Members Added",
-                            value=', '.join(added), inline=False)
-            logging.info(f"Added members {added}")
-
-        if len(purged_members) > 0:
-            purged_member_usernames = []
-            for xbox_id in purged_members:
-                member_db = await self.bot.database.get_member_by_xbox_id(xbox_id)
-                purged_member_usernames.append(member_db.xbox_username)
-            purged = sorted(purged_member_usernames, key=lambda s: s.lower())
-            embed.add_field(name="Members Purged",
-                            value=', '.join(purged), inline=False)
-            logging.info(f"Purged members {purged}")
-
-        if len(purged_members) == 0 and len(new_members) == 0:
+        if len(member_changes['added']) == 0 and len(member_changes['removed']) == 0 and \
+                len(member_changes['changed']) == 0:
             embed.description = "None"
+
+        if len(member_changes['added']) > 0:
+            embed.add_field(name="Members Added",
+                            value=', '.join(member_changes['added']), inline=False)
+
+        if len(member_changes['removed']) > 0:
+            embed.add_field(name="Members Removed",
+                            value=', '.join(member_changes['removed']), inline=False)
+
+        if len(member_changes['changed']) > 0:
+            embed.add_field(name="Members Changed",
+                            value=', '.join(member_changes['changed']), inline=False)
 
         try:
             await ctx.send(embed=embed)
         except HTTPException:
             embed.clear_fields()
             embed.add_field(name="Members Added",
-                            value=len(new_members), inline=False)
-            embed.add_field(name="Members Purged", value=len(
-                purged_members), inline=False)
+                            value=len(member_changes['added']), inline=False)
+            embed.add_field(name="Members Removed", value=len(
+                            member_changes['removed']), inline=False)
+            embed.add_field(name="Members Changed", value=len(
+                            member_changes['changed']), inline=False)
             await ctx.send(embed=embed)
 
     @clan.command(
-        usage=f"<{', '.join(destiny_constants.SUPPORTED_GAME_MODES.keys())}>"
+        usage=f"<{', '.join(constants.SUPPORTED_GAME_MODES.keys())}>"
     )
     @clan_is_linked()
     @is_valid_game_mode()
@@ -557,7 +509,7 @@ class ClanCog(commands.Cog, name='Clan'):
             self.bot.database, self.bot.destiny, game_mode)
 
         embed = discord.Embed(
-            colour=util_constants.BLUE,
+            colour=constants.BLUE,
             title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for All Members"
         )
 

@@ -12,12 +12,11 @@ from iron_cache import IronCache
 from peewee import DoesNotExist
 
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.destiny.activity import store_member_history, store_last_active
-from seraphsix.destiny.constants import SUPPORTED_GAME_MODES
+from seraphsix.constants import SUPPORTED_GAME_MODES
 from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError)
-from seraphsix.tasks import config
+from seraphsix.tasks.activity import store_member_history, store_last_active
 
 logging.getLogger(__name__)
 
@@ -74,17 +73,17 @@ class SeraphSix(commands.Bot):
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                clan_db = await self.database.get_clan_by_guild(guild_id)
+                clan_dbs = await self.database.get_clans_by_guild(guild_id)
             except DoesNotExist:
                 return
-            member_dbs = await self.database.get_clan_members_active(clan_db.id, hours=1)
+            for clan_db in clan_dbs:
+                member_dbs = await self.database.get_clan_members_active(clan_db.id, hours=1)
+                logging.info(
+                    f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
 
-            logging.info(
-                f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
-
-            for member_db in member_dbs:
-                self.loop.create_task(store_member_history(
-                    member_dbs, self.database, self.destiny, member_db, game_mode))
+                for member_db in member_dbs:
+                    self.loop.create_task(store_member_history(
+                        member_dbs, self.database, self.destiny, member_db, game_mode))
 
             logging.info(
                 f"Found all {game_mode} games for members of server {guild_id} active in the last hour")
@@ -210,6 +209,3 @@ class SeraphSix(commands.Bot):
         if not message.author.bot:
             ctx = await self.get_context(message)
             await self.invoke(ctx)
-
-    async def reload_config(self):
-        self.config = config.load()

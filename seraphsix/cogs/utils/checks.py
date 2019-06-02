@@ -2,7 +2,8 @@ import discord
 
 from discord.ext import commands
 from peewee import DoesNotExist
-from seraphsix.destiny.constants import SUPPORTED_GAME_MODES
+from seraphsix.constants import SUPPORTED_GAME_MODES
+from seraphsix.database import Member, ClanMember, Clan, Guild
 from seraphsix.errors import (ConfigurationError, InvalidCommandError,
                               InvalidGameModeError, InvalidMemberError, NotRegisteredError)
 
@@ -56,13 +57,18 @@ def is_valid_game_mode():
 def is_clan_member():
     async def predicate(ctx):
         try:
-            clan_db = await ctx.bot.database.get_clan_by_guild(ctx.message.guild.id)
+            await ctx.bot.database.get_clans_by_guild(ctx.message.guild.id)
         except DoesNotExist:
             raise ConfigurationError((
                 f"Server **{ctx.message.guild.name}** has not been linked to "
                 f"a Bungie clan, please run `?server clanlink` first"))
         try:
-            await ctx.bot.database.get_clan_member_by_discord_id(ctx.author.id, clan_db.id)
+            await ctx.bot.database.objects.get(
+                Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
+                    Guild.guild_id == ctx.message.guild.id,
+                    Member.discord_id == ctx.author.id
+                )
+            )
         except DoesNotExist:
             raise InvalidMemberError
         return True
@@ -93,7 +99,7 @@ def twitter_enabled():
 def clan_is_linked():
     async def predicate(ctx):
         try:
-            await ctx.bot.database.get_clan_by_guild(ctx.guild.id)
+            await ctx.bot.database.get_clans_by_guild(ctx.guild.id)
         except DoesNotExist:
             raise ConfigurationError((
                 f"Server **{ctx.message.guild.name}** has not been linked to "
