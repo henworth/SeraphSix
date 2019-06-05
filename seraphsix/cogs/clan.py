@@ -6,13 +6,16 @@ import pytz
 from datetime import datetime
 from discord.ext import commands
 from discord.errors import HTTPException
+from peewee import DoesNotExist
 
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import (
-    is_clan_member, is_valid_game_mode, is_registered, clan_is_linked)
+    is_clan_admin, is_valid_game_mode, clan_is_linked)
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
-from seraphsix.models.destiny import Member
+from seraphsix.database import Member, ClanMember, Clan, Guild
+from seraphsix.errors import InvalidAdminError
+from seraphsix.models.destiny import Member as DestinyMember
 from seraphsix.tasks.activity import get_all_history
 from seraphsix.tasks.clan import member_sync
 
@@ -22,6 +25,18 @@ logging.getLogger(__name__)
 class ClanCog(commands.Cog, name='Clan'):
     def __init__(self, bot):
         self.bot = bot
+
+    async def get_admin_group(self, ctx):
+        try:
+            return await self.bot.database.objects.get(
+                Clan.select(Clan).join(ClanMember).join(Member).switch(Clan).join(Guild).where(
+                    Guild.guild_id == ctx.message.guild.id,
+                    ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN,
+                    Member.discord_id == ctx.author.id
+                )
+            )
+        except DoesNotExist:
+            raise InvalidAdminError
 
     @commands.group()
     async def clan(self, ctx):
@@ -58,7 +73,7 @@ class ClanCog(commands.Cog, name='Clan'):
         group_name = res['name']
         callsign = res['clan_tag']
 
-        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_db = await self.get_admin_group(ctx)
         if clan_db.the100_group_id:
             await manager.send_message(
                 f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
@@ -81,7 +96,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
-        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_db = await self.get_admin_group(ctx)
         if not clan_db.the100_group_id:
             await manager.send_message(
                 f"**{clan_db.name} [{clan_db.callsign}]** is not linked to a the100 group.")
@@ -182,16 +197,14 @@ class ClanCog(commands.Cog, name='Clan'):
         await p.paginate()
 
     @clan.command()
-    @clan_is_linked()
-    @is_clan_member()
-    @is_registered()
+    @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def pending(self, ctx):
         """Show a list of pending members (Admin only, requires registration)"""
         await ctx.trigger_typing()
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_db = await self.get_admin_group(ctx)
 
         try:
             members = await self.bot.destiny.api.get_group_pending_members(
@@ -231,9 +244,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(embed=embed)
 
     @clan.command()
-    @clan_is_linked()
-    @is_clan_member()
-    @is_registered()
+    @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def approve(self, ctx, *args):
@@ -260,7 +271,7 @@ class ClanCog(commands.Cog, name='Clan'):
             return
 
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_db = await self.get_admin_group(ctx)
 
         if not platform_id and not clan_db.platform:
             await ctx.send("Platform was not specified and clan default platform is not set")
@@ -316,16 +327,14 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(message)
 
     @clan.command()
-    @clan_is_linked()
-    @is_clan_member()
-    @is_registered()
+    @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def invited(self, ctx):
         """Show a list of invited members (Admin only, requires registration)"""
         await ctx.trigger_typing()
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_db = await self.get_admin_group(ctx)
 
         try:
             members = await self.bot.destiny.api.get_group_invited_members(
@@ -365,9 +374,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.send(embed=embed)
 
     @clan.command()
-    @clan_is_linked()
-    @is_clan_member()
-    @is_registered()
+    @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def invite(self, ctx, *args):
@@ -394,7 +401,7 @@ class ClanCog(commands.Cog, name='Clan'):
             return
 
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_db = await self.get_admin_group(ctx)
 
         if not platform_id and not clan_db.platform:
             await ctx.send("Platform was not specified and clan default platform is not set")
@@ -452,7 +459,6 @@ class ClanCog(commands.Cog, name='Clan'):
 
     @clan.command()
     @clan_is_linked()
-    # @is_clan_member()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
@@ -528,7 +534,7 @@ class ClanCog(commands.Cog, name='Clan'):
         group = await self.bot.destiny.api.get_group_members(group_id)
         group_members = group['Response']['results']
         for member in group_members:
-            yield Member(member)
+            yield DestinyMember(member)
 
 
 def setup(bot):

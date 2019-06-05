@@ -2,9 +2,9 @@ import discord
 
 from discord.ext import commands
 from peewee import DoesNotExist
-from seraphsix.constants import SUPPORTED_GAME_MODES
+from seraphsix.constants import SUPPORTED_GAME_MODES, CLAN_MEMBER_ADMIN
 from seraphsix.database import Member, ClanMember, Clan, Guild
-from seraphsix.errors import (ConfigurationError, InvalidCommandError,
+from seraphsix.errors import (ConfigurationError, InvalidAdminError, InvalidCommandError,
                               InvalidGameModeError, InvalidMemberError, NotRegisteredError)
 
 
@@ -54,35 +54,73 @@ def is_valid_game_mode():
     return commands.check(predicate)
 
 
-def is_clan_member():
-    async def predicate(ctx):
-        try:
-            await ctx.bot.database.get_clans_by_guild(ctx.message.guild.id)
-        except DoesNotExist:
-            raise ConfigurationError((
-                f"Server **{ctx.message.guild.name}** has not been linked to "
-                f"a Bungie clan, please run `?server clanlink` first"))
-        try:
-            await ctx.bot.database.objects.get(
-                Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
-                    Guild.guild_id == ctx.message.guild.id,
-                    Member.discord_id == ctx.author.id
-                )
+async def check_registered(ctx):
+    try:
+        member_db = await ctx.bot.database.get_member_by_discord_id(ctx.author.id)
+    except DoesNotExist:
+        raise NotRegisteredError(ctx.prefix)
+    if not member_db.bungie_access_token:
+        raise NotRegisteredError(ctx.prefix)
+    return True
+
+
+async def check_clan_linked(ctx):
+    try:
+        await ctx.bot.database.get_clans_by_guild(ctx.guild.id)
+    except DoesNotExist:
+        raise ConfigurationError((
+            f"Server **{ctx.message.guild.name}** has not been linked to "
+            f"a Bungie clan, please run `{ctx.prefix}server clanlink` first"))
+    return True
+
+
+async def check_clan_member(ctx):
+    try:
+        await ctx.bot.database.objects.get(
+            Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
+                Guild.guild_id == ctx.message.guild.id,
+                Member.discord_id == ctx.author.id
             )
-        except DoesNotExist:
-            raise InvalidMemberError
-        return True
-    return commands.check(predicate)
+        )
+    except DoesNotExist:
+        raise InvalidMemberError
+    return True
 
 
 def is_registered():
     async def predicate(ctx):
+        return await check_registered(ctx)
+    return commands.check(predicate)
+
+
+def clan_is_linked():
+    async def predicate(ctx):
+        return await check_clan_linked(ctx)
+    return commands.check(predicate)
+
+
+def is_clan_member():
+    async def predicate(ctx):
+        await check_clan_linked(ctx)
+        await check_clan_member(ctx)
+    return commands.check(predicate)
+
+
+def is_clan_admin():
+    async def predicate(ctx):
+        await check_registered(ctx)
+        await check_clan_linked(ctx)
+        await check_clan_member(ctx)
         try:
-            member_db = await ctx.bot.database.get_member_by_discord_id(ctx.author.id)
+            await ctx.bot.database.objects.get(
+                Clan.select(Clan.id).join(ClanMember).join(Member).switch(Clan).join(Guild).where(
+                    Guild.guild_id == ctx.message.guild.id,
+                    ClanMember.member_type >= CLAN_MEMBER_ADMIN,
+                    Member.discord_id == ctx.author.id
+                )
+            )
         except DoesNotExist:
-            raise NotRegisteredError(ctx.prefix)
-        if not member_db.bungie_access_token:
-            raise NotRegisteredError(ctx.prefix)
+            raise InvalidAdminError
         return True
     return commands.check(predicate)
 
@@ -93,16 +131,4 @@ def twitter_enabled():
             return True
         raise ConfigurationError(
             "Twitter support is not enabled at the bot level")
-    return commands.check(predicate)
-
-
-def clan_is_linked():
-    async def predicate(ctx):
-        try:
-            await ctx.bot.database.get_clans_by_guild(ctx.guild.id)
-        except DoesNotExist:
-            raise ConfigurationError((
-                f"Server **{ctx.message.guild.name}** has not been linked to "
-                f"a Bungie clan, please run `?server clanlink` first"))
-        return True
     return commands.check(predicate)
