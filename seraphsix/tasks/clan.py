@@ -45,18 +45,6 @@ async def get_bungie_members(destiny, clan_id):
     members = {}
     async for member in get_all_members(destiny, clan_id):  # pylint: disable=not-an-iterable
         members[f'{clan_id}-{member}'] = member
-        # dict(
-        #     bungie_id=member.memberships.bungie.id,
-        #     bungie_username=member.memberships.bungie.username,
-        #     join_date=member.join_date,
-        #     blizzard_id=member.memberships.blizzard.id,
-        #     blizzard_username=member.memberships.blizzard.username,
-        #     psn_id=member.memberships.psn.id,
-        #     psn_username=member.memberships.psn.username,
-        #     xbox_id=member.memberships.xbox.id,
-        #     xbox_username=member.memberships.xbox.username,
-        #     platform_id=member.platform_id
-        # )
     return members
 
 
@@ -140,32 +128,6 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):
         clanmember_db = await database.get_clan_member(member_db.id)
         await database.delete(clanmember_db)
 
-    # Figure out if any usernames of existing users have been changed
-    # members_changed = []
-    # for member_id in db_member_set:
-    #     member_db = await database.get_member_by_platform(*member_id.split('-'))
-
-    #     bungie_xbox_username = bungie_members[member_id]['xbox_username']
-    #     database_xbox_username = member_db.xbox_username
-    #     if bungie_xbox_username != database_xbox_username:
-    #         members_changed.append(member_xbox_id)
-    #         member_db.xbox_username = bungie_xbox_username
-    #         await database.update(member_db)
-
-    #     bungie_xbox_username = bungie_members[member_id]['xbox_username']
-    #     database_xbox_username = member_db.xbox_username
-    #     if bungie_xbox_username != database_xbox_username:
-    #         members_changed.append(member_xbox_id)
-    #         member_db.xbox_username = bungie_xbox_username
-    #         await database.update(member_db)
-
-    #     bungie_xbox_username = bungie_members[member_id]['xbox_username']
-    #     database_xbox_username = member_db.xbox_username
-    #     if bungie_xbox_username != database_xbox_username:
-    #         members_changed.append(member_xbox_id)
-    #         member_db.xbox_username = bungie_xbox_username
-    #         await database.update(member_db)
-
     if cache:
         members = [
             jsonpickle.encode(member)
@@ -180,9 +142,5 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):
     if len(members_removed) > 0:
         member_changes['removed'] = await sort_members(database, members_removed)
         logging.info(f"Removed members {member_changes['removed']}")
-
-    # if len(members_changed) > 0:
-    #     member_changes['changed'] = await sort_members(database, members_changed)
-    #     logging.info(f"Changed members {member_changes['changed']}")
 
     return member_changes
