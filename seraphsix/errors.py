@@ -16,6 +16,12 @@ class InvalidMemberError(CommandError):
         super().__init__(message, *args)
 
 
+class InvalidAdminError(CommandError):
+    def __init__(self, *args):
+        message = "You don't seem to be an admin of any clan connected to this server."
+        super().__init__(message, *args)
+
+
 class NotRegisteredError(CommandError):
     def __init__(self, prefix, *args):
         message = (

@@ -1,14 +1,14 @@
-# Trent-Six
+# Seraph Six
 
 <p align="center">
-  <a href="https://github.com/henworth/trent-six/blob/master/LICENSE">
+  <a href="https://github.com/henworth/SeraphSix/blob/master/LICENSE">
     <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-brightgreen.svg">
   </a>
-  <a href="https://github.com/henworth/trent-six/commits/">
-    <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/w/henworth/trent-six.svg">
+  <a href="https://github.com/henworth/SeraphSix/commits/">
+    <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/w/henworth/SeraphSix.svg">
   </a>
-  <a href="https://travis-ci.org/henworth/trent-six">
-    <img alt="Travis (.com)" src="https://img.shields.io/travis/com/henworth/trent-six.svg">
+  <a href="https://travis-ci.org/henworth/SeraphSix">
+    <img alt="Travis (.com)" src="https://img.shields.io/travis/com/henworth/SeraphSix.svg">
   </a>
 </p>
 

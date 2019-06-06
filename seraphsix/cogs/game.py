@@ -1,3 +1,4 @@
+import asyncio
 import discord
 import logging
 import pytz
@@ -5,10 +6,10 @@ import pytz
 from datetime import datetime
 from discord.ext import commands
 from peewee import DoesNotExist
-from trent_six.cogs.utils import constants as util_constants
-from trent_six.cogs.utils.checks import clan_is_linked
-from trent_six.cogs.utils.message_manager import MessageManager
-from trent_six.cogs.utils.paginator import EmbedPages
+from seraphsix import constants
+from seraphsix.cogs.utils.checks import clan_is_linked
+from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.cogs.utils.paginator import EmbedPages
 
 logging.getLogger(__name__)
 
@@ -31,8 +32,16 @@ class GameCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
-        clan_db = await self.bot.database.get_clan_by_guild(ctx.guild.id)
-        games = await self.bot.the100.get_group_gaming_sessions(clan_db.the100_group_id)
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        game_tasks = []
+        for clan_db in clan_dbs:
+            game_tasks.append(self.bot.the100.get_group_gaming_sessions(clan_db.the100_group_id))
+
+        results = await asyncio.gather(*game_tasks, loop=self.bot.loop)
+
+        games = []
+        for result in results:
+            games.extend(result)
 
         if not games:
             await manager.send_message("No the100 game sessions found")
@@ -40,12 +49,16 @@ class GameCog(commands.Cog, name='Clan'):
 
         embeds = []
         for game in games:
-            spots_reserved = game['party_size'] - 1
+            try:
+                spots_reserved = game['party_size'] - 1
+            except TypeError:
+                continue
+
             start_time = datetime.fromisoformat(
                 game['start_time']).astimezone(tz=pytz.utc)
 
             embed = discord.Embed(
-                color=util_constants.BLUE,
+                color=constants.BLUE,
             )
             embed.set_thumbnail(
                 url=(

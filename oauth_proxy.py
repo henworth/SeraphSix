@@ -27,6 +27,8 @@ bungie_auth = BungieClient(
     redirect_uri=f'https://{os.environ.get("BUNGIE_REDIRECT_HOST")}/oauth/callback'
 )
 
+red = redis.from_url(os.environ.get('REDIS_URL'))
+
 
 @app.route('/')
 def index():
@@ -40,7 +42,6 @@ def index():
     )
 
     pickled_info = pickle.dumps(user_info)
-    red = redis.from_url(os.environ.get('REDIS_URL'))
     red.publish(session.get('state'), pickled_info)
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 

@@ -4,8 +4,8 @@ import pydest
 
 from datetime import datetime
 from peewee import DoesNotExist, IntegrityError
-from trent_six.destiny import constants
-from trent_six.destiny.models import ClanGame
+from seraphsix import constants
+from seraphsix.models.destiny import ClanGame
 
 logging.getLogger(__name__)
 
@@ -58,7 +58,12 @@ async def get_last_active(destiny, member_db):
     profile = await get_profile(
         destiny, member_id, member_db.clanmember.platform_id)
     acct_last_active = None
-    for _, data in profile['Response']['characters']['data'].items():
+    try:
+        profile_data = profile['Response']['characters']['data'].items()
+    except KeyError:
+        logging.error(f"Could not get profile data for {member_db.clanmember.platform_id}-{member_id}")
+        return
+    for _, data in profile_data:
         char_last_active = datetime.strptime(
             data['dateLastPlayed'], '%Y-%m-%dT%H:%M:%S%z')
         if not acct_last_active or char_last_active > acct_last_active:

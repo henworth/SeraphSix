@@ -1,7 +1,7 @@
 import asyncio
 
-from trent_six.cogs.utils.constants import CLEANUP_DELAY
-from trent_six.cogs.utils.checks import is_private_channel
+from seraphsix.constants import CLEANUP_DELAY
+from seraphsix.cogs.utils.checks import is_private_channel
 
 
 class MessageManager:
@@ -48,13 +48,14 @@ class MessageManager:
             msg = await self.ctx.channel.send(embed=embed)
         return msg
 
-    async def send_message(self, message_text):
+    async def send_message(self, message_text, clean=True):
         """Send a message to the user on ctx.channel"""
         if is_private_channel(self.ctx.channel):
             msg = await self.send_private_message(message_text)
         else:
             msg = await self.ctx.channel.send(f"{self.ctx.author.mention}: {message_text}")
-            self.messages_to_clean.append(msg)
+            if clean:
+                self.messages_to_clean.append(msg)
         return msg
 
     async def send_private_embed(self, embed):
