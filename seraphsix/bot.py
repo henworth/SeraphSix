@@ -72,25 +72,42 @@ class SeraphSix(commands.Bot):
     async def store_all_games(self, game_mode: str, guild_id: int):
         await self.wait_until_ready()
         while not self.is_closed():
+            guild_db = await self.database.get_guild(guild_id)
+
             try:
                 clan_dbs = await self.database.get_clans_by_guild(guild_id)
             except DoesNotExist:
                 return
-            for clan_db in clan_dbs:
-                member_dbs = await self.database.get_clan_members_active(clan_db.id, hours=1)
-                logging.info(
-                    f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
 
             logging.info(
                 f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
 
-            tasks = [store_member_history(
-                member_dbs, self.database, self.destiny, member_db, game_mode) for member_db in member_dbs]
+            tasks = []
+            member_dbs = []
+            for clan_db in clan_dbs:
+                if not clan_db.activity_tracking:
+                    logging.info(f"Clan activity tracking disabled for {clan_db.name}, skipping")
+                    continue
 
-            await asyncio.gather(*tasks)
+                clan_id = clan_db.id
+
+                if guild_db.aggregate:
+                    member_dbs.extend(await self.database.get_clan_members_active(clan_id, hours=1))
+                else:
+                    member_dbs = await self.database.get_clan_members_active(clan_id, hours=1)
+
+                tasks.extend([
+                    store_member_history(
+                        member_dbs, self.database, self.destiny, member_db, game_mode)
+                    for member_db in member_dbs
+                ])
+
+            results = await asyncio.gather(*tasks)
 
             logging.info(
-                f"Found all {game_mode} games for members of server {guild_id} active in the last hour")
+                f"Found {sum(filter(None, results))} {game_mode} games for members "
+                f"of server {guild_id} active in the last hour"
+            )
             await asyncio.sleep(3600)
 
     async def update_last_active(self, guild_id: int, period: int = 0):

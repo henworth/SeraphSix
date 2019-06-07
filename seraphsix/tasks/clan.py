@@ -10,11 +10,11 @@ logging.getLogger(__name__)
 
 
 async def sort_members(database, member_list):
-    clans = {}
+    return_list = []
     for member_hash in member_list:
         clan_id, platform_id, member_id = map(int, member_hash.split('-'))
 
-        member_db = await database.get_member_by_naive_id(member_id)
+        member_db = await database.get_member_by_platform(member_id, platform_id)
         if platform_id == constants.PLATFORM_BLIZ:
             username = member_db.blizzard_username
         elif platform_id == constants.PLATFORM_XBOX:
@@ -22,16 +22,9 @@ async def sort_members(database, member_list):
         elif platform_id == constants.PLATFORM_PSN:
             username = member_db.psn_username
 
-        clan_db = await database.get_clan(clan_id)
-        if not clans.get(clan_db.name):
-            clans[clan_db.name] = [username]
-        else:
-            clans[clan_db.name].append(username)
+        return_list.append(username)
 
-        for clan, usernames in clans.items():
-            clans[clan] = sorted(usernames, key=lambda s: s.lower())
-
-    return clans
+    return sorted(return_list, key=lambda s: s.lower())
 
 
 async def get_all_members(destiny, group_id):
@@ -50,7 +43,7 @@ async def get_bungie_members(destiny, clan_id):
 
 async def get_database_members(database, clan_id):
     members = {}
-    for member in await database.get_clan_members(clan_id):
+    for member in await database.get_clan_members([clan_id]):
         if member.clanmember.platform_id == constants.PLATFORM_BLIZ:
             member_id = member.blizzard_id
         elif member.clanmember.platform_id == constants.PLATFORM_XBOX:
@@ -63,8 +56,10 @@ async def get_database_members(database, clan_id):
 
 
 async def member_sync(database, destiny, guild_id, loop, cache=None):
-    member_changes = {'added': [], 'removed': [], 'changed': []}
     clan_dbs = await database.get_clans_by_guild(guild_id)
+    member_changes = {}
+    for clan_db in clan_dbs:
+        member_changes[clan_db.clan_id] = {'added': [], 'removed': [], 'changed': []}
 
     bungie_members = {}
     db_members = {}
@@ -104,7 +99,7 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):
         try:
             member_db = await database.get_member_by_platform(member_id, platform_id)
         except DoesNotExist:
-            member_db = await database.create_member(member_info)
+            member_db = await database.create_member(member_info.to_dict())
 
         await database.create_clan_member(
             member_db,
@@ -115,6 +110,7 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):
             member_type=member_info.member_type,
             last_active=member_info.last_online_status_change
         )
+        member_changes[clan_db.clan_id]['added'].append(member_hash)
 
     # Figure out if there are any members to remove
     members_removed = db_member_set - bungie_member_set
@@ -127,6 +123,7 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):
             continue
         clanmember_db = await database.get_clan_member(member_db.id)
         await database.delete(clanmember_db)
+        member_changes[clan_db.clan_id]['removed'].append(member_hash)
 
     if cache:
         members = [
@@ -135,12 +132,41 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):
         ]
         cache.put('members', members)
 
-    if len(members_added) > 0:
-        member_changes['added'] = await sort_members(database, members_added)
-        logging.info(f"Added members {member_changes['added']}")
-
-    if len(members_removed) > 0:
-        member_changes['removed'] = await sort_members(database, members_removed)
-        logging.info(f"Removed members {member_changes['removed']}")
+    for clan, changes in member_changes.items():
+        if len(changes['added']):
+            changes['added'] = await sort_members(database, changes['added'])
+            logging.info(f"Added members {changes['added']}")
+        if len(changes['removed']):
+            changes['removed'] = await sort_members(database, changes['removed'])
+            logging.info(f"Removed members {changes['removed']}")
 
     return member_changes
+
+
+async def info_sync(database, destiny, guild_id):
+    clan_dbs = await database.get_clans_by_guild(guild_id)
+
+    clan_changes = {}
+    for clan_db in clan_dbs:
+        res = await destiny.api.get_group(clan_db.clan_id)
+        group = res['Response']
+        bungie_name = group['detail']['name']
+        bungie_callsign = group['detail']['clanInfo']['clanCallsign']
+        original_name = clan_db.name
+        original_callsign = clan_db.callsign
+
+        if clan_db.name != bungie_name:
+            clan_changes[clan_db.clan_id] = {'name': {'from': original_name, 'to': bungie_name}}
+            clan_db.name = bungie_name
+
+        if clan_db.callsign != bungie_callsign:
+            if not clan_changes.get(clan_db.clan_id):
+                clan_changes.update(
+                    {clan_db.clan_id: {'callsign': {'from': original_callsign, 'to': bungie_callsign}}})
+            else:
+                clan_changes[clan_db.clan_id]['callsign'] = {'from': original_callsign, 'to': bungie_callsign}
+            clan_db.callsign = bungie_callsign
+
+        await database.objects.update(clan_db)
+
+    return clan_changes

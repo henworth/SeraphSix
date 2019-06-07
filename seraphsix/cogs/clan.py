@@ -5,7 +5,6 @@ import pytz
 
 from datetime import datetime
 from discord.ext import commands
-from discord.errors import HTTPException
 from peewee import DoesNotExist
 
 from seraphsix import constants
@@ -17,7 +16,7 @@ from seraphsix.database import Member, ClanMember, Clan, Guild
 from seraphsix.errors import InvalidAdminError
 from seraphsix.models.destiny import Member as DestinyMember
 from seraphsix.tasks.activity import get_all_history
-from seraphsix.tasks.clan import member_sync
+from seraphsix.tasks.clan import info_sync, member_sync
 
 logging.getLogger(__name__)
 
@@ -468,38 +467,67 @@ class ClanCog(commands.Cog, name='Clan'):
             self.bot.database, self.bot.destiny, ctx.guild.id,
             self.bot.loop, self.bot.caches[ctx.guild.id])
 
-        embed = discord.Embed(
-            colour=constants.BLUE,
-            title="Membership Changes"
-        )
+        clan_info_changes = await info_sync(self.bot.database, self.bot.destiny, ctx.guild.id)
 
-        if len(member_changes['added']) == 0 and len(member_changes['removed']) == 0 and \
-                len(member_changes['changed']) == 0:
-            embed.description = "None"
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        embeds = []
+        for clan_db in clan_dbs:
+            embed = discord.Embed(
+                colour=constants.BLUE,
+                title=f"Clan Changes for {clan_db.name}",
+            )
 
-        if len(member_changes['added']) > 0:
-            embed.add_field(name="Members Added",
-                            value=', '.join(member_changes['added']), inline=False)
+            if not member_changes[clan_db.clan_id].get('added') \
+                    and not member_changes[clan_db.clan_id].get('removed') \
+                    and not member_changes[clan_db.clan_id].get('changed') \
+                    and not clan_info_changes.get(clan_db.clan_id):
+                embed.add_field(
+                    name="No Changes",
+                    value="-"
+                )
 
-        if len(member_changes['removed']) > 0:
-            embed.add_field(name="Members Removed",
-                            value=', '.join(member_changes['removed']), inline=False)
+            if member_changes[clan_db.clan_id].get('added'):
+                embed.add_field(
+                    name="Members Added",
+                    value=", ".join(member_changes[clan_db.clan_id].get('added')),
+                    inline=False
+                )
 
-        if len(member_changes['changed']) > 0:
-            embed.add_field(name="Members Changed",
-                            value=', '.join(member_changes['changed']), inline=False)
+            if member_changes[clan_db.clan_id].get('removed'):
+                embed.add_field(
+                    name="Members Removed",
+                    value=", ".join(member_changes[clan_db.clan_id].get('removed')),
+                    inline=False
+                )
 
-        try:
-            await ctx.send(embed=embed)
-        except HTTPException:
-            embed.clear_fields()
-            embed.add_field(name="Members Added",
-                            value=len(member_changes['added']), inline=False)
-            embed.add_field(name="Members Removed", value=len(
-                            member_changes['removed']), inline=False)
-            embed.add_field(name="Members Changed", value=len(
-                            member_changes['changed']), inline=False)
-            await ctx.send(embed=embed)
+            if member_changes[clan_db.clan_id].get('changed'):
+                embed.add_field(
+                    name="Members Changed",
+                    value=", ".join(member_changes[clan_db.clan_id].get('changed')),
+                    inline=False
+                )
+
+            if clan_info_changes.get(clan_db.clan_id):
+                changes = clan_info_changes[clan_db.clan_id]
+                if changes.get('name'):
+                    embed.add_field(
+                        name="Name Changed",
+                        value=f"From **{changes['name']['from']}** to **{changes['name']['to']}**",
+                        inline=False
+                    )
+                if changes.get('callsign'):
+                    embed.add_field(
+                        name="Callsign Changed",
+                        value=f"From **{changes['callsign']['from']}** to **{changes['callsign']['to']}**",
+                        inline=False
+                    )
+            embeds.append(embed)
+
+        if len(embeds) > 1:
+            paginator = EmbedPages(ctx, embeds)
+            await paginator.paginate()
+        else:
+            await ctx.send(embed=embeds[0])
 
     @clan.command(
         usage=f"<{', '.join(constants.SUPPORTED_GAME_MODES.keys())}>"
@@ -530,6 +558,30 @@ class ClanCog(commands.Cog, name='Clan'):
 
         embed.description = str(total_count)
         await ctx.send(embed=embed)
+
+    @clan.command()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def activitytracking(self, ctx):
+        """Enable activity tracking on all connected clans (Admin only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        for clan_db in clan_dbs:
+            if clan_db.activity_tracking:
+                clan_db.activity_tracking = False
+            else:
+                clan_db.activity_tracking = True
+            await self.bot.database.update(clan_db)
+            message = (
+                f"Clan activity tracking has been "
+                f"{'enabled' if clan_db.activity_tracking else 'disabled'} "
+                f"for **{clan_db.name}**."
+            )
+            await manager.send_message(message)
+
+        return await manager.clean_messages()
 
     async def get_all_members(self, group_id):
         group = await self.bot.destiny.api.get_group_members(group_id)

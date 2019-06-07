@@ -10,12 +10,29 @@ from seraphsix.models.destiny import ClanGame
 logging.getLogger(__name__)
 
 
+def parse_platform(member_db, platform_id):
+    if platform_id == constants.PLATFORM_BLIZ:
+        member_id = member_db.blizzard_id
+        member_username = member_db.blizzard_username
+    elif platform_id == constants.PLATFORM_BNG:
+        member_id = member_db.bungie_id
+        member_username = member_db.bungie_username
+    elif platform_id == constants.PLATFORM_PSN:
+        member_id = member_db.psn_id
+        member_username = member_db.psn_username
+    elif platform_id == constants.PLATFORM_XBOX:
+        member_id = member_db.xbox_id
+        member_username = member_db.xbox_username
+
+    return member_id, member_username
+
+
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def get_activity_list(destiny, member_id, char_ids, mode_id, count=10):
+async def get_activity_list(destiny, platform_id, member_id, char_ids, mode_id, count=10):
     all_activity_ids = []
     for char_id in char_ids:
         res = await destiny.api.get_activity_history(
-            constants.PLATFORM_XBOX, member_id, char_id, mode=mode_id, count=count
+            platform_id, member_id, char_id, mode=mode_id, count=count
         )
 
         try:
@@ -42,18 +59,14 @@ async def decode_activity(destiny, reference_id):
 
 
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def get_profile(destiny, member_id, platform_id=constants.PLATFORM_XBOX):
+async def get_profile(destiny, member_id, platform_id):
     return await destiny.api.get_profile(
         platform_id, member_id, [constants.COMPONENT_CHARACTERS])
 
 
 async def get_last_active(destiny, member_db):
-    if member_db.clanmember.platform_id == constants.PLATFORM_XBOX:
-        member_id = member_db.xbox_id
-    elif member_db.clanmember.platform_id == constants.PLATFORM_PSN:
-        member_id = member_db.psn_id
-    else:
-        member_id = member_db.blizzard_id
+    platform_id = member_db.clanmember.platform_id
+    member_id, _ = parse_platform(member_db, platform_id)
 
     profile = await get_profile(
         destiny, member_id, member_db.clanmember.platform_id)
@@ -102,17 +115,21 @@ async def get_all_history(database, destiny, game_mode):
 
 
 async def store_member_history(member_dbs, database, destiny, member_db, game_mode):
-    profile = await get_profile(destiny, member_db.xbox_id)
+    platform_id = member_db.clanmember.platform_id
+
+    member_id, member_username = parse_platform(platform_id, member_db)
+
+    profile = await get_profile(destiny, member_id, platform_id)
     try:
         char_ids = profile['Response']['characters']['data'].keys()
     except KeyError:
-        logging.error(f"{member_db.xbox_username}: {profile}")
+        logging.error(f"{member_username}: {profile}")
         return
 
     all_activity_ids = []
     for game_mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
         activity_ids = await get_activity_list(
-            destiny, member_db.xbox_id, char_ids, game_mode_id
+            destiny, platform_id, member_id, char_ids, game_mode_id
         )
         if activity_ids:
             all_activity_ids.extend(activity_ids)
@@ -122,7 +139,7 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
         pgcr = await get_activity(destiny, activity_id)
 
         if not pgcr.get('Response'):
-            logging.error(f"{member_db.xbox_username}: {pgcr}")
+            logging.error(f"{member_username}: {pgcr}")
             continue
 
         game = ClanGame(pgcr['Response'], member_dbs)
@@ -156,4 +173,5 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
 
     if mode_count:
         logging.debug(
-            f"Found {mode_count} {game_mode} games for {member_db.xbox_username}")
+            f"Found {mode_count} {game_mode} games for {member_username}")
+        return mode_count

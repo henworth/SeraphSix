@@ -27,6 +27,7 @@ class Guild(BaseModel):
     guild_id = BigIntegerField(unique=True)
     prefix = CharField(max_length=5, null=True, default='?')
     clear_spam = BooleanField(default=False)
+    aggregate_clans = BooleanField(default=True)
 
 
 class Clan(BaseModel):
@@ -41,6 +42,7 @@ class Clan(BaseModel):
         )]
     )
     the100_group_id = IntegerField(unique=True, null=True)
+    activity_tracking = BooleanField(default=True)
 
 
 class Member(BaseModel):
@@ -143,7 +145,7 @@ class Database:
         url = urlparse(url)
         self._database = PooledPostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,
-            host=url.hostname, port=url.port)
+            host=url.hostname, port=url.port, max_connections=18)
         self._loop = asyncio.get_event_loop() if loop is None else loop
         self.objects = ConnManager(loop=self._loop)
 

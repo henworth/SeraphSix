@@ -155,6 +155,25 @@ class ServerCog(commands.Cog, name='Server'):
         await manager.send_message(message)
         return await manager.clean_messages()
 
+    @server.command()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def aggregateclans(self, ctx):
+        """Aggregate all connected clan data (Admin only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        guild_db = await self.bot.database.get_guild(ctx.guild.id)
+        if guild_db.aggregate_clans:
+            guild_db.aggregate_clans = False
+        else:
+            guild_db.aggregate_clans = True
+
+        message = f"Clan aggregation has been {'enabled' if guild_db.aggregate_clans else 'disabled'}."
+        await self.bot.database.update(guild_db)
+        await manager.send_message(message)
+        return await manager.clean_messages()
+
     async def twitter_channel(self, ctx, twitter_id, message):
         try:
             channel_db = await self.bot.database.get_twitter_channel_by_guild_id(
