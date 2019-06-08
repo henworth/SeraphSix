@@ -55,7 +55,7 @@ async def get_database_members(database, clan_id):
     return members
 
 
-async def member_sync(database, destiny, guild_id, loop, cache=None):
+async def member_sync(database, destiny, guild_id, loop, cache=None):  # noqa TODO
     clan_dbs = await database.get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
