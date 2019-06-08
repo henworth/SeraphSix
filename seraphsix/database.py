@@ -139,7 +139,7 @@ class ConnManager(Manager):
     database = database_proxy
 
 
-class Database:
+class Database(object):
 
     def __init__(self, url, loop=None):
         url = urlparse(url)
@@ -427,5 +427,5 @@ class Database:
         )
         return await self.objects.execute(query)
 
-    def close(self):
-        asyncio.ensure_future(self.objects.close())
+    async def close(self):
+        await self.objects.close()
