@@ -10,9 +10,14 @@ import traceback
 from discord.ext import commands
 from iron_cache import IronCache
 from peewee import DoesNotExist
+from peony import PeonyClient
+from pydest import Pydest
+from the100 import The100
 
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.constants import SUPPORTED_GAME_MODES
+from seraphsix.database import Database
+
 from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError)
@@ -47,20 +52,32 @@ class SeraphSix(commands.Bot):
     TWITTER_DESTINY_REDDIT = 2608131020
     TWITTER_XBOX_SUPPORT = 59804598
 
-    def __init__(self, loop, config, database, destiny, the100, twitter=None):
+    def __init__(self, config):
         super().__init__(
-            command_prefix=_prefix_callable, loop=loop, case_insensitive=True,
+            command_prefix=_prefix_callable, case_insensitive=True,
             help_command=commands.DefaultHelpCommand(
                 no_category="Assorted", dm_help=True, verify_checks=False)
         )
 
         self.config = config
-        self.database = database
-        self.destiny = destiny
-        self.the100 = the100
+        self.database = Database(config['database_url'], loop=self.loop)
+        self.database.initialize()
 
-        if twitter:
-            self.twitter = twitter
+        self.destiny = Pydest(
+            api_key=config['bungie']['api_key'],
+            loop=self.loop,
+            client_id=config['bungie']['client_id'],
+            client_secret=config['bungie']['client_secret']
+        )
+
+        self.the100 = The100(config['the100_api_key'], loop=self.loop)
+
+        self.twitter = None
+        if (config['twitter'].get('consumer_key') and
+                config['twitter'].get('consumer_secret') and
+                config['twitter'].get('access_token') and
+                config['twitter'].get('access_token_secret')):
+            self.twitter = PeonyClient(loop=self.loop, **config['twitter'])
 
         for extension in STARTUP_EXTENSIONS:
             try:
@@ -86,12 +103,12 @@ class SeraphSix(commands.Bot):
             member_dbs = []
             for clan_db in clan_dbs:
                 if not clan_db.activity_tracking:
-                    logging.info(f"Clan activity tracking disabled for {clan_db.name}, skipping")
+                    logging.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
                     continue
 
                 clan_id = clan_db.id
 
-                if guild_db.aggregate:
+                if guild_db.aggregate_clans:
                     member_dbs.extend(await self.database.get_clan_members_active(clan_id, hours=1))
                 else:
                     member_dbs = await self.database.get_clan_members_active(clan_id, hours=1)
@@ -235,3 +252,16 @@ class SeraphSix(commands.Bot):
         if not message.author.bot:
             ctx = await self.get_context(message)
             await self.invoke(ctx)
+
+    async def close(self):
+        logging.info("Canceling outstanding tasks.")
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        [task.cancel() for task in tasks]
+        await asyncio.gather(*tasks)
+
+        self.destiny.close()
+        await self.database.close()
+        await self.the100.close()
+        if self.twitter:
+            await self.twitter.close()
+        await super().close()

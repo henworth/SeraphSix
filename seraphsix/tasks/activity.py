@@ -117,7 +117,7 @@ async def get_all_history(database, destiny, game_mode):
 async def store_member_history(member_dbs, database, destiny, member_db, game_mode):
     platform_id = member_db.clanmember.platform_id
 
-    member_id, member_username = parse_platform(platform_id, member_db)
+    member_id, member_username = parse_platform(member_db, platform_id)
 
     profile = await get_profile(destiny, member_id, platform_id)
     try:
