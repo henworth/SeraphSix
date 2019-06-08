@@ -72,24 +72,45 @@ class SeraphSix(commands.Bot):
     async def store_all_games(self, game_mode: str, guild_id: int):
         await self.wait_until_ready()
         while not self.is_closed():
+            guild_db = await self.database.get_guild(guild_id)
+
             try:
                 clan_dbs = await self.database.get_clans_by_guild(guild_id)
             except DoesNotExist:
                 return
-            for clan_db in clan_dbs:
-                member_dbs = await self.database.get_clan_members_active(clan_db.id, hours=1)
-                logging.info(
-                    f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
-
-                for member_db in member_dbs:
-                    self.loop.create_task(store_member_history(
-                        member_dbs, self.database, self.destiny, member_db, game_mode))
 
             logging.info(
-                f"Found all {game_mode} games for members of server {guild_id} active in the last hour")
+                f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
+
+            tasks = []
+            member_dbs = []
+            for clan_db in clan_dbs:
+                if not clan_db.activity_tracking:
+                    logging.info(f"Clan activity tracking disabled for {clan_db.name}, skipping")
+                    continue
+
+                clan_id = clan_db.id
+
+                if guild_db.aggregate:
+                    member_dbs.extend(await self.database.get_clan_members_active(clan_id, hours=1))
+                else:
+                    member_dbs = await self.database.get_clan_members_active(clan_id, hours=1)
+
+                tasks.extend([
+                    store_member_history(
+                        member_dbs, self.database, self.destiny, member_db, game_mode)
+                    for member_db in member_dbs
+                ])
+
+            results = await asyncio.gather(*tasks)
+
+            logging.info(
+                f"Found {sum(filter(None, results))} {game_mode} games for members "
+                f"of server {guild_id} active in the last hour"
+            )
             await asyncio.sleep(3600)
 
-    async def update_last_active(self, guild_id: int):
+    async def update_last_active(self, guild_id: int, period: int = 0):
         await self.wait_until_ready()
         logging.info(
             f"Finding last active dates for all members of {guild_id}")
@@ -97,17 +118,16 @@ class SeraphSix(commands.Bot):
         members = ast.literal_eval(
             self.caches[guild_id].get('members').value)
 
-        for member in members:
-            member_db = jsonpickle.decode(member)
-            self.loop.create_task(
-                store_last_active(self.database, self.destiny, member_db)
-            )
+        tasks = [
+            store_last_active(self.database, self.destiny,
+                              jsonpickle.decode(member))
+            for member in members
+        ]
 
-    async def update_last_active_task(self, guild_id):
-        await self.wait_until_ready()
-        while not self.is_closed():
+        await asyncio.gather(*tasks)
+
+        if period:
             await asyncio.sleep(300)
-            self.loop.create_task(self.update_last_active(guild_id))
 
     async def process_tweet(self, tweet):
         channels = await self.database.get_twitter_channels(tweet.user.id)
@@ -162,18 +182,24 @@ class SeraphSix(commands.Bot):
 
         self.caches = {}
         guilds = await self.database.get_guilds()
+
+        tasks_cache, tasks_last_active_initial, tasks_all_games, tasks_last_active = ([],)*4
         for guild in guilds:
             guild_id = guild.guild_id
 
-            await self.build_member_cache(guild_id)
-            await self.update_last_active(guild_id)
+            tasks_cache.append(self.build_member_cache(guild_id))
+            tasks_last_active_initial.append(self.update_last_active(guild_id))
 
             for game_mode in SUPPORTED_GAME_MODES.keys():
                 if '-' not in game_mode:
-                    self.loop.create_task(
+                    tasks_all_games.append(
                         self.store_all_games(game_mode, guild_id))
 
-            self.loop.create_task(self.update_last_active_task(guild_id))
+            tasks_last_active.append(
+                self.update_last_active(guild_id, period=300))
+
+        await asyncio.gather(*tasks_cache, *tasks_last_active_initial)
+        await asyncio.gather(*tasks_all_games, *tasks_last_active)
 
         if hasattr(self, 'twitter'):
             logging.info("Starting Twitter stream tracking")

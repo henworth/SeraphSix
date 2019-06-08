@@ -14,7 +14,7 @@ from seraphsix.cogs.utils.paginator import EmbedPages
 logging.getLogger(__name__)
 
 
-class GameCog(commands.Cog, name='Clan'):
+class GameCog(commands.Cog, name='Game'):
     def __init__(self, bot):
         self.bot = bot
 
@@ -35,12 +35,16 @@ class GameCog(commands.Cog, name='Clan'):
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         game_tasks = []
         for clan_db in clan_dbs:
-            game_tasks.append(self.bot.the100.get_group_gaming_sessions(clan_db.the100_group_id))
+            if clan_db.the100_group_id:
+                game_tasks.append(self.bot.the100.get_group_gaming_sessions(clan_db.the100_group_id))
 
         results = await asyncio.gather(*game_tasks, loop=self.bot.loop)
 
         games = []
         for result in results:
+            if isinstance(results, dict) and results.get('error'):
+                logging.error(result)
+                continue
             games.extend(result)
 
         if not games:
