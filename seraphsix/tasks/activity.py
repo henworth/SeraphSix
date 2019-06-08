@@ -123,7 +123,7 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
     try:
         char_ids = profile['Response']['characters']['data'].keys()
     except KeyError:
-        logging.error(f"{member_username}: {profile}")
+        logging.error(f"{member_username} {member_id} {platform_id}: {profile}")
         return
 
     all_activity_ids = []
