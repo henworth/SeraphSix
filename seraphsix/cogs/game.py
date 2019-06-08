@@ -42,7 +42,7 @@ class GameCog(commands.Cog, name='Game'):
 
         games = []
         for result in results:
-            if results.get('error'):
+            if isinstance(results, dict) and results.get('error'):
                 logging.error(result)
                 continue
             games.extend(result)
