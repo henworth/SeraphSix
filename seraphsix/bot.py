@@ -127,7 +127,7 @@ class SeraphSix(commands.Bot):
             )
             await asyncio.sleep(3600)
 
-    async def update_last_active(self, guild_id: int, period: int = 0):
+    async def update_last_active(self, guild_id: int):
         await self.wait_until_ready()
         logging.info(
             f"Finding last active dates for all members of {guild_id}")
@@ -136,15 +136,11 @@ class SeraphSix(commands.Bot):
             self.caches[guild_id].get('members').value)
 
         tasks = [
-            store_last_active(self.database, self.destiny,
-                              jsonpickle.decode(member))
+            store_last_active(self.database, self.destiny, jsonpickle.decode(member))
             for member in members
         ]
 
         await asyncio.gather(*tasks)
-
-        if period:
-            await asyncio.sleep(300)
 
     async def process_tweet(self, tweet):
         channels = await self.database.get_twitter_channels(tweet.user.id)
@@ -200,7 +196,11 @@ class SeraphSix(commands.Bot):
         self.caches = {}
         guilds = await self.database.get_guilds()
 
-        tasks_cache, tasks_last_active_initial, tasks_all_games, tasks_last_active = ([],)*4
+        tasks_cache = []
+        tasks_all_games = []
+        tasks_last_active_initial = []
+        tasks_last_active_repeat = []
+
         for guild in guilds:
             guild_id = guild.guild_id
 
@@ -209,14 +209,12 @@ class SeraphSix(commands.Bot):
 
             for game_mode in SUPPORTED_GAME_MODES.keys():
                 if '-' not in game_mode:
-                    tasks_all_games.append(
-                        self.store_all_games(game_mode, guild_id))
+                    tasks_all_games.append(self.store_all_games(game_mode, guild_id))
 
-            tasks_last_active.append(
-                self.update_last_active(guild_id, period=300))
+            tasks_last_active_repeat.append(self.repeat_forever(300, self.update_last_active, guild_id))
 
         await asyncio.gather(*tasks_cache, *tasks_last_active_initial)
-        await asyncio.gather(*tasks_all_games, *tasks_last_active)
+        await asyncio.gather(*tasks_all_games, *tasks_last_active_repeat)
 
         if hasattr(self, 'twitter'):
             logging.info("Starting Twitter stream tracking")
@@ -252,6 +250,11 @@ class SeraphSix(commands.Bot):
         if not message.author.bot:
             ctx = await self.get_context(message)
             await self.invoke(ctx)
+
+    async def repeat_forever(self, period, coroutine, *args, **kwargs):
+        while not self.is_closed():
+            await coroutine(*args, **kwargs)
+            await asyncio.sleep(period)
 
     async def close(self):
         logging.info("Canceling outstanding tasks.")
