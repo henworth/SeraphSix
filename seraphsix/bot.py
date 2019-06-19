@@ -1,8 +1,8 @@
 #!/usr/bin/env python3.7
-import ast
+# import ast
 import asyncio
 import discord
-import jsonpickle
+# import jsonpickle
 import logging
 import peony
 import traceback
@@ -94,12 +94,17 @@ class SeraphSix(commands.Bot):
             logging.info(
                 f"Finding last active dates for all members of {guild_id}")
 
-            members = ast.literal_eval(
-                self.caches[guild_id].get('members').value)
+            # members = ast.literal_eval(
+            #     self.caches[guild_id].get('members').value)
+
+            # tasks.extend([
+            #     store_last_active(self.database, self.destiny, jsonpickle.decode(member))
+            #     for member in members
+            # ])
 
             tasks.extend([
-                store_last_active(self.database, self.destiny, jsonpickle.decode(member))
-                for member in members
+                store_last_active(self.database, self.destiny, member)
+                for member in await self.database.get_clan_members_by_guild_id(guild_id)
             ])
 
         await asyncio.gather(*tasks)
