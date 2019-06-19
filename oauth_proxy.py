@@ -90,7 +90,9 @@ def oauth_callback():
 
 @app.route('/the100webhook/slack', methods=['POST'])
 def the100_webhook():
-    logging.info(request.get_json())
+    logging.info(request.headers)
+    logging.info(request.get_data(as_text=True))
+    logging.info(request.get_json(force=True))
     return 'Success!'
 
 
