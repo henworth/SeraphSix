@@ -11,10 +11,10 @@ def load_config():
         },
         'database_url': os.environ.get('DATABASE_URL'),
         'discord_api_key': os.environ.get('DISCORD_API_KEY'),
-        'iron_cache': {
-            'project_id': os.environ.get('IRON_CACHE_PROJECT_ID'),
-            'token': os.environ.get('IRON_CACHE_TOKEN')
-        },
+        # 'iron_cache': {
+        #     'project_id': os.environ.get('IRON_CACHE_PROJECT_ID'),
+        #     'token': os.environ.get('IRON_CACHE_TOKEN')
+        # },
         'redis_url': os.environ.get('REDIS_URL'),
         'the100': {
             'api_key': os.environ.get('THE100_API_KEY'),

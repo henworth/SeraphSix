@@ -464,8 +464,7 @@ class ClanCog(commands.Cog, name='Clan'):
         """Sync member list with Bungie (Admin only)"""
         await ctx.trigger_typing()
         member_changes = await member_sync(
-            self.bot.database, self.bot.destiny, ctx.guild.id,
-            self.bot.loop)  # , self.bot.caches[ctx.guild.id])
+            self.bot.database, self.bot.destiny, ctx.guild.id)  # , self.bot.caches[ctx.guild.id])
 
         clan_info_changes = await info_sync(self.bot.database, self.bot.destiny, ctx.guild.id)
 

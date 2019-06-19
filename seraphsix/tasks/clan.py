@@ -56,7 +56,7 @@ async def get_database_members(database, clan_id):
     return members
 
 
-async def member_sync(database, destiny, guild_id, cache=None):  # noqa TODO
+async def member_sync(database, destiny, guild_id):  # , cache=None):  # noqa TODO
     clan_dbs = await database.get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
@@ -129,12 +129,12 @@ async def member_sync(database, destiny, guild_id, cache=None):  # noqa TODO
         await database.delete(clanmember_db)
         member_changes[clan_db.clan_id]['removed'].append(member_hash)
 
-    if cache:
-        members = [
-            jsonpickle.encode(member)
-            for member in await database.get_clan_members_by_guild_id(guild_id)
-        ]
-        cache.put('members', members)
+    # if cache:
+    #     members = [
+    #         jsonpickle.encode(member)
+    #         for member in await database.get_clan_members_by_guild_id(guild_id)
+    #     ]
+    #     cache.put('members', members)
 
     for clan, changes in member_changes.items():
         if len(changes['added']):
