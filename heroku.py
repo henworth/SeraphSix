@@ -1,5 +1,5 @@
 from seraphsix.bot import SeraphSix
-from seraphsix.tasks import config
+from seraphsix.tasks.config import load_config
 
 import logging
 import warnings
@@ -13,7 +13,6 @@ if __name__ == '__main__':
     logging.getLogger('aioredis').setLevel(logging.DEBUG)
     logging.getLogger('backoff').setLevel(logging.DEBUG)
 
-    config = config.load()
-
+    config = load_config()
     bot = SeraphSix(config)
     bot.run(config['discord_api_key'])

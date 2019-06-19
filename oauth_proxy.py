@@ -88,5 +88,11 @@ def oauth_callback():
     return redirect('/')
 
 
+@app.route('/the100webhook', methods=['POST'])
+def the100_webhook():
+    logging.info(request.get_json())
+    return 'Success!'
+
+
 if __name__ == '__main__':
     app.run(debug=True, ssl_context='adhoc')

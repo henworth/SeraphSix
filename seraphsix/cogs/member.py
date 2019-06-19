@@ -11,7 +11,7 @@ from urllib.parse import quote
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.tasks.activity import get_member_history
+from seraphsix.tasks.activity import get_game_counts
 
 from seraphsix.database import Member, ClanMember, Clan, Guild
 
@@ -46,7 +46,7 @@ class MemberCog(commands.Cog, name='Member'):
             return
 
         try:
-            member_db = await self.bot.database.objects.get(
+            member_db = await self.bot.database.get(
                 Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
                     Guild.guild_id == ctx.guild.id,
                     Member.discord_id == member_discord.id
@@ -119,8 +119,10 @@ class MemberCog(commands.Cog, name='Member'):
             await manager.send_message(f"Discord user \"{discord_user}\" not found")
             return await manager.clean_messages()
 
-        msg = await manager.send_message(
-            "What is the user game platform? One of: `blizzard`, `psn`, `xbox`", clean=False)
+        msg = await manager.send_message_react(
+            "What is the user game platform? One of: `blizzard`, `psn`, `xbox`",
+            reactions=[constants.EMOJI_PC, constants.EMOJI_PSN, constants.EMOJI_XBOX],
+            clean=False)
         res = await manager.get_next_message()
         platform = res.content
         await msg.delete()
@@ -175,6 +177,8 @@ Example: ?member games raid
         Eligiblity is simply whether the fireteam is at least half clan members.
         """
         await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         command = command.split()
         game_mode = command[0]
         member_name = ' '.join(command[1:])
@@ -191,19 +195,22 @@ Example: ?member games raid
                 f"Getting {game_mode} games by Discord id {discord_id} for {ctx.author.display_name}")
         else:
             try:
-                member_db = await self.bot.database.get_member_by_xbox_username(member_name)
+                # member_db = await self.bot.database.get_member_by_platform_username(
+                # platform_id, member_name)
+                member_db = await self.bot.database.get_member_by_naive_username(member_name)
             except DoesNotExist:
                 await ctx.send(f"Invalid member name {member_name}")
                 return
             logging.info(
                 f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
 
-        game_counts = await get_member_history(
-            self.bot.database, self.bot.destiny, member_db.xbox_username, game_mode)
+        game_counts = await get_game_counts(
+            self.bot.database, self.bot.destiny, game_mode, member_db=member_db)
 
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_db.xbox_username}",
+            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_name}",
+            # " {emoji}",
         )
 
         total_count = 0
@@ -215,7 +222,8 @@ Example: ?member games raid
                 total_count += count
 
         embed.description = str(total_count)
-        await ctx.send(embed=embed)
+        await manager.send_embed(embed)
+        await manager.clean_messages()
 
 
 def setup(bot):

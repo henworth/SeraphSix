@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import pytz
 
@@ -6,7 +7,7 @@ from datetime import datetime, timedelta
 from peewee import (
     Model, CharField, BigIntegerField, IntegerField,
     ForeignKeyField, Proxy, BooleanField, DoesNotExist,
-    Check, SQL, fn, Case)
+    Check, SQL, fn, Case, InterfaceError, OperationalError)
 from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
@@ -16,6 +17,17 @@ from urllib.parse import urlparse
 logging.getLogger(__name__)
 
 database_proxy = Proxy()
+
+
+def connection_error(function):
+    @functools.wraps(function)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await function(*args, **kwargs)
+        except (InterfaceError, OperationalError):
+            # logging.error(f"Connection error: {e}")
+            pass
+    return wrapper
 
 
 class BaseModel(Model):
@@ -141,13 +153,13 @@ class ConnManager(Manager):
 
 class Database(object):
 
-    def __init__(self, url, loop=None):
+    def __init__(self, url):
         url = urlparse(url)
         self._database = PooledPostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,
             host=url.hostname, port=url.port, max_connections=18)
-        self._loop = asyncio.get_event_loop() if loop is None else loop
-        self.objects = ConnManager(loop=self._loop)
+        self._loop = asyncio.get_event_loop()
+        self._objects = ConnManager(loop=self._loop)
 
     def initialize(self):
         database_proxy.initialize(self._database)
@@ -155,6 +167,21 @@ class Database(object):
 
         member_indexes = self._database.get_indexes('member')
         index_names = [index.name for index in member_indexes]
+        if 'member_blizzard_username_lower' not in index_names:
+            Member.add_index(SQL(
+                'CREATE INDEX member_blizzard_username_lower ON '
+                'member(lower(blizzard_username) varchar_pattern_ops)'
+            ))
+        if 'member_bungie_username_lower' not in index_names:
+            Member.add_index(SQL(
+                'CREATE INDEX member_bungie_username_lower ON '
+                'member(lower(bungie_username) varchar_pattern_ops)'
+            ))
+        if 'member_psn_username_lower' not in index_names:
+            Member.add_index(SQL(
+                'CREATE INDEX member_psn_username_lower ON '
+                'member(lower(psn_username) varchar_pattern_ops)'
+            ))
         if 'member_xbox_username_lower' not in index_names:
             Member.add_index(SQL(
                 'CREATE INDEX member_xbox_username_lower ON '
@@ -169,57 +196,51 @@ class Database(object):
         GameMember.create_table(True)
         TwitterChannel.create_table(True)
 
-    async def get_game_count(self, member_name, mode_ids):
-        # select count(game.id) from game
-        # join gamemember on gamemember.game_id = game.id
-        # join member on member.id = gamemember.member_id
-        # where gamemember.member_id = member.id
-        # and game.mode_id in (37, 38, 72, 74)
-        # and member.xbox_username = 'lifeinchains';
-        query = Game.select().join(GameMember).join(Member).where(
-            (Member.xbox_username == member_name) &
-            (Game.mode_id << mode_ids)
-        ).distinct()
-        return await self.objects.count(query)
+    @connection_error
+    async def create(self, model, **data):
+        return await self._objects.create(model, **data)
 
-    async def get_all_game_count(self, mode_ids):
-        query = Game.select().where(Game.mode_id << mode_ids).distinct()
-        return await self.objects.count(query)
+    @connection_error
+    async def get(self, model, **data):
+        return await self._objects.get(model, **data)
 
-    async def get_game_members(self, instance_id):
-        query = Member.select(
-            Member.xbox_username
-        ).join(GameMember).join(Game).where(
-            Game.instance_id == instance_id
-        )
-        return await self.objects.execute(query)
+    @connection_error
+    async def update(self, db_object):
+        return await self._objects.update(db_object)
+
+    @connection_error
+    async def delete(self, db_object):
+        return await self._objects.delete(db_object)
+
+    @connection_error
+    async def execute(self, query):
+        return await self._objects.execute(query)
+
+    @connection_error
+    async def count(self, query):
+        return await self._objects.count(query)
 
     async def get_member_by_platform(self, member_id, platform_id):
         # pylint: disable=assignment-from-no-return
+        query = Member.select(Member, ClanMember).join(ClanMember)
         if platform_id == constants.PLATFORM_BLIZ:
-            query = Member.select().where(Member.blizzard_id == member_id)
+            query = query.where(Member.blizzard_id == member_id)
         elif platform_id == constants.PLATFORM_BNG:
-            query = Member.select().where(Member.bungie_id == member_id)
+            query = query.where(Member.bungie_id == member_id)
         elif platform_id == constants.PLATFORM_PSN:
-            query = Member.select().where(Member.psn_id == member_id)
+            query = query.where(Member.psn_id == member_id)
         elif platform_id == constants.PLATFORM_XBOX:
-            query = Member.select().where(Member.xbox_id == member_id)
-        return await self.objects.get(query)
+            query = query.where(Member.xbox_id == member_id)
+        return await self.get(query)
 
-    async def get_member_by_naive_id(self, member_id):
-        query = Member.select().where(
-            (Member.xbox_id == member_id) |
-            (Member.psn_id == member_id) |
-            (Member.blizzard_id == member_id) |
-            (Member.discord_id == member_id) |
-            (Member.the100_id == member_id) |
-            (Member.bungie_id == member_id)
+    async def get_member_by_naive_username(self, username):
+        username = username.lower()
+        query = Member.select(Member, ClanMember).join(ClanMember).where(
+            (fn.LOWER(Member.xbox_username) == username) |
+            (fn.LOWER(Member.psn_username) == username) |
+            (fn.LOWER(Member.blizzard_username) == username)
         )
-        return await self.objects.get(query)
-
-    async def get_member_by_xbox_username(self, username):
-        query = Member.select().where(fn.LOWER(Member.xbox_username) == username.lower())
-        return await self.objects.get(query)
+        return await self.get(query)
 
     async def get_member_by_platform_username(self, platform_id, username):
         # pylint: disable=assignment-from-no-return
@@ -233,78 +254,12 @@ class Database(object):
             query = query.where(fn.LOWER(Member.psn_username) == username)
         elif platform_id == constants.PLATFORM_XBOX:
             query = query.where(fn.LOWER(Member.xbox_username) == username)
-        return await self.objects.get(query)
+        return await self.get(query)
 
     async def get_member_by_discord_id(self, discord_id):
-        return await self.objects.get(Member, discord_id=discord_id)
-
-    async def get_member_by_bungie_id(self, bungie_id):
-        return await self.get_member_by_platform(bungie_id, constants.PLATFORM_BNG)
-
-    async def get_member_by_xbox_id(self, xbox_id):
-        return await self.get_member_by_platform(xbox_id, constants.PLATFORM_XBOX)
-
-    async def get_member_by_the100_id(self, the100_id):
-        return await self.objects.get(Member, the100_id=the100_id)
-
-    async def get_game(self, instance_id):
-        return await self.objects.get(Game, instance_id=instance_id)
-
-    async def get_games(self):
-        return await self.objects.execute(Game.select())
-
-    async def create_game(self, game):
-        return await self.objects.create(Game, **game)
-
-    async def update_game_bulk(self, game_list, fields, batch_size):
-        query = Game.bulk_update(
-            game_list, fields=fields, batch_size=batch_size)
-        try:
-            return await self.objects.execute(query)
-        except AttributeError:
-            return True
-
-    async def create_twitter_channel(self, guild_id, channel_id, twitter_id):
-        details = {
-            'guild_id': guild_id, 'channel_id': channel_id, 'twitter_id': twitter_id}
-        return await self.objects.create(TwitterChannel, **details)
-
-    async def get_twitter_channel_by_guild_id(self, guild_id, twitter_id):
-        # pylint: disable=assignment-from-no-return
-        query = TwitterChannel.select().where(
-            TwitterChannel.guild_id == guild_id,
-            TwitterChannel.twitter_id == twitter_id
-        )
-        return await self.objects.get(query)
-
-    async def get_twitter_channels(self, twitter_id):
-        # pylint: disable=assignment-from-no-return
-        query = TwitterChannel.select().where(
-            TwitterChannel.twitter_id == twitter_id
-        )
-        return await self.objects.execute(query)
-
-    async def get_guild(self, guild_id):
-        return await self.objects.get(Guild, guild_id=guild_id)
-
-    async def create_guild(self, guild_id):
-        return await self.objects.create(Guild, **{'guild_id': guild_id})
-
-    async def get_guilds(self):
-        return await self.objects.execute(Guild.select())
-
-    async def get_clan(self, clan_id):
-        return await self.objects.get(Clan, clan_id=clan_id)
-
-    async def create_clan(self, guild_id, **clan_details):
-        guild = await self.get_guild(guild_id)
-        clan_details.update({'guild': guild})
-        return await self.objects.create(Clan, **clan_details)
-
-    async def create_clan_member(self, member_db, clan_id, **member_details):
-        clan = await self.get_clan(clan_id)
-        return await self.objects.create(
-            ClanMember, clan=clan, member=member_db, **member_details)
+        query = query = Member.select(Member, ClanMember).join(
+            ClanMember).where(Member.discord_id == discord_id)
+        return await self.get(query)
 
     async def get_clan_members(self, clan_ids, sorted_by=None):
         username = Case(ClanMember.platform_id, (
@@ -320,7 +275,7 @@ class Database(object):
             query = query.order_by(ClanMember.join_date)
         elif sorted_by == 'username':
             query = query.order_by(username)
-        return await self.objects.execute(query)
+        return await self.execute(query)
 
     async def get_clan_members_by_guild_id(self, guild_id, as_dict=False):
         if as_dict:
@@ -331,15 +286,7 @@ class Database(object):
             query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
                 Guild.guild_id == guild_id,
             )
-        return await self.objects.execute(query)
-
-    async def get_clan_member_by_discord_id(self, discord_id, clan_id):
-        return await self.objects.get(
-            Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
-                Clan.id == clan_id,
-                Member.discord_id == discord_id
-            )
-        )
+        return await self.execute(query)
 
     async def get_clan_member_by_platform(self, member_id, platform_id, clan_id):
         if platform_id == constants.PLATFORM_BLIZ:
@@ -357,22 +304,13 @@ class Database(object):
                 ClanMember.clan_id == clan_id,
                 Member.xbox_id == member_id
             )
-        return await self.objects.get(query)
+        return await self.get(query)
 
     async def get_clans_by_guild(self, guild_id):
         query = Clan.select().join(Guild).where(
             Guild.guild_id == guild_id
         )
-        return await self.objects.execute(query)
-
-    async def get_clan_by_member(self, member_id):
-        query = Clan.select().join(ClanMember).join(Member).where(
-            Member.id == member_id
-        )
-        return await self.objects.get(query)
-
-    async def create_clan_game(self, clan_id, game_id):
-        return await self.objects.create(ClanGame, game=game_id, clan=clan_id)
+        return await self.execute(query)
 
     async def create_clan_game_members(self, clan_id, game_id, member_dbs):
         for member_db in member_dbs:
@@ -391,31 +329,7 @@ class Database(object):
             except DoesNotExist:
                 logging.info((membership_id, platform_id, clan_id))
                 raise
-            await self.objects.create(GameMember, member=member_db.id, game=game_id)
-
-    async def create_member(self, member_details):
-        return await self.objects.create(Member, **member_details)
-
-    async def get_members(self, is_active=False):
-        return await self.objects.execute(Member.select().where(Member.is_active == is_active))
-
-    async def get_clan_member(self, member_id):
-        return await self.objects.get(
-            ClanMember.select().where(
-                ClanMember.member_id == member_id
-            )
-        )
-
-    async def get_clan_member_by_the100_id(self, the100_id):
-        query = Member.select(Member, ClanMember, Clan, Guild).join(ClanMember).join(
-            Clan).join(Guild).where(Member.the100_id == the100_id)
-        return await self.objects.get(query)
-
-    async def update(self, db_object):
-        return await self.objects.update(db_object)
-
-    async def delete(self, db_object):
-        return await self.objects.delete(db_object)
+            await self.create(GameMember, member=member_db.id, game=game_id)
 
     async def get_clan_members_active(self, clan_id, **kwargs):
         if not kwargs:
@@ -425,7 +339,7 @@ class Database(object):
             ClanMember.last_active > datetime.now(
                 pytz.utc) - timedelta(**kwargs)
         )
-        return await self.objects.execute(query)
+        return await self.execute(query)
 
     async def close(self):
-        await self.objects.close()
+        await self._objects.close()

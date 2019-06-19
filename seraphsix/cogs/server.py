@@ -5,6 +5,7 @@ from peewee import DoesNotExist
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
 from seraphsix.constants import PLATFORM_MAP
+from seraphsix.database import TwitterChannel, Clan, Guild
 
 logging.getLogger(__name__)
 
@@ -71,17 +72,18 @@ class ServerCog(commands.Cog, name='Server'):
         callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 
         try:
-            clan_db = await self.bot.database.get_clan(clan_id)
+            clan_db = await self.bot.database.get(Clan, clan_id=clan_id)
         except DoesNotExist:
-            await self.bot.database.create_clan(
-                ctx.guild.id, clan_id=clan_id, name=clan_name, callsign=callsign)
+            guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+            await self.bot.database.create(
+                Clan, clan_id=clan_id, name=clan_name, callsign=callsign, guild=guild_db)
         else:
             if clan_db.guild_id:
                 await manager.send_message(
                     f"*{clan_name} [{callsign}]** is already linked to another server.")
                 return await manager.clean_messages()
             else:
-                guild_db = await self.bot.database.get_guild(ctx.guild.id)
+                guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
                 clan_db.guild = guild_db
                 clan_db.name = clan_name
                 clan_db.callsign = callsign
@@ -125,7 +127,7 @@ class ServerCog(commands.Cog, name='Server'):
         if len(new_prefix) > 5:
             message = "Prefix must be less than 6 characters."
         else:
-            guild_db = await self.bot.database.get_guild(ctx.guild.id)
+            guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
             guild_db.prefix = new_prefix
             await self.bot.database.update(guild_db)
             message = f"Command prefix has been changed to `{new_prefix}`"
@@ -163,7 +165,7 @@ class ServerCog(commands.Cog, name='Server'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
-        guild_db = await self.bot.database.get_guild(ctx.guild.id)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
         if guild_db.aggregate_clans:
             guild_db.aggregate_clans = False
         else:
@@ -176,11 +178,16 @@ class ServerCog(commands.Cog, name='Server'):
 
     async def twitter_channel(self, ctx, twitter_id, message):
         try:
-            channel_db = await self.bot.database.get_twitter_channel_by_guild_id(
-                ctx.message.guild.id, twitter_id)
+            # pylint: disable=assignment-from-no-return
+            query = TwitterChannel.select().where(
+                TwitterChannel.guild_id == ctx.message.guild.id,
+                TwitterChannel.twitter_id == twitter_id
+            )
+            channel_db = await self.bot.database.get(query)
         except DoesNotExist:
-            await self.bot.database.create_twitter_channel(
-                ctx.message.guild.id, ctx.message.channel.id, twitter_id)
+            details = {'guild_id': ctx.message.guild.id,
+                       'channel_id': ctx.message.channel.id, 'twitter_id': twitter_id}
+            await self.bot.database.create(TwitterChannel, **details)
             await ctx.send((
                 f"{message} now enabled and will post to "
                 f"**#{ctx.message.channel.name}**."))

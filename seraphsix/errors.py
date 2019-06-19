@@ -31,6 +31,12 @@ class NotRegisteredError(CommandError):
         super().__init__(message, *args)
 
 
+class MissingTimezoneError(CommandError):
+    def __init__(self, *args):
+        message = "You don't have a timezone set"
+        super().__init__(message, *args)
+
+
 class ConfigurationError(CommandError):
     def __init__(self, message, *args):
         super().__init__(message, *args)

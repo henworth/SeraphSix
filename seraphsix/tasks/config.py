@@ -1,7 +1,7 @@
 import os
 
 
-def load():
+def load_config():
     return {
         'bungie': {
             'api_key': os.environ.get('BUNGIE_API_KEY'),
@@ -16,7 +16,10 @@ def load():
             'token': os.environ.get('IRON_CACHE_TOKEN')
         },
         'redis_url': os.environ.get('REDIS_URL'),
-        'the100_api_key': os.environ.get('THE100_API_KEY'),
+        'the100': {
+            'api_key': os.environ.get('THE100_API_KEY'),
+            'base_url': os.environ.get('THE100_API_URL'),
+        },
         'twitter': {
             'consumer_key': os.environ.get('TWITTER_CONSUMER_KEY'),
             'consumer_secret': os.environ.get('TWITTER_CONSUMER_SECRET'),

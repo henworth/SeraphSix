@@ -7,21 +7,21 @@ import logging
 import peony
 import traceback
 
-from discord.ext import commands
-from iron_cache import IronCache
+from discord.ext import commands, tasks
+# from iron_cache import IronCache  # TODO: Replace this with Memcache
 from peewee import DoesNotExist
 from peony import PeonyClient
 from pydest import Pydest
 from the100 import The100
 
+from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.constants import SUPPORTED_GAME_MODES
-from seraphsix.database import Database
+from seraphsix.database import Database, Guild, TwitterChannel
 
 from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
-    NotRegisteredError, ConfigurationError)
-from seraphsix.tasks.activity import store_member_history, store_last_active
+    NotRegisteredError, ConfigurationError, MissingTimezoneError)
+from seraphsix.tasks.activity import store_all_games, store_last_active
 
 logging.getLogger(__name__)
 
@@ -38,9 +38,9 @@ async def _prefix_callable(bot, message):
         base.append('?')
     else:
         try:
-            guild = await bot.database.get_guild(message.guild.id)
+            guild = await bot.database.get(Guild, guild_id=message.guild.id)
         except DoesNotExist:
-            await bot.database.create_guild(message.guild.id)
+            await bot.database.create(Guild, guild_id=message.guild.id)
             base.append('?')
         else:
             base.append(guild.prefix)
@@ -48,9 +48,6 @@ async def _prefix_callable(bot, message):
 
 
 class SeraphSix(commands.Bot):
-
-    TWITTER_DESTINY_REDDIT = 2608131020
-    TWITTER_XBOX_SUPPORT = 59804598
 
     def __init__(self, config):
         super().__init__(
@@ -60,24 +57,23 @@ class SeraphSix(commands.Bot):
         )
 
         self.config = config
-        self.database = Database(config['database_url'], loop=self.loop)
+        self.database = Database(config['database_url'])
         self.database.initialize()
 
         self.destiny = Pydest(
             api_key=config['bungie']['api_key'],
-            loop=self.loop,
             client_id=config['bungie']['client_id'],
             client_secret=config['bungie']['client_secret']
         )
 
-        self.the100 = The100(config['the100_api_key'], loop=self.loop)
+        self.the100 = The100(config['the100']['api_key'], config['the100']['base_url'])
 
         self.twitter = None
         if (config['twitter'].get('consumer_key') and
                 config['twitter'].get('consumer_secret') and
                 config['twitter'].get('access_token') and
                 config['twitter'].get('access_token_secret')):
-            self.twitter = PeonyClient(loop=self.loop, **config['twitter'])
+            self.twitter = PeonyClient(**config['twitter'])
 
         for extension in STARTUP_EXTENSIONS:
             try:
@@ -86,64 +82,65 @@ class SeraphSix(commands.Bot):
                 exc = traceback.format_exception(type(e), e, e.__traceback__)
                 logging.error(f"Failed to load extension {extension}: {exc}")
 
-    async def store_all_games(self, game_mode: str, guild_id: int):
-        await self.wait_until_ready()
-        while not self.is_closed():
-            guild_db = await self.database.get_guild(guild_id)
+        self.update_last_active.start()
+        self.update_member_games.start()
 
-            try:
-                clan_dbs = await self.database.get_clans_by_guild(guild_id)
-            except DoesNotExist:
-                return
-
-            logging.info(
-                f"Finding all {game_mode} games for members of server {guild_id} active in the last hour")
-
-            tasks = []
-            member_dbs = []
-            for clan_db in clan_dbs:
-                if not clan_db.activity_tracking:
-                    logging.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
-                    continue
-
-                clan_id = clan_db.id
-
-                if guild_db.aggregate_clans:
-                    member_dbs.extend(await self.database.get_clan_members_active(clan_id, hours=1))
-                else:
-                    member_dbs = await self.database.get_clan_members_active(clan_id, hours=1)
-
-                tasks.extend([
-                    store_member_history(
-                        member_dbs, self.database, self.destiny, member_db, game_mode)
-                    for member_db in member_dbs
-                ])
-
-            results = await asyncio.gather(*tasks)
+    @tasks.loop(minutes=5.0)
+    async def update_last_active(self):
+        tasks = []
+        for guild in await self.database.execute(Guild.select()):
+            guild_id = guild.guild_id
 
             logging.info(
-                f"Found {sum(filter(None, results))} {game_mode} games for members "
-                f"of server {guild_id} active in the last hour"
-            )
-            await asyncio.sleep(3600)
+                f"Finding last active dates for all members of {guild_id}")
 
-    async def update_last_active(self, guild_id: int):
-        await self.wait_until_ready()
-        logging.info(
-            f"Finding last active dates for all members of {guild_id}")
+            members = ast.literal_eval(
+                self.caches[guild_id].get('members').value)
 
-        members = ast.literal_eval(
-            self.caches[guild_id].get('members').value)
-
-        tasks = [
-            store_last_active(self.database, self.destiny, jsonpickle.decode(member))
-            for member in members
-        ]
+            tasks.extend([
+                store_last_active(self.database, self.destiny, jsonpickle.decode(member))
+                for member in members
+            ])
 
         await asyncio.gather(*tasks)
 
+    @update_last_active.before_loop
+    async def before_update_last_active(self):
+        await self.wait_until_ready()
+
+    # async def build_member_cache(self, guild_id: int):
+    #     self.caches[guild_id] = IronCache(
+    #         name=str(guild_id), **self.config['iron_cache'])
+
+    #     members = [
+    #         jsonpickle.encode(member)
+    #         for member in await self.database.get_clan_members_by_guild_id(
+    #             guild_id)
+    #     ]
+
+    #     self.caches[guild_id].put('members', members)
+    #     logging.info(f"Populated member cache for server {guild_id}")
+
+    @tasks.loop(hours=1.0)
+    async def update_member_games(self):
+        tasks = []
+        for guild in await self.database.execute(Guild.select()):
+            for game_mode in constants.SUPPORTED_GAME_MODES.keys():
+                if '-' not in game_mode:
+                    tasks.append(store_all_games(self.database, self.destiny, game_mode, guild.guild_id))
+        await asyncio.gather(*tasks)
+
+    @update_member_games.before_loop
+    async def before_update_member_games(self):
+        await self.wait_until_ready()
+
     async def process_tweet(self, tweet):
-        channels = await self.database.get_twitter_channels(tweet.user.id)
+        # pylint: disable=assignment-from-no-return
+        query = TwitterChannel.select().where(
+            TwitterChannel.twitter_id == tweet.user.id
+        )
+        channels = await self.database.execute(query)
+
         if not channels:
             logging.info(
                 f"Could not find any Discord channels for {tweet.user.screen_name} ({tweet.user.id})")
@@ -158,65 +155,30 @@ class SeraphSix(commands.Bot):
             await channel.send(twitter_url)
 
     async def track_tweets(self):
-        await self.wait_until_ready()
-
-        follow_users = [self.TWITTER_XBOX_SUPPORT, self.TWITTER_DESTINY_REDDIT]
-        stream = self.twitter.stream.statuses.filter.post(follow=follow_users)
+        stream = self.twitter.stream.statuses.filter.post(follow=constants.TWITTER_FOLLOW_USERS)
         async for tweet in stream:
             if peony.events.tweet(tweet):
                 if tweet.in_reply_to_status_id:
                     continue
-                if tweet.user.id not in follow_users:
+                # For some reason non-followed users sometimes sneak into the stream
+                if tweet.user.id not in constants.TWITTER_FOLLOW_USERS:
                     continue
                 self.loop.create_task(self.process_tweet(tweet))
 
-    async def build_member_cache(self, guild_id: int):
-        await self.wait_until_ready()
-
-        self.caches[guild_id] = IronCache(
-            name=str(guild_id), **self.config['iron_cache'])
-
-        members = [
-            jsonpickle.encode(member)
-            for member in await self.database.get_clan_members_by_guild_id(
-                guild_id)
-        ]
-
-        self.caches[guild_id].put('members', members)
-        logging.info(f"Populated member cache for server {guild_id}")
+    # async def on_connect(self):
+    #     self.caches = {}
+    #     guilds = await self.database.execute(Guild.select())
+    #     tasks = [self.build_member_cache(guild.guild_id) for guild in guilds]
+    #     await asyncio.gather(*tasks)
 
     async def on_ready(self):
         start_message = (
             f"Logged in as {self.user.name} ({self.user.id}) "
-            f"https://discordapp.com/oauth2/authorize?"
-            f"client_id={self.user.id}&scope=bot"
+            f"{discord.utils.oauth_url(self.user.id)}"
         )
         logging.info(start_message)
 
-        self.caches = {}
-        guilds = await self.database.get_guilds()
-
-        tasks_cache = []
-        tasks_all_games = []
-        tasks_last_active_initial = []
-        tasks_last_active_repeat = []
-
-        for guild in guilds:
-            guild_id = guild.guild_id
-
-            tasks_cache.append(self.build_member_cache(guild_id))
-            tasks_last_active_initial.append(self.update_last_active(guild_id))
-
-            for game_mode in SUPPORTED_GAME_MODES.keys():
-                if '-' not in game_mode:
-                    tasks_all_games.append(self.store_all_games(game_mode, guild_id))
-
-            tasks_last_active_repeat.append(self.repeat_forever(300, self.update_last_active, guild_id))
-
-        await asyncio.gather(*tasks_cache, *tasks_last_active_initial)
-        await asyncio.gather(*tasks_all_games, *tasks_last_active_repeat)
-
-        if hasattr(self, 'twitter'):
+        if self.twitter:
             logging.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
 
@@ -228,7 +190,7 @@ class SeraphSix(commands.Bot):
             text = "Sorry, but you do not have permissions to do that!"
         elif isinstance(error, (
             ConfigurationError, InvalidCommandError, InvalidMemberError,
-            InvalidGameModeError, NotRegisteredError
+            InvalidGameModeError, NotRegisteredError, MissingTimezoneError
         )):
             text = error
         elif isinstance(error, commands.CommandNotFound):
@@ -251,18 +213,8 @@ class SeraphSix(commands.Bot):
             ctx = await self.get_context(message)
             await self.invoke(ctx)
 
-    async def repeat_forever(self, period, coroutine, *args, **kwargs):
-        while not self.is_closed():
-            await coroutine(*args, **kwargs)
-            await asyncio.sleep(period)
-
     async def close(self):
-        logging.info("Canceling outstanding tasks.")
-        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        [task.cancel() for task in tasks]
-        await asyncio.gather(*tasks)
-
-        self.destiny.close()
+        await self.destiny.close()
         await self.database.close()
         await self.the100.close()
         if self.twitter:

@@ -11,8 +11,7 @@ pyopenssl = "*"
 [packages]
 aiopg = "==0.15.0"
 astroid = "==2.0.4"
-backoff = "==1.6.0"
-iron-cache = "==0.3.2"
+backoff = ">=1.8.0"
 lazy-object-proxy = "==1.3.1"
 peewee-async = "==0.6.2a0"
 peewee = "==3.9.4"
@@ -21,15 +20,15 @@ psycopg2 = "==2.8.2"
 pytz = "*"
 six = "==1.11.0"
 wrapt = "==1.10.11"
-"discord.py" = "==1.0.1"
+"discord.py" = ">=1.2.0"
 flask = "*"
 requests-oauth2 = "*"
 gunicorn = "*"
 aioredis = "*"
 redis = "*"
 jsonpickle = "*"
-pydest = {git = "https://github.com/henworth/pydest",ref = "d40c684e6a21e65e1b28c719f680f186833be9f9"}
-the100 = {git = "https://github.com/henworth/the100",ref = "6114c1ff3c37f7c854392fc485806e1fceb41d1b"}
+the100 = {git = "https://github.com/henworth/the100"}
+pydest = {git = "https://github.com/henworth/pydest"}
 
 [requires]
 python_version = "3.7"

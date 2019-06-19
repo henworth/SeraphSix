@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1bf4a4b2e2efbcae0d4cc812e9bac2779732a9ccf7964956788217ca0bcec47a"
+            "sha256": "4368cdf628968472de7edd09ab300d838210d68161492c956bfa73d3356b2765"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -83,17 +83,18 @@
         },
         "backoff": {
             "hashes": [
-                "sha256:e3df718a774c456a516f7c88516e47a9f2d02aa562943cdfa274c439e9dbbfde"
+                "sha256:c7187f15339e775aec926dc6e5e42f8a3ad7d3c2b9a6ecae7b535000f70cd838",
+                "sha256:d340bb6f36d025c04214b8925112d8456970e5f28dda46e4f1133bf5c622cb0a"
             ],
             "index": "pypi",
-            "version": "==1.6.0"
+            "version": "==1.8.0"
         },
         "certifi": {
             "hashes": [
-                "sha256:59b7658e26ca9c7339e00f8f4636cdfe59d34fa37b9b04f6f9e9926b3cece1a5",
-                "sha256:b26104d6835d1f5e49452a26eb2ff87fe7090b89dfcaee5ea2212697e1e1d7ae"
+                "sha256:046832c04d4e752f37383b628bc601a7ea7211496b4638f6514d0e5b9acc4939",
+                "sha256:945e3ba63a0b9f577b1395204e13c3a231f9bc0223888be653286534e5873695"
             ],
-            "version": "==2019.3.9"
+            "version": "==2019.6.16"
         },
         "chardet": {
             "hashes": [
@@ -111,11 +112,10 @@
         },
         "discord.py": {
             "hashes": [
-                "sha256:173b5e2fea2e012bbe964e87e92826ccaf97056bba539a7caec988f329acca04",
-                "sha256:7cb420731fe9c8d820401f3290957433a10169816d08805f826042941d25928e"
+                "sha256:ee6ee8f52145e550f534c1858169fa49f3b355ad708a021cd59a934ee963ccc7"
             ],
             "index": "pypi",
-            "version": "==1.0.1"
+            "version": "==1.2.2"
         },
         "flask": {
             "hashes": [
@@ -172,19 +172,6 @@
                 "sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c"
             ],
             "version": "==2.8"
-        },
-        "iron-cache": {
-            "hashes": [
-                "sha256:77f5f827504bbb06cb9c5e81e3bca81275e4014acb584a8ba0fa66423ea2fad9"
-            ],
-            "index": "pypi",
-            "version": "==0.3.2"
-        },
-        "iron-core": {
-            "hashes": [
-                "sha256:38f0942e86bf72d426560a66e4e14ffafdc52da5bee9925a2ac3968b30c3725b"
-            ],
-            "version": "==1.2.0"
         },
         "itsdangerous": {
             "hashes": [
@@ -352,14 +339,7 @@
         },
         "pydest": {
             "git": "https://github.com/henworth/pydest",
-            "ref": "d40c684e6a21e65e1b28c719f680f186833be9f9"
-        },
-        "python-dateutil": {
-            "hashes": [
-                "sha256:7e6584c74aeed623791615e26efd690f29817a27c73085b78e4bad02493df2fb",
-                "sha256:c89805f6f4d64db21ed966fda138f8a5ed7a4fdbc1a8ee329ce1b74e3c74da9e"
-            ],
-            "version": "==2.8.0"
+            "ref": "60528fc45d2c5b00d33d6a782b6dcaa5bf510880"
         },
         "pytz": {
             "hashes": [
@@ -401,7 +381,7 @@
         },
         "the100": {
             "git": "https://github.com/henworth/the100",
-            "ref": "6114c1ff3c37f7c854392fc485806e1fceb41d1b"
+            "ref": "f6f39915323e9b3869cf13e269ba72a4596d3352"
         },
         "urllib3": {
             "hashes": [

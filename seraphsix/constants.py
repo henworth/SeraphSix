@@ -1,8 +1,34 @@
 import discord
 from datetime import datetime
 
-BLUE = discord.Colour(3381759)
+BLUE = discord.Color(3381759)
 CLEANUP_DELAY = 4
+
+EMOJI_PC = 586933311994200074
+EMOJI_PSN = 590019204623761438
+EMOJI_XBOX = 590004787370786817
+
+EMOJI_LETTER_A = '\U0001F1E6'
+EMOJI_LETTER_B = '\U0001F1E7'
+EMOJI_LETTER_C = '\U0001F1E8'
+EMOJI_LETTER_D = '\U0001F1E9'
+EMOJI_LETTER_E = '\U0001F1EA'
+EMOJI_LETTER_F = '\U0001F1EB'
+EMOJI_LETTER_G = '\U0001F1EC'
+EMOJI_LETTER_H = '\U0001F1ED'
+EMOJI_LETTER_I = '\U0001F1EE'
+EMOJI_LETTER_J = '\U0001F1EF'
+EMOJI_LETTER_K = '\U0001F1F0'
+EMOJI_LETTER_L = '\U0001F1F1'
+EMOJI_LETTER_M = '\U0001F1F2'
+
+EMOJI_LETTERS = [EMOJI_LETTER_A, EMOJI_LETTER_B, EMOJI_LETTER_C, EMOJI_LETTER_D, EMOJI_LETTER_E,
+                 EMOJI_LETTER_F, EMOJI_LETTER_G, EMOJI_LETTER_H, EMOJI_LETTER_I, EMOJI_LETTER_J,
+                 EMOJI_LETTER_K, EMOJI_LETTER_L, EMOJI_LETTER_M]
+
+EMOJI_STOP = '\N{BLACK SQUARE FOR STOP}'
+EMOJI_CHECKMARK = '\u2705'
+EMOJI_CROSSMARK = '\u274C'
 
 PLATFORM_XBOX = 1
 PLATFORM_PSN = 2
@@ -105,3 +131,34 @@ SUPPORTED_GAME_MODES = {
 
 FORSAKEN_RELEASE = datetime.strptime(
     '2018-09-04T18:00:00Z', '%Y-%m-%dT%H:%M:%S%z')
+
+TWITTER_DESTINY_REDDIT = 2608131020
+TWITTER_XBOX_SUPPORT = 59804598
+
+TWITTER_FOLLOW_USERS = [TWITTER_DESTINY_REDDIT, TWITTER_XBOX_SUPPORT]
+
+THE100_GAME_SORT_RULES = {
+    "Destiny 2": {
+        'fresh': [
+            "Raid - Crown of Sorrow",
+            "Raid - Leviathan - Prestige",
+            "Raid - Scourge of the Past",
+            "Raid - Leviathan - Normal",
+            "Raid - Last Wish"
+        ],
+        'normal': [
+            "Blind Well",
+            "Escalation Protocol",
+            "Quest - Outbreak Perfected",
+            "Strike - Nightfall"
+        ],
+        'anything': [
+            'Quest'
+        ]
+    }
+}
+
+THE100_DATE_DISPLAY = '%m-%d %a %I:%M %p %Z'
+THE100_DATE_CREATE = '%m/%d %I:%M%p'
+THE100_LOGO_URL = ('https://www.the100.io/assets/the-100-logo-'
+                   '01d3884b844d4308fcf20f19281cc758f7b9803e2fba6baa6dc915ab8b385ba7.png')

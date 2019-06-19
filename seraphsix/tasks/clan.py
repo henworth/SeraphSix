@@ -4,6 +4,7 @@ import logging
 
 from peewee import DoesNotExist
 from seraphsix import constants
+from seraphsix.database import Member as MemberDb, ClanMember
 from seraphsix.models.destiny import Member
 
 logging.getLogger(__name__)
@@ -55,7 +56,7 @@ async def get_database_members(database, clan_id):
     return members
 
 
-async def member_sync(database, destiny, guild_id, loop, cache=None):  # noqa TODO
+async def member_sync(database, destiny, guild_id, cache=None):  # noqa TODO
     clan_dbs = await database.get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
@@ -73,7 +74,7 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):  # noqa TO
         bungie_tasks.append(get_bungie_members(destiny, clan_id))
         db_tasks.append(get_database_members(database, clan_id))
 
-    results = await asyncio.gather(*bungie_tasks, *db_tasks, loop=loop)
+    results = await asyncio.gather(*bungie_tasks, *db_tasks)
 
     # All Bungie results would be in the first half of the results
     for result in results[:len(results)//2]:
@@ -99,17 +100,20 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):  # noqa TO
         try:
             member_db = await database.get_member_by_platform(member_id, platform_id)
         except DoesNotExist:
-            member_db = await database.create_member(member_info.to_dict())
+            member_db = await database.create(MemberDb, **member_info.to_dict())
 
-        await database.create_clan_member(
-            member_db,
-            clan_id,
+        clan_db = await database.get_clan(clan_id)
+        member_details = dict(
             join_date=member_info.join_date,
             platform_id=member_info.platform_id,
             is_active=True,
             member_type=member_info.member_type,
             last_active=member_info.last_online_status_change
         )
+
+        await database.create(
+            ClanMember, clan=clan_db, member=member_db, **member_details)
+
         member_changes[clan_db.clan_id]['added'].append(member_hash)
 
     # Figure out if there are any members to remove
@@ -121,7 +125,7 @@ async def member_sync(database, destiny, guild_id, loop, cache=None):  # noqa TO
         except DoesNotExist:
             logging.info(member_id)
             continue
-        clanmember_db = await database.get_clan_member(member_db.id)
+        clanmember_db = await database.get(ClanMember, member_id=member_db.id)
         await database.delete(clanmember_db)
         member_changes[clan_db.clan_id]['removed'].append(member_hash)
 
@@ -167,6 +171,6 @@ async def info_sync(database, destiny, guild_id):
                 clan_changes[clan_db.clan_id]['callsign'] = {'from': original_callsign, 'to': bungie_callsign}
             clan_db.callsign = bungie_callsign
 
-        await database.objects.update(clan_db)
+        await database.update(clan_db)
 
     return clan_changes

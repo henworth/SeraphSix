@@ -15,7 +15,7 @@ from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild
 from seraphsix.errors import InvalidAdminError
 from seraphsix.models.destiny import Member as DestinyMember
-from seraphsix.tasks.activity import get_all_history
+from seraphsix.tasks.activity import get_game_counts
 from seraphsix.tasks.clan import info_sync, member_sync
 
 logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
     async def get_admin_group(self, ctx):
         try:
-            return await self.bot.database.objects.get(
+            return await self.bot.database.get(
                 Clan.select(Clan).join(ClanMember).join(Member).switch(Clan).join(Guild).where(
                     Guild.guild_id == ctx.message.guild.id,
                     ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN,
@@ -465,7 +465,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         member_changes = await member_sync(
             self.bot.database, self.bot.destiny, ctx.guild.id,
-            self.bot.loop, self.bot.caches[ctx.guild.id])
+            self.bot.loop)  # , self.bot.caches[ctx.guild.id])
 
         clan_info_changes = await info_sync(self.bot.database, self.bot.destiny, ctx.guild.id)
 
@@ -540,7 +540,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         logging.info(f"Finding all {game_mode} games for all members")
 
-        game_counts = await get_all_history(
+        game_counts = await get_game_counts(
             self.bot.database, self.bot.destiny, game_mode)
 
         embed = discord.Embed(
