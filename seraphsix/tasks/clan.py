@@ -4,7 +4,7 @@ import logging
 
 from peewee import DoesNotExist
 from seraphsix import constants
-from seraphsix.database import Member as MemberDb, ClanMember
+from seraphsix.database import Member as MemberDb, ClanMember, Clan
 from seraphsix.models.destiny import Member
 
 logging.getLogger(__name__)
@@ -102,7 +102,7 @@ async def member_sync(database, destiny, guild_id, cache=None):  # noqa TODO
         except DoesNotExist:
             member_db = await database.create(MemberDb, **member_info.to_dict())
 
-        clan_db = await database.get_clan(clan_id)
+        clan_db = await database.get(Clan, clan_id=clan_id)
         member_details = dict(
             join_date=member_info.join_date,
             platform_id=member_info.platform_id,
