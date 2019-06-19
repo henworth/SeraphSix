@@ -94,5 +94,10 @@ def the100_webhook():
     return 'Success!'
 
 
+@app.route('/the100webhook/slack', methods=['POST'])
+def the100_webhook_redirect():
+    return redirect('/the100webhook')
+
+
 if __name__ == '__main__':
     app.run(debug=True, ssl_context='adhoc')
