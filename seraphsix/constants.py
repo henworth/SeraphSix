@@ -1,7 +1,7 @@
 import discord
 from datetime import datetime
 
-LOG_FORMAT_MSG = "%(asctime)s %(name)s[%(process)d]: %(levelname)s %(message)s"
+LOG_FORMAT_MSG = "%(name)s[%(process)d]: %(levelname)s %(message)s"
 LOG_FORMAT_TIME = "%b %d %H:%M:%S"
 
 BLUE = discord.Color(3381759)

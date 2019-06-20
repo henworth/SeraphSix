@@ -93,12 +93,12 @@ class RegisterCog(commands.Cog, name='Register'):
         if not member_db:
             member_db = await self.bot.database.create(Member)
 
-        # Save OAuth credentials and Bungie ID
-        member_db.bungie_access_token = user_info.get('access_token')
-        member_db.bungie_refresh_token = user_info.get('refresh_token')
-
+        # Save OAuth credentials and Bungie User data
         bungie_user = User(res['Response'])
-        await self.bot.database.update(member_db, bungie_user.to_dict())
+        user_data = bungie_user.to_dict()
+        user_data['bungie_access_token'] = user_info.get('access_token')
+        user_data['bungie_refresh_token'] = user_info.get('refresh_token')
+        await self.bot.database.update(member_db, user_data)
 
         # Send confirmation of successful registration
         e = discord.Embed(

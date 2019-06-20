@@ -14,6 +14,7 @@ app = Flask(__name__)
 app.secret_key = secrets.os.urandom(20)
 
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
+logging.getLogger(__name__)
 
 
 class BungieClient(OAuth2):
