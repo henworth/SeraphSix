@@ -98,6 +98,7 @@ class RegisterCog(commands.Cog, name='Register'):
         for key, value in bungie_user.to_dict().items():
             setattr(member_db, key, value)
 
+        member_db.discord_id = ctx.author.id
         member_db.bungie_access_token = user_info.get('access_token')
         member_db.bungie_refresh_token = user_info.get('refresh_token')
 
