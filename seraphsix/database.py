@@ -205,8 +205,8 @@ class Database(object):
         return await self._objects.get(model, **data)
 
     @connection_error
-    async def update(self, db_object, data=None):
-        return await self._objects.update(db_object, data)
+    async def update(self, db_object):
+        return await self._objects.update(db_object)
 
     @connection_error
     async def delete(self, db_object):

@@ -10,11 +10,11 @@ from flask import Flask, redirect, render_template, request, session, url_for
 from requests_oauth2 import OAuth2, OAuth2BearerToken
 from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 
-app = Flask(__name__)
-app.secret_key = secrets.os.urandom(20)
-
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
 logging.getLogger(__name__)
+
+app = Flask(__name__)
+app.secret_key = secrets.os.urandom(20)
 
 
 class BungieClient(OAuth2):
