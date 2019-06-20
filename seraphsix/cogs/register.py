@@ -98,6 +98,7 @@ class RegisterCog(commands.Cog, name='Register'):
         for key, value in bungie_user.to_dict().items():
             setattr(member_db, key, value)
 
+        logging.info(vars(member_db))
         await self.bot.database.update(member_db)
 
         # Send confirmation of successful registration
