@@ -4,7 +4,7 @@ import logging
 import pydest
 
 from datetime import datetime
-from peewee import DoesNotExist, IntegrityError
+from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.database import ClanGame as ClanGameDb, ClanMember, Game, GameMember, Guild, Member
 from seraphsix.models.destiny import ClanGame

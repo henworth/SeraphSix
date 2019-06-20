@@ -8,11 +8,12 @@ import secrets
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from requests_oauth2 import OAuth2, OAuth2BearerToken
+from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 
 app = Flask(__name__)
 app.secret_key = secrets.os.urandom(20)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
 
 
 class BungieClient(OAuth2):
@@ -90,8 +91,6 @@ def oauth_callback():
 
 @app.route('/the100webhook/slack', methods=['POST'])
 def the100_webhook():
-    logging.info(request.headers)
-    logging.info(request.get_data(as_text=True))
     logging.info(request.get_json(force=True))
     return 'Success!'
 

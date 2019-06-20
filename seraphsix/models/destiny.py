@@ -53,6 +53,18 @@ class User(object):
             elif entry['membershipType'] == constants.PLATFORM_BNG:
                 self.memberships.bungie(entry)
 
+    def to_dict(self):
+        return dict(
+            bungie_id=self.memberships.bungie.id,
+            bungie_username=self.memberships.bungie.username,
+            xbox_id=self.memberships.xbox.id,
+            xbox_username=self.memberships.xbox.username,
+            psn_id=self.memberships.psn.id,
+            psn_username=self.memberships.psn.username,
+            blizzard_id=self.memberships.blizzard.id,
+            blizzard_username=self.memberships.blizzard.username
+        )
+
 
 class Member(User):
 
@@ -81,18 +93,6 @@ class Member(User):
 
     def __str__(self):
         return f'{self.platform_id}-{self.member_id}'
-
-    def to_dict(self):
-        return dict(
-            bungie_id=self.memberships.bungie.id,
-            bungie_username=self.memberships.bungie.username,
-            xbox_id=self.memberships.xbox.id,
-            xbox_username=self.memberships.xbox.username,
-            psn_id=self.memberships.psn.id,
-            psn_username=self.memberships.psn.username,
-            blizzard_id=self.memberships.blizzard.id,
-            blizzard_username=self.memberships.blizzard.username
-        )
 
 
 class Player(object):

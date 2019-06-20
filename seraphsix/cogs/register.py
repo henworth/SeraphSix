@@ -7,6 +7,7 @@ import pickle
 from discord.ext import commands
 from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.database import Member
 from seraphsix.models.destiny import User
 
 logging.getLogger(__name__)
@@ -65,15 +66,11 @@ class RegisterCog(commands.Cog, name='Register'):
             return await manager.clean_messages()
         await ctx.author.dm_channel.trigger_typing()
 
-        # Save OAuth credentials and Bungie ID
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
-        member_db.bungie_id = user_info.get('membership_id')
-        member_db.bungie_access_token = user_info.get('access_token')
-        member_db.bungie_refresh_token = user_info.get('refresh_token')
+        bungie_id = user_info.get('membership_id')
 
         # Fetch platform specific display names and membership IDs
         try:
-            res = await self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id)
+            res = await self.bot.destiny.api.get_membership_data_by_id(bungie_id)
         except Exception:
             await manager.send_private_message(
                 "I can't seem to connect to Bungie right now. Try again later.")
@@ -92,12 +89,16 @@ class RegisterCog(commands.Cog, name='Register'):
             await registration_msg.delete()
             return await manager.clean_messages()
 
-        bungie_user = User(res['Response'])
-        member_db.bungie_username = bungie_user.memberships.bungie.username
-        if hasattr(bungie_user.memberships, 'xbox'):
-            member_db.xbox_username = bungie_user.memberships.xbox.username
+        member_db = await self.bot.database.get_member_by_platform(constants.PLATFORM_BNG, bungie_id)
+        if not member_db:
+            member_db = await self.bot.database.create(Member)
 
-        await self.bot.database.update(member_db)
+        # Save OAuth credentials and Bungie ID
+        member_db.bungie_access_token = user_info.get('access_token')
+        member_db.bungie_refresh_token = user_info.get('refresh_token')
+
+        bungie_user = User(res['Response'])
+        await self.bot.database.update(member_db, bungie_user.to_dict())
 
         # Send confirmation of successful registration
         e = discord.Embed(
