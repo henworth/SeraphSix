@@ -5,6 +5,7 @@ import logging
 import pickle
 
 from discord.ext import commands
+from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Member
@@ -66,18 +67,16 @@ class RegisterCog(commands.Cog, name='Register'):
             return await manager.clean_messages()
         await ctx.author.dm_channel.trigger_typing()
 
-        bungie_id = user_info.get('membership_id')
+        bungie_access_token = user_info.get('access_token')
 
         # Fetch platform specific display names and membership IDs
         try:
-            res = await self.bot.destiny.api.get_membership_data_by_id(bungie_id)
+            res = await self.bot.destiny.api.get_membership_current_user(bungie_access_token)
         except Exception:
             await manager.send_private_message(
                 "I can't seem to connect to Bungie right now. Try again later.")
             await registration_msg.delete()
             return await manager.clean_messages()
-
-        logging.info(res)
 
         if res['ErrorCode'] != 1:
             await manager.send_private_message(
@@ -91,17 +90,39 @@ class RegisterCog(commands.Cog, name='Register'):
             await registration_msg.delete()
             return await manager.clean_messages()
 
-        member_db = await self.bot.database.get_member_by_platform(bungie_id, constants.PLATFORM_BNG)
-        if not member_db:
-            member_db = await self.bot.database.create(Member)
+        bungie_user = User(res['Response'])
+
+        try:
+            member_db = await self.bot.database.get_member_by_platform(
+                bungie_user.memberships.bungie.id, constants.PLATFORM_BNG)
+        except DoesNotExist:
+            if bungie_user.memberships.xbox.id:
+                query_data = dict(
+                    member_id=bungie_user.memberships.xbox.id,
+                    platform_id=constants.PLATFORM_XBOX
+                )
+            elif bungie_user.memberships.psn.id:
+                query_data = dict(
+                    member_id=bungie_user.memberships.psn.id,
+                    platform_id=constants.PLATFORM_PSN
+                )
+            elif bungie_user.memberships.blizzard.id:
+                query_data = dict(
+                    member_id=bungie_user.memberships.blizzard.id,
+                    platform_id=constants.PLATFORM_BLIZ
+                )
+
+            try:
+                member_db = await self.bot.database.get_member_by_platform(**query_data)
+            except DoesNotExist:
+                member_db = await self.bot.database.create(Member)
 
         # Save OAuth credentials and Bungie User data
-        bungie_user = User(res['Response'])
         for key, value in bungie_user.to_dict().items():
             setattr(member_db, key, value)
 
         member_db.discord_id = ctx.author.id
-        member_db.bungie_access_token = user_info.get('access_token')
+        member_db.bungie_access_token = bungie_access_token
         member_db.bungie_refresh_token = user_info.get('refresh_token')
 
         await self.bot.database.update(member_db)
