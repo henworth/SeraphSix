@@ -72,7 +72,8 @@ class RegisterCog(commands.Cog, name='Register'):
         # Fetch platform specific display names and membership IDs
         try:
             res = await self.bot.destiny.api.get_membership_current_user(bungie_access_token)
-        except Exception:
+        except Exception as e:
+            logging.exception(e)
             await manager.send_private_message(
                 "I can't seem to connect to Bungie right now. Try again later.")
             await registration_msg.delete()
