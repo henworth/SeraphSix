@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "4368cdf628968472de7edd09ab300d838210d68161492c956bfa73d3356b2765"
+            "sha256": "6a9c4f79dda278fc6139eb1be38361844eba082022e558d2f3be81a7d50c1292"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -339,7 +339,7 @@
         },
         "pydest": {
             "git": "https://github.com/henworth/pydest",
-            "ref": "60528fc45d2c5b00d33d6a782b6dcaa5bf510880"
+            "ref": "b92f6864577fbc401c71ad548473c4a0754295ec"
         },
         "pytz": {
             "hashes": [

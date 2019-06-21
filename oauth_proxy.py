@@ -35,7 +35,7 @@ red = redis.from_url(os.environ.get('REDIS_URL'))
 @app.route('/')
 def index():
     if not session.get('access_token'):
-        return redirect('/oauth/')
+        return redirect('/oauth')
 
     user_info = dict(
         membership_id=session.get('membership_id'),
@@ -48,7 +48,7 @@ def index():
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
 
-@app.route('/oauth/')
+@app.route('/oauth')
 def oauth_index():
     if not session.get('access_token'):
         return redirect(url_for('oauth_callback', state=request.args.get('state')))
