@@ -166,12 +166,14 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
 
         game_title = game_mode_details['title'].title()
 
-        game_db = await database.get(Game, instance_id=game.instance_id)
-        if not game_db:
+        try:
+            game_db = await database.get(Game, instance_id=game.instance_id)
+        except DoesNotExist:
             game_db = await database.create(Game, **vars(game))
 
-        clangame_db = await database.get(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
-        if not clangame_db:
+        try:
+            await database.get(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
+        except DoesNotExist:
             await database.create(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
             await database.create_clan_game_members(
                 member_db.clanmember.clan_id, game_db.id, game.clan_players)

@@ -77,6 +77,8 @@ class RegisterCog(commands.Cog, name='Register'):
             await registration_msg.delete()
             return await manager.clean_messages()
 
+        logging.info(res)
+
         if res['ErrorCode'] != 1:
             await manager.send_private_message(
                 "Oops, something went wrong during registration. Please try again.")
