@@ -28,7 +28,7 @@ aioredis = "*"
 redis = "*"
 jsonpickle = "*"
 the100 = {git = "https://github.com/henworth/the100"}
-pydest = {git = "https://github.com/henworth/pydest",ref = "b92f6864577fbc401c71ad548473c4a0754295ec"}
+pydest = {git = "https://github.com/henworth/pydest",ref = "29cfdf20924a0675f2be830360520d0f5e47bde4"}
 
 [requires]
 python_version = "3.7"
