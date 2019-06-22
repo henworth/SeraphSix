@@ -104,7 +104,7 @@ async def get_game_counts(database, destiny, game_mode, member_db=None):
     query = Game.select()
     for mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
         if member_db:
-            query = query.join(GameMember).join(Member).join(ClanMember).where(
+            query = query.join(GameMember).join(Member).join_from(Member, ClanMember).where(
                 (Member.id == member_db.id) &
                 (ClanMember.clan_id == member_db.clanmember.clan_id) &
                 (Game.mode_id << [mode_id])
