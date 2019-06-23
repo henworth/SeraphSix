@@ -170,6 +170,8 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
             game_db = await database.get(Game, instance_id=game.instance_id)
         except DoesNotExist:
             game_db = await database.create(Game, **vars(game))
+            logging.info(f"{game_title} game id {activity_id} created")
+            mode_count += 1
 
         try:
             await database.get(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
@@ -177,9 +179,6 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
             await database.create(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
             await database.create_clan_game_members(
                 member_db.clanmember.clan_id, game_db.id, game.clan_players)
-
-        logging.info(f"{game_title} game id {activity_id} created")
-        mode_count += 1
 
     if mode_count:
         logging.debug(
