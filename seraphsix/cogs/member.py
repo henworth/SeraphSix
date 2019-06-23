@@ -223,7 +223,7 @@ Example: ?member games raid
 
         embed.description = str(total_count)
         await manager.send_embed(embed)
-        await manager.clean_messages()
+        return await manager.clean_messages()
 
 
 def setup(bot):
