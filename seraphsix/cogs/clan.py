@@ -10,6 +10,7 @@ from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import (
     is_clan_admin, is_valid_game_mode, clan_is_linked)
+from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild
@@ -126,6 +127,9 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
+        if not clan_dbs:
+            return await ctx.send("No connected clans found")
+
         embeds = []
         for clan_db in clan_dbs:
             res = await self.bot.destiny.api.get_group(clan_db.clan_id)
@@ -171,6 +175,10 @@ class ClanCog(commands.Cog, name='Clan'):
         """Show clan roster"""
         await ctx.trigger_typing()
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+
+        if not clan_dbs:
+            return await ctx.send("No connected clans found")
+
         clan_members = await self.bot.database.get_clan_members(
             [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
 
@@ -234,8 +242,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 bungie_name = member['destinyUserInfo']['displayName']
                 bungie_member_id = member['destinyUserInfo']['membershipId']
                 bungie_member_type = member['destinyUserInfo']['membershipType']
-                date_applied = datetime.strptime(
-                    member['creationDate'], '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%d %H:%M:%S %Z')
+                date_applied = bungie_date_as_utc(member['creationDate']).strftime('%Y-%m-%d %H:%M:%S %Z')
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 member_info = f"Date Applied: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
@@ -364,8 +371,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 bungie_name = member['destinyUserInfo']['displayName']
                 bungie_member_id = member['destinyUserInfo']['membershipId']
                 bungie_member_type = member['destinyUserInfo']['membershipType']
-                date_applied = datetime.strptime(
-                    member['creationDate'], '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%d %H:%M:%S %Z')
+                date_applied = bungie_date_as_utc(member['creationDate']).strftime('%Y-%m-%d %H:%M:%S %Z')
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 member_info = f"Date Invited: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)

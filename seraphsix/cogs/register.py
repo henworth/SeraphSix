@@ -24,7 +24,7 @@ class RegisterCog(commands.Cog, name='Register'):
         """Initialize Redis connection when bot loads"""
         self.redis = await aioredis.create_redis_pool(self.bot.config['redis_url'])
 
-    @commands.command()
+    @commands.command()  # noqa TODO
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
     async def register(self, ctx):
         """Register your Destiny 2 account with Seraph Six
@@ -50,8 +50,8 @@ class RegisterCog(commands.Cog, name='Register'):
         e.url = auth_url
         e.description = (
             "Click the above link to register your Bungie.net account with Seraph Six. "
-            "Registering will allow Seraph Six to access your connected Destiny "
-            "2 accounts. At no point will Seraph Six have access to your password."
+            "Registering will allow Seraph Six to access your connected Destiny 2"
+            "accounts. At no point will Seraph Six have access to your password."
         )
         registration_msg = await manager.send_private_embed(e)
 

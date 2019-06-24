@@ -1,5 +1,6 @@
 from datetime import datetime
 from seraphsix import constants
+from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 
 
 class UserMembership(object):
@@ -70,8 +71,7 @@ class Member(User):
 
     def __init__(self, details):
         super().__init__(details)
-        self.join_date = datetime.strptime(
-            details['joinDate'], '%Y-%m-%dT%H:%M:%S%z')
+        self.join_date = bungie_date_as_utc(details['joinDate'])
         self.is_online = details['isOnline']
         self.last_online_status_change = datetime.utcfromtimestamp(
             int(details['lastOnlineStatusChange']))
@@ -118,7 +118,7 @@ class Game(object):
         self.mode_id = details['activityDetails']['mode']
         self.instance_id = int(details['activityDetails']['instanceId'])
         self.reference_id = details['activityDetails']['referenceId']
-        self.date = datetime.strptime(details['period'], '%Y-%m-%dT%H:%M:%S%z')
+        self.date = bungie_date_as_utc(details['period'])
 
         self.players = []
         for entry in details['entries']:

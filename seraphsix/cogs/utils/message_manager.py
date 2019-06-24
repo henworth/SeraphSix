@@ -44,7 +44,7 @@ class MessageManager:
             return message.author.dm_channel == self.ctx.author.dm_channel
         return await self.ctx.bot.wait_for('message', check=is_private_message, timeout=120)
 
-    async def send_embed(self, embed, content=None, clean=True):
+    async def send_embed(self, embed, content=None, clean=False):
         """Send an embed message to the user on ctx.channel"""
         if is_private_channel(self.ctx.channel):
             msg = await self.send_private_embed(embed, content)

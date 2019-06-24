@@ -185,6 +185,7 @@ Example: ?member games raid
 
         if not member_name:
             discord_id = ctx.author.id
+            member_name = ctx.author.display_name
             try:
                 member_db = await self.bot.database.get_member_by_discord_id(discord_id)
             except DoesNotExist:
@@ -192,11 +193,9 @@ Example: ?member games raid
                     f"User {ctx.author.display_name} has not registered or is not a clan member")
                 return
             logging.info(
-                f"Getting {game_mode} games by Discord id {discord_id} for {ctx.author.display_name}")
+                f"Getting {game_mode} games for {ctx.author.display_name}")
         else:
             try:
-                # member_db = await self.bot.database.get_member_by_platform_username(
-                # platform_id, member_name)
                 member_db = await self.bot.database.get_member_by_naive_username(member_name)
             except DoesNotExist:
                 await ctx.send(f"Invalid member name {member_name}")
@@ -209,8 +208,7 @@ Example: ?member games raid
 
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_name}",
-            # " {emoji}",
+            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_name}"
         )
 
         total_count = 0
@@ -223,7 +221,6 @@ Example: ?member games raid
 
         embed.description = str(total_count)
         await manager.send_embed(embed)
-        return await manager.clean_messages()
 
 
 def setup(bot):

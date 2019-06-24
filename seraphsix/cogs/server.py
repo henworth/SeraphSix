@@ -149,9 +149,10 @@ class ServerCog(commands.Cog, name='Server'):
         if not platform_id:
             message = f"Platform must be one of `{', '.join(PLATFORM_MAP.keys()).title()}`.`"
         else:
-            clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
-            clan_db.platform = platform_id
-            await self.bot.database.update(clan_db)
+            clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+            for clan_db in clan_dbs:
+                clan_db.platform = platform_id
+            await self.bot.database.bulk_update(clan_dbs, ['platform'])
             message = f"Platform has been set to `{platform}`"
 
         await manager.send_message(message)

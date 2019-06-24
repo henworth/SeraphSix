@@ -156,7 +156,7 @@ class GameCog(commands.Cog, name='Game'):
                 kwargs['value'] = "**Game Creation In Progress...**"
             base_embed.add_field(**kwargs)
 
-        game_embed = await manager.send_embed(base_embed)
+        game_embed = await manager.send_embed(base_embed, clean=True)
 
         # TODO: Figure out how to sanitize the Destiny 1 game activity list
         game_name = "Destiny 2"

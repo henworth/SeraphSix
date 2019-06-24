@@ -25,7 +25,6 @@ def connection_error(function):
         try:
             return await function(*args, **kwargs)
         except (InterfaceError, OperationalError):
-            # logging.error(f"Connection error: {e}")
             pass
     return wrapper
 
@@ -219,6 +218,16 @@ class Database(object):
     @connection_error
     async def count(self, query):
         return await self._objects.count(query)
+
+    async def bulk_update(self, model_list, fields, batch_size=None):
+        model = type(model_list[0])
+        query = model.bulk_update(
+            model_list, fields=fields, batch_size=batch_size)
+        try:
+            print('updating')
+            return await self.execute(query)
+        except AttributeError:
+            return False
 
     async def get_member_by_platform(self, member_id, platform_id):
         # pylint: disable=assignment-from-no-return

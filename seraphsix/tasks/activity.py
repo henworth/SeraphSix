@@ -3,9 +3,9 @@ import backoff
 import logging
 import pydest
 
-from datetime import datetime
 from peewee import DoesNotExist
 from seraphsix import constants
+from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.database import ClanGame as ClanGameDb, ClanMember, Game, GameMember, Guild, Member
 from seraphsix.models.destiny import ClanGame
 
@@ -86,8 +86,7 @@ async def get_last_active(destiny, member_db):
         logging.error(f"Could not get profile data for {member_db.clanmember.platform_id}-{member_id}")
         return
     for _, data in profile_data:
-        char_last_active = datetime.strptime(
-            data['dateLastPlayed'], '%Y-%m-%dT%H:%M:%S%z')
+        char_last_active = bungie_date_as_utc(data['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
             acct_last_active = char_last_active
     return acct_last_active

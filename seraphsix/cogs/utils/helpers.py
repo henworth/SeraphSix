@@ -1,4 +1,8 @@
+import pytz
+
 from collections import OrderedDict
+from datetime import datetime
+from seraphsix.constants import BUNGIE_DATE_FORMAT
 
 
 def merge_dicts(a, b, path=None):
@@ -26,3 +30,7 @@ def sort_dict(d):
         else:
             res[k] = v
     return res
+
+
+def bungie_date_as_utc(date):
+    return datetime.strptime(date, BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)

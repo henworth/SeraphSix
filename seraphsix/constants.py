@@ -1,5 +1,8 @@
 import discord
+import pytz
+
 from datetime import datetime
+
 
 LOG_FORMAT_MSG = "%(name)s[%(process)d]: %(levelname)s %(message)s"
 LOG_FORMAT_TIME = "%b %d %H:%M:%S"
@@ -132,7 +135,8 @@ SUPPORTED_GAME_MODES = {
     'pvp-comp': MODES_PVP_COMP
 }
 
-FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00+0000', '%Y-%m-%dT%H:%M:%S%z')
+BUNGIE_DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
 
 TWITTER_DESTINY_REDDIT = 2608131020
 TWITTER_XBOX_SUPPORT = 59804598

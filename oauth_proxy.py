@@ -83,8 +83,6 @@ def oauth_callback():
         grant_type='authorization_code',
     )
 
-    logging.info(data)
-
     session['access_token'] = data.get('access_token')
     session['refresh_token'] = data.get('refresh_token')
     session['membership_id'] = data.get('membership_id')
