@@ -9,7 +9,8 @@ from peewee import DoesNotExist
 from urllib.parse import quote
 
 from seraphsix import constants
-from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked
+from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
+from seraphsix.cogs.utils.helpers import get_timezone_name
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.tasks.activity import get_game_counts
 
@@ -29,7 +30,7 @@ class MemberCog(commands.Cog, name='Member'):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
-    @member.command()
+    @member.command(help="Get member information")
     @clan_is_linked()
     @commands.guild_only()
     async def info(self, ctx, *args):
@@ -93,7 +94,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         await ctx.send(embed=embed)
 
-    @member.command()
+    @member.command(help="Link member to discord account")
     @commands.has_permissions(administrator=True)
     async def link(self, ctx):
         """Link Discord user to Gamertag (Admin)"""
@@ -161,7 +162,6 @@ class MemberCog(commands.Cog, name='Member'):
         return await manager.clean_messages()
 
     @member.command(
-        usage=f"<{', '.join(constants.SUPPORTED_GAME_MODES.keys())}>",
         help=f"""
 Show itemized list of all eligible clan games participated in
 Eligiblity is simply whether the fireteam is at least half clan members.
@@ -221,6 +221,73 @@ Example: ?member games raid
 
         embed.description = str(total_count)
         await manager.send_embed(embed)
+
+    @is_registered()
+    @member.command(help="Set member timezone")
+    async def settimezone(self, ctx):
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
+        member_db = await self.bot.database.get(Member, discord_id=ctx.author.id)
+        if member_db.timezone:
+            res = await manager.send_message_react(
+                message_text=(
+                    f"Your current timezone is set to: `{member_db.timezone}`,"
+                    f"would you like to change it?"),
+                reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
+                clean=False,
+                with_cancel=True
+            )
+
+            if res == constants.EMOJI_CROSSMARK:
+                await manager.send_message("Canceling post")
+                return await manager.clean_messages()
+
+        res = await manager.send_and_get_response(
+            "Enter your timezone name and country code, accepted formats are:\n"
+            "```EST US\nAmerica/New_York US\n0500 US```")
+        if res.lower() == 'cancel':
+            await manager.send_message("Canceling")
+            return await manager.clean_messages()
+
+        timezone, country_code = res.split(' ')
+        timezones = get_timezone_name(timezone, country_code)
+
+        if not timezones:
+            await manager.send_message(f"No timezone found for `{res}`, canceling")
+            return await manager.clean_messages()
+
+        if len(timezones) == 1:
+            timezone = next(iter(timezones))
+
+            res = await manager.send_message_react(
+                message_text=f"Is the timezone {timezone} correct?",
+                reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
+                clean=False,
+                with_cancel=True
+            )
+
+            if res == constants.EMOJI_CROSSMARK:
+                await manager.send_message("Canceling post")
+                return await manager.clean_messages()
+
+            member_db.timezone = timezone
+            await self.bot.database.update(member_db)
+            await manager.send_message("Timezone updated successfully!")
+            return await manager.clean_messages()
+
+        text = '\n'.join(sorted(timezones, key=lambda s: s.lower()))
+        res = await manager.send_and_get_response(f"Which of these timezones are correct?\n```{text}```")
+        if res.lower() == 'cancel':
+            await manager.send_message("Canceling")
+
+        if res in timezones:
+            member_db.timezone = res
+            await self.bot.database.update(member_db)
+            await manager.send_message("Timezone updated successfully!")
+        else:
+            await manager.send_message("Unexpected response, canceling")
+        return await manager.clean_messages()
 
 
 def setup(bot):

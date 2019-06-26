@@ -10,12 +10,12 @@ class MessageManager:
         self.ctx = ctx
         self.messages_to_clean = [ctx.message]
 
-    def add_messages_to_clean(self, messages):
-        """Add a list of messages to be cleaned"""
-        self.messages_to_clean.extend(messages)
+    def add_message_to_clean(self, message):
+        """Add a message to be cleaned"""
+        self.messages_to_clean.append(message)
 
     def remove_message_from_clean(self, message):
-        """Add a list of messages to be cleaned"""
+        """Remove a message from being cleaned"""
         self.messages_to_clean.remove(message)
 
     async def clean_messages(self):

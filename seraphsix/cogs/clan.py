@@ -482,33 +482,42 @@ class ClanCog(commands.Cog, name='Clan'):
                 title=f"Clan Changes for {clan_db.name}",
             )
 
-            if not member_changes[clan_db.clan_id].get('added') \
-                    and not member_changes[clan_db.clan_id].get('removed') \
-                    and not member_changes[clan_db.clan_id].get('changed') \
+            added, removed, changed = [
+                member_changes[clan_db.clan_id][k] for k in ['added', 'removed', 'changed']]
+
+            if not added and not removed and not changed \
                     and not clan_info_changes.get(clan_db.clan_id):
                 embed.add_field(
                     name="No Changes",
                     value="-"
                 )
 
-            if member_changes[clan_db.clan_id].get('added'):
+            if added:
+                if len(added) > 10:
+                    members_value = f"Too many to list: {len(added)} total"
+                else:
+                    members_value = ", ".join(added)
                 embed.add_field(
                     name="Members Added",
-                    value=", ".join(member_changes[clan_db.clan_id].get('added')),
+                    value=members_value,
                     inline=False
                 )
 
-            if member_changes[clan_db.clan_id].get('removed'):
+            if removed:
+                if len(removed) >= 10:
+                    members_value = f"Too many to list: {len(added)} total"
+                else:
+                    members_value = ", ".join(removed)
                 embed.add_field(
                     name="Members Removed",
-                    value=", ".join(member_changes[clan_db.clan_id].get('removed')),
+                    value=members_value,
                     inline=False
                 )
 
-            if member_changes[clan_db.clan_id].get('changed'):
+            if changed:
                 embed.add_field(
                     name="Members Changed",
-                    value=", ".join(member_changes[clan_db.clan_id].get('changed')),
+                    value=", ".join(changed),
                     inline=False
                 )
 

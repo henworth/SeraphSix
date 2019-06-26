@@ -278,7 +278,8 @@ class GameCog(commands.Cog, name='Game'):
             return await manager.clean_messages()
 
         message = ' '.join([group_only[group], platforms[platform.id],
-                            game_activities_by_id[activity_id], time_format.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                            game_activities_by_id[activity_id],
+                            time_format.strftime('%Y-%m-%dT%H:%M:%S%z'),
                             f"\"{description}\""])
 
         data = {

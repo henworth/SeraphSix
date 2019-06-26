@@ -34,3 +34,40 @@ def sort_dict(d):
 
 def bungie_date_as_utc(date):
     return datetime.strptime(date, BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
+
+
+def get_timezone_name(timezone, country_code):
+    set_zones = set()
+    # See if it's already a valid "long" time zone name
+    if '/' in timezone and timezone in pytz.all_timezones:
+        set_zones.add(timezone)
+        return set_zones
+
+    # If it's a number value then use the Etc/GMT code
+    try:
+        offset = int(timezone)
+        if offset > 0:
+            offset = '+' + str(offset)
+        else:
+            offset = str(offset)
+        set_zones.add('Etc/GMT' + offset)
+        return set_zones
+    except ValueError:
+        pass
+
+    timezones = []
+    try:
+        # Find all timezones in the supplied country code
+        timezones = pytz.country_timezones[country_code]
+    except KeyError:
+        # Invalid country code, try to match the timezone abbreviation to any time zone
+        timezones = pytz.all_timezones
+
+    for name in timezones:
+        tzone = pytz.timezone(name)
+        transition_info = getattr(tzone, '_transition_info', [[None, None, datetime.now(tzone).tzname()]])
+        for utcoffset, dstoffset, tzabbrev in transition_info:
+            if tzabbrev.upper() == timezone.upper():
+                set_zones.add(name)
+
+    return set_zones

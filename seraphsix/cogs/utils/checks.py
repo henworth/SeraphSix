@@ -92,7 +92,7 @@ async def check_timezone(ctx):
     try:
         member_db = await ctx.bot.database.get(Member, discord_id=ctx.author.id)
     except DoesNotExist:
-        raise InvalidMemberError
+        raise NotRegisteredError
     if not member_db.timezone:
         raise MissingTimezoneError
     return True
