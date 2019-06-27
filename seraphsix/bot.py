@@ -66,10 +66,8 @@ class SeraphSix(commands.Bot):
         self.the100 = The100(config.the100.api_key, config.the100.base_url)
 
         self.twitter = None
-        if (hasattr(config.twitter, 'consumer_key') and
-                hasattr(config.twitter, 'consumer_secret') and
-                hasattr(config.twitter, 'access_token') and
-                hasattr(config.twitter, 'access_token_secret')):
+        if (config.twitter.consumer_key and config.twitter.consumer_secret and
+                config.twitter.access_token and config.twitter.access_token_secret):
             self.twitter = PeonyClient(**config.twitter.asdict())
 
         for extension in STARTUP_EXTENSIONS:
