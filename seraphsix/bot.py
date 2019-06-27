@@ -1,14 +1,11 @@
 #!/usr/bin/env python3.7
-# import ast
 import asyncio
 import discord
-# import jsonpickle
 import logging
 import peony
 import traceback
 
 from discord.ext import commands, tasks
-# from iron_cache import IronCache  # TODO: Replace this with Memcache
 from peewee import DoesNotExist
 from peony import PeonyClient
 from pydest import Pydest
@@ -82,8 +79,8 @@ class SeraphSix(commands.Bot):
                 exc = traceback.format_exception(type(e), e, e.__traceback__)
                 logging.error(f"Failed to load extension {extension}: {exc}")
 
-        self.update_last_active.start()
-        self.update_member_games.start()
+        # self.update_last_active.start()
+        # self.update_member_games.start()
 
     @tasks.loop(minutes=5.0)
     async def update_last_active(self):
@@ -93,14 +90,6 @@ class SeraphSix(commands.Bot):
 
             logging.info(
                 f"Finding last active dates for all members of {guild_id}")
-
-            # members = ast.literal_eval(
-            #     self.caches[guild_id].get('members').value)
-
-            # tasks.extend([
-            #     store_last_active(self.database, self.destiny, jsonpickle.decode(member))
-            #     for member in members
-            # ])
 
             tasks.extend([
                 store_last_active(self.database, self.destiny, member)
@@ -112,19 +101,6 @@ class SeraphSix(commands.Bot):
     @update_last_active.before_loop
     async def before_update_last_active(self):
         await self.wait_until_ready()
-
-    # async def build_member_cache(self, guild_id: int):
-    #     self.caches[guild_id] = IronCache(
-    #         name=str(guild_id), **self.config['iron_cache'])
-
-    #     members = [
-    #         jsonpickle.encode(member)
-    #         for member in await self.database.get_clan_members_by_guild_id(
-    #             guild_id)
-    #     ]
-
-    #     self.caches[guild_id].put('members', members)
-    #     logging.info(f"Populated member cache for server {guild_id}")
 
     @tasks.loop(hours=1.0)
     async def update_member_games(self):
@@ -169,12 +145,6 @@ class SeraphSix(commands.Bot):
                 if tweet.user.id not in constants.TWITTER_FOLLOW_USERS:
                     continue
                 self.loop.create_task(self.process_tweet(tweet))
-
-    # async def on_connect(self):
-    #     self.caches = {}
-    #     guilds = await self.database.execute(Guild.select())
-    #     tasks = [self.build_member_cache(guild.guild_id) for guild in guilds]
-    #     await asyncio.gather(*tasks)
 
     async def on_ready(self):
         start_message = (

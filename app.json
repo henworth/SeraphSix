@@ -41,7 +41,6 @@
         }
     },
     "addons": [
-        "iron_cache",
         "heroku-postgresql:hobby-dev",
         "heroku-redis",
         "timber-logging"
