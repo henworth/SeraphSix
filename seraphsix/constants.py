@@ -121,8 +121,7 @@ MODE_MAP = {
     MODE_PVP_CONTROL_COMP: {'title': 'control (competitive)', 'player_count': 4, 'threshold': 2},
     MODE_GAMBIT: {'title': 'gambit', 'player_count': 4, 'threshold': 2},
     MODE_GAMBIT_PRIME: {'title': 'gambit prime', 'player_count': 4, 'threshold': 2},
-    MODE_GAMBIT_RECKONING: {'title': 'reckoning',
-                            'player_count': 4, 'threshold': 2}
+    MODE_GAMBIT_RECKONING: {'title': 'reckoning', 'player_count': 4, 'threshold': 2}
 }
 
 SUPPORTED_GAME_MODES = {
@@ -135,7 +134,7 @@ SUPPORTED_GAME_MODES = {
     'pvp-comp': MODES_PVP_COMP
 }
 
-BUNGIE_DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+BUNGIE_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
 
 TWITTER_DESTINY_REDDIT = 2608131020

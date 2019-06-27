@@ -232,7 +232,7 @@ Example: ?member games raid
         if member_db.timezone:
             res = await manager.send_message_react(
                 message_text=(
-                    f"Your current timezone is set to: `{member_db.timezone}`,"
+                    f"Your current timezone is set to `{member_db.timezone}`,"
                     f"would you like to change it?"),
                 reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
                 clean=False,
@@ -261,7 +261,7 @@ Example: ?member games raid
             timezone = next(iter(timezones))
 
             res = await manager.send_message_react(
-                message_text=f"Is the timezone {timezone} correct?",
+                message_text=f"Is the timezone `{timezone}` correct?",
                 reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
                 clean=False,
                 with_cancel=True
@@ -277,7 +277,7 @@ Example: ?member games raid
             return await manager.clean_messages()
 
         text = '\n'.join(sorted(timezones, key=lambda s: s.lower()))
-        res = await manager.send_and_get_response(f"Which of these timezones are correct?\n```{text}```")
+        res = await manager.send_and_get_response(f"Which of these timezones is correct?\n```{text}```")
         if res.lower() == 'cancel':
             await manager.send_message("Canceling")
 
