@@ -36,7 +36,7 @@ class RegisterCog(commands.Cog, name='Register'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         auth_url = (
-            f'https://{self.bot.config.bungie["redirect_host"]}'
+            f'https://{self.bot.config.bungie.redirect_host}'
             f'/oauth?state={ctx.author.id}'
         )
 
