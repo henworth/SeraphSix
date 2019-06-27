@@ -79,8 +79,8 @@ class SeraphSix(commands.Bot):
                 exc = traceback.format_exception(type(e), e, e.__traceback__)
                 logging.error(f"Failed to load extension {extension}: {exc}")
 
-        # self.update_last_active.start()
-        # self.update_member_games.start()
+        self.update_last_active.start()
+        self.update_member_games.start()
 
     @tasks.loop(minutes=5.0)
     async def update_last_active(self):
