@@ -108,8 +108,7 @@ class MemberCog(commands.Cog, name='Member'):
         await msg.delete()
         await res.delete()
 
-        msg = await manager.send_message(
-            "What is the discord user to link to?", clean=False)
+        msg = await manager.send_message("What is the discord user to link to?", clean=False)
         res = await manager.get_next_message()
         discord_user = res.content
         await msg.delete()
@@ -121,7 +120,7 @@ class MemberCog(commands.Cog, name='Member'):
             return await manager.clean_messages()
 
         msg = await manager.send_message_react(
-            "What is the user game platform? One of: `blizzard`, `psn`, `xbox`",
+            "What is the member's game platform?",
             reactions=[constants.EMOJI_PC, constants.EMOJI_PSN, constants.EMOJI_XBOX],
             clean=False)
         res = await manager.get_next_message()

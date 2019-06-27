@@ -41,8 +41,7 @@ class RegisterCog(commands.Cog, name='Register'):
         )
 
         if not isinstance(ctx.channel, discord.abc.PrivateChannel):
-            await manager.send_message(
-                "Registration instructions have been messaged to you.")
+            await manager.send_message("Registration instructions have been messaged to you.")
 
         # Prompt user with link to Bungie.net OAuth authentication
         e = discord.Embed(colour=constants.BLUE)
