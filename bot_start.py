@@ -1,6 +1,6 @@
 from seraphsix.bot import SeraphSix
 from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
-from seraphsix.tasks.config import load_config
+from seraphsix.tasks.config import Config
 
 import logging
 import warnings
@@ -14,6 +14,6 @@ if __name__ == '__main__':
     logging.getLogger('aioredis').setLevel(logging.DEBUG)
     logging.getLogger('backoff').setLevel(logging.DEBUG)
 
-    config = load_config()
+    config = Config()
     bot = SeraphSix(config)
-    bot.run(config['discord_api_key'])
+    bot.run(config.discord_api_key)

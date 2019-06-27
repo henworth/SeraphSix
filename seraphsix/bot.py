@@ -54,23 +54,23 @@ class SeraphSix(commands.Bot):
         )
 
         self.config = config
-        self.database = Database(config['database_url'])
+        self.database = Database(config.database_url)
         self.database.initialize()
 
         self.destiny = Pydest(
-            api_key=config['bungie']['api_key'],
-            client_id=config['bungie']['client_id'],
-            client_secret=config['bungie']['client_secret']
+            api_key=config.bungie.api_key,
+            client_id=config.bungie.client_id,
+            client_secret=config.bungie.client_secret,
         )
 
-        self.the100 = The100(config['the100']['api_key'], config['the100']['base_url'])
+        self.the100 = The100(config.the100.api_key, config.the100.base_url)
 
         self.twitter = None
-        if (config['twitter'].get('consumer_key') and
-                config['twitter'].get('consumer_secret') and
-                config['twitter'].get('access_token') and
-                config['twitter'].get('access_token_secret')):
-            self.twitter = PeonyClient(**config['twitter'])
+        if (hasattr(config.twitter, 'consumer_key') and
+                hasattr(config.twitter, 'consumer_secret') and
+                hasattr(config.twitter, 'access_token') and
+                hasattr(config.twitter, 'access_token_secret')):
+            self.twitter = PeonyClient(**config.twitter.asdict())
 
         for extension in STARTUP_EXTENSIONS:
             try:
@@ -79,8 +79,8 @@ class SeraphSix(commands.Bot):
                 exc = traceback.format_exception(type(e), e, e.__traceback__)
                 logging.error(f"Failed to load extension {extension}: {exc}")
 
-        self.update_last_active.start()
-        self.update_member_games.start()
+        # self.update_last_active.start()
+        # self.update_member_games.start()
 
     @tasks.loop(minutes=5.0)
     async def update_last_active(self):

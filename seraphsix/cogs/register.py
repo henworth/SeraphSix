@@ -22,9 +22,9 @@ class RegisterCog(commands.Cog, name='Register'):
     @commands.Cog.listener()
     async def on_ready(self):
         """Initialize Redis connection when bot loads"""
-        self.redis = await aioredis.create_redis_pool(self.bot.config['redis_url'])
+        self.redis = await aioredis.create_redis_pool(self.bot.config.redis_url)
 
-    @commands.command()  # noqa TODO
+    @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
     async def register(self, ctx):
         """Register your Destiny 2 account with Seraph Six
@@ -36,7 +36,7 @@ class RegisterCog(commands.Cog, name='Register'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         auth_url = (
-            f'https://{self.bot.config["bungie"]["redirect_host"]}'
+            f'https://{self.bot.config.bungie["redirect_host"]}'
             f'/oauth?state={ctx.author.id}'
         )
 
@@ -96,21 +96,20 @@ class RegisterCog(commands.Cog, name='Register'):
             member_db = await self.bot.database.get_member_by_platform(
                 bungie_user.memberships.bungie.id, constants.PLATFORM_BNG)
         except DoesNotExist:
-            if bungie_user.memberships.xbox.id:
-                query_data = dict(
-                    member_id=bungie_user.memberships.xbox.id,
-                    platform_id=constants.PLATFORM_XBOX
-                )
-            elif bungie_user.memberships.psn.id:
-                query_data = dict(
-                    member_id=bungie_user.memberships.psn.id,
-                    platform_id=constants.PLATFORM_PSN
-                )
-            elif bungie_user.memberships.blizzard.id:
-                query_data = dict(
-                    member_id=bungie_user.memberships.blizzard.id,
-                    platform_id=constants.PLATFORM_BLIZ
-                )
+            member_ids = [
+                (bungie_user.memberships.xbox.id, constants.PLATFORM_XBOX),
+                (bungie_user.memberships.psn.id, constants.PLATFORM_PSN),
+                (bungie_user.memberships.blizzard.id, constants.PLATFORM_BLIZ)
+            ]
+
+            member_id, platform_id = next(
+                ((member_id, platform_id) for member_id, platform_id in member_ids if member_id),
+            )
+
+            query_data = dict(
+                member_id=member_id,
+                platform_id=platform_id
+            )
 
             try:
                 member_db = await self.bot.database.get_member_by_platform(**query_data)
