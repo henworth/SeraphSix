@@ -73,7 +73,8 @@ class MemberCog(commands.Cog, name='Member'):
         bungie_link = None
         if member_db.bungie_id:
             try:
-                bungie_info = await execute_pydest(self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id))
+                bungie_info = await execute_pydest(
+                    self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id))
             except pydest.PydestException:
                 bungie_link = member_db.bungie_username
             else:
