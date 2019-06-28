@@ -1,5 +1,7 @@
+import asyncio
 import discord
 import logging
+import pydest
 import pytz
 
 from datetime import datetime
@@ -12,7 +14,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
 from seraphsix.cogs.utils.helpers import get_timezone_name
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.tasks.activity import get_game_counts
+from seraphsix.tasks.activity import get_game_counts, execute_pydest
 
 from seraphsix.database import Member, ClanMember, Clan, Guild
 
@@ -36,25 +38,31 @@ class MemberCog(commands.Cog, name='Member'):
     async def info(self, ctx, *args):
         """Show member information"""
         await ctx.trigger_typing()
+        manager = MessageManager(ctx)
         member_name = ' '.join(args)
 
         if not member_name:
             member_name = ctx.message.author
 
+        discord_username = None
+        member_discord = None
         try:
             member_discord = await commands.MemberConverter().convert(ctx, str(member_name))
         except Exception:
-            return
-
-        try:
-            member_db = await self.bot.database.get(
-                Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
+            member_query = self.bot.database.get_member_by_naive_username(member_name)
+        else:
+            discord_username = f"{member_discord.name}#{member_discord.discriminator}"
+            member_query = self.bot.database.get(
+                Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
                     Guild.guild_id == ctx.guild.id,
                     Member.discord_id == member_discord.id
                 )
             )
+
+        try:
+            member_db = await asyncio.create_task(member_query)
         except DoesNotExist:
-            await ctx.send(f"Discord username \"{member_name}\" does not match a valid member")
+            await manager.send_message(f"Could not find username `{member_name}` in any connected clans")
             return
 
         the100_link = None
@@ -64,35 +72,49 @@ class MemberCog(commands.Cog, name='Member'):
 
         bungie_link = None
         if member_db.bungie_id:
-            bungie_info = await self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id)
-            membership_info = bungie_info['Response']['destinyMemberships'][0]
-            bungie_member_id = membership_info['membershipId']
-            bungie_member_type = membership_info['membershipType']
-            bungie_member_name = membership_info['displayName']
-            bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
-            bungie_link = f"[{bungie_member_name}]({bungie_url})"
+            try:
+                bungie_info = await execute_pydest(self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id))
+            except pydest.PydestException:
+                bungie_link = member_db.bungie_username
+            else:
+                membership_info = bungie_info['Response']['bungieNetUser']
+                bungie_member_id = membership_info['membershipId']
+                bungie_member_type = constants.PLATFORM_BNG
+                bungie_member_name = membership_info['displayName']
+                bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
+                bungie_link = f"[{bungie_member_name}]({bungie_url})"
 
         timezone = None
         if member_db.timezone:
             tz = datetime.now(pytz.timezone(member_db.timezone))
             timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
 
+        if member_discord:
+            display_name = member_discord.name
+        else:
+            display_name = member_name
+
+        if member_db.discord_id and not discord_username:
+            member_discord = await commands.MemberConverter().convert(ctx, member_db.discord_id)
+            discord_username = f"{member_discord.name}#{member_discord.discriminator}"
+
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Member Info for {member_discord.display_name}"
+            title=f"Member Info for {display_name}"
         )
-        embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
-        embed.add_field(name="PSN Username", value=member_db.psn_username)
-        embed.add_field(name="Blizzard Username", value=member_db.blizzard_username)
-        embed.add_field(name="Discord Username",
-                        value=f"{member_discord.name}#{member_discord.discriminator}")
-        embed.add_field(name="Bungie Username", value=bungie_link)
-        embed.add_field(name="The100 Username", value=the100_link)
+        embed.add_field(
+            name="Clan", value=f"{member_db.clanmember.clan.name} [{member_db.clanmember.clan.callsign}]")
         embed.add_field(
             name="Join Date", value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S'))
         embed.add_field(name="Time Zone", value=timezone)
+        embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
+        embed.add_field(name="PSN Username", value=member_db.psn_username)
+        embed.add_field(name="Blizzard Username", value=member_db.blizzard_username)
+        embed.add_field(name="Discord Username", value=discord_username)
+        embed.add_field(name="Bungie Username", value=bungie_link)
+        embed.add_field(name="The100 Username", value=the100_link)
 
-        await ctx.send(embed=embed)
+        await manager.send_embed(embed)
 
     @member.command(help="Link member to discord account")
     @commands.has_permissions(administrator=True)
@@ -202,8 +224,7 @@ Example: ?member games raid
             logging.info(
                 f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
 
-        game_counts = await get_game_counts(
-            self.bot.database, self.bot.destiny, game_mode, member_db=member_db)
+        game_counts = await get_game_counts(self.bot.database, game_mode, member_db=member_db)
 
         embed = discord.Embed(
             colour=constants.BLUE,

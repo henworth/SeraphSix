@@ -1,4 +1,5 @@
 #!/usr/bin/env python3.7
+import aioredis
 import asyncio
 import discord
 import logging
@@ -17,7 +18,7 @@ from seraphsix.database import Database, Guild, TwitterChannel
 
 from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
-    NotRegisteredError, ConfigurationError, MissingTimezoneError)
+    NotRegisteredError, ConfigurationError, MissingTimezoneError, MaintenanceError)
 from seraphsix.tasks.activity import store_all_games, store_last_active
 
 logging.getLogger(__name__)
@@ -90,7 +91,7 @@ class SeraphSix(commands.Bot):
                 f"Finding last active dates for all members of {guild_id}")
 
             tasks.extend([
-                store_last_active(self.database, self.destiny, member)
+                store_last_active(self.database, self.destiny, self.redis, member)
                 for member in await self.database.get_clan_members_by_guild_id(guild_id)
             ])
 
@@ -106,7 +107,9 @@ class SeraphSix(commands.Bot):
         for guild in await self.database.execute(Guild.select()):
             for game_mode in constants.SUPPORTED_GAME_MODES.keys():
                 if '-' not in game_mode:
-                    tasks.append(store_all_games(self.database, self.destiny, game_mode, guild.guild_id))
+                    tasks.append(
+                        store_all_games(self.database, self.destiny, self.redis, game_mode, guild.guild_id)
+                    )
         await asyncio.gather(*tasks)
 
     @update_member_games.before_loop
@@ -151,6 +154,8 @@ class SeraphSix(commands.Bot):
         )
         logging.info(start_message)
 
+        self.redis = await aioredis.create_redis_pool(self.config.redis_url)
+
         if self.twitter:
             logging.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
@@ -163,7 +168,8 @@ class SeraphSix(commands.Bot):
             text = "Sorry, but you do not have permissions to do that!"
         elif isinstance(error, (
             ConfigurationError, InvalidCommandError, InvalidMemberError,
-            InvalidGameModeError, NotRegisteredError, MissingTimezoneError
+            InvalidGameModeError, NotRegisteredError, MissingTimezoneError,
+            MaintenanceError
         )):
             text = error
         elif isinstance(error, commands.CommandNotFound):

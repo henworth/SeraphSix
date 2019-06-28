@@ -7,6 +7,7 @@ from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.database import ClanGame as ClanGameDb, ClanMember, Game, GameMember, Guild, Member
+from seraphsix.errors import MaintenanceError
 from seraphsix.models.destiny import ClanGame
 
 logging.getLogger(__name__)
@@ -28,37 +29,55 @@ def parse_platform(member_db, platform_id):
     return member_id, member_username
 
 
-@backoff.on_exception(backoff.expo, pydest.pydest.PydestPrivateHistoryException, max_tries=1, logger=None)
-@backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-@backoff.on_exception(backoff.expo, asyncio.TimeoutError, max_time=60)
-async def get_activity_history(destiny, platform_id, member_id, char_id, mode_id, count):
-    return await destiny.api.get_activity_history(
+@backoff.on_exception(
+    backoff.expo,
+    (pydest.pydest.PydestPrivateHistoryException, pydest.pydest.PydestMaintenanceException),
+    max_tries=1, logger=None)
+@backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=10)
+@backoff.on_exception(backoff.expo, asyncio.TimeoutError, max_tries=1)
+async def execute_pydest(function, redis):
+    is_maintenance = await redis.get('global-bungie-maintenance')
+    if is_maintenance and eval(is_maintenance):
+        raise MaintenanceError
+    try:
+        return await asyncio.create_task(function)
+    except (
+        pydest.pydest.PydestPrivateHistoryException, pydest.pydest.PydestMaintenanceException,
+        pydest.pydest.PydestException, asyncio.TimeoutError
+    ) as e:
+        await redis.set('global-bungie-maintenance', str(True), expire=60000)
+        logging.error(e)
+        raise MaintenanceError
+
+
+async def get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count):
+    function = destiny.api.get_activity_history(
         platform_id, member_id, char_id, mode=mode_id, count=count
     )
+    return await execute_pydest(function, redis)
 
 
-@backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-@backoff.on_exception(backoff.expo, asyncio.TimeoutError, max_time=60)
-async def get_activity(destiny, activity_id):
-    return await destiny.api.get_post_game_carnage_report(activity_id)
+async def get_activity(destiny, redis, activity_id):
+    function = destiny.api.get_post_game_carnage_report(activity_id)
+    return await execute_pydest(function, redis)
 
 
-@backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def decode_activity(destiny, reference_id):
-    await destiny.update_manifest()
-    return await destiny.decode_hash(reference_id, 'DestinyActivityDefinition')
+async def get_profile(destiny, redis, member_id, platform_id):
+    function = destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
+    return await execute_pydest(function, redis)
 
 
-@backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=60)
-async def get_profile(destiny, member_id, platform_id):
-    return await destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
+async def decode_activity(destiny, redis, reference_id):
+    await execute_pydest(destiny.update_manifest())
+    function = destiny.decode_hash(reference_id, 'DestinyActivityDefinition')
+    return await execute_pydest(function, redis)
 
 
-async def get_activity_list(destiny, platform_id, member_id, char_ids, mode_id, count=30):
+async def get_activity_list(destiny, redis, platform_id, member_id, char_ids, mode_id, count=30):
     all_activity_ids = []
     for char_id in char_ids:
         try:
-            res = await get_activity_history(destiny, platform_id, member_id, char_id, mode_id, count)
+            res = await get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count)
         except Exception:
             continue
 
@@ -74,17 +93,23 @@ async def get_activity_list(destiny, platform_id, member_id, char_ids, mode_id, 
     return all_activity_ids
 
 
-async def get_last_active(destiny, member_db):
+async def get_last_active(destiny, redis, member_db):
     platform_id = member_db.clanmember.platform_id
     member_id, _ = parse_platform(member_db, platform_id)
-    profile = await get_profile(
-        destiny, member_id, member_db.clanmember.platform_id)
+
+    try:
+        profile = await get_profile(
+            destiny, redis, member_id, member_db.clanmember.platform_id)
+    except MaintenanceError:
+        raise
+
     acct_last_active = None
     try:
         profile_data = profile['Response']['characters']['data'].items()
-    except KeyError:
+    except (KeyError, TypeError):
         logging.error(f"Could not get profile data for {member_db.clanmember.platform_id}-{member_id}")
         return
+
     for _, data in profile_data:
         char_last_active = bungie_date_as_utc(data['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
@@ -92,13 +117,13 @@ async def get_last_active(destiny, member_db):
     return acct_last_active
 
 
-async def store_last_active(database, destiny, member_db):
-    last_active = await get_last_active(destiny, member_db)
+async def store_last_active(database, destiny, redis, member_db):
+    last_active = await get_last_active(destiny, redis, member_db)
     member_db.clanmember.last_active = last_active
     await database.update(member_db.clanmember)
 
 
-async def get_game_counts(database, destiny, game_mode, member_db=None):
+async def get_game_counts(database, game_mode, member_db=None):
     counts = {}
     base_query = Game.select()
     for mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
@@ -119,22 +144,22 @@ async def get_game_counts(database, destiny, game_mode, member_db=None):
     return counts
 
 
-async def store_member_history(member_dbs, database, destiny, member_db, game_mode):  #noqa TODO
+async def store_member_history(member_dbs, database, destiny, redis, member_db, game_mode):  #noqa TODO
     platform_id = member_db.clanmember.platform_id
 
     member_id, member_username = parse_platform(member_db, platform_id)
 
-    profile = await get_profile(destiny, member_id, platform_id)
+    profile = await get_profile(destiny, redis, member_id, platform_id)
     try:
         char_ids = profile['Response']['characters']['data'].keys()
-    except KeyError:
-        logging.error(f"{member_username}: {profile}")
+    except (KeyError, TypeError):
+        logging.error(f"Could not get profile data for {member_db.clanmember.platform_id}-{member_id}")
         return
 
     all_activity_ids = []
     for game_mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode):
         activity_ids = await get_activity_list(
-            destiny, platform_id, member_id, char_ids, game_mode_id
+            destiny, redis, platform_id, member_id, char_ids, game_mode_id
         )
         if activity_ids:
             all_activity_ids.extend(activity_ids)
@@ -142,7 +167,7 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
     mode_count = 0
     for activity_id in all_activity_ids:
         try:
-            pgcr = await get_activity(destiny, activity_id)
+            pgcr = await get_activity(destiny, redis, activity_id)
         except Exception:
             continue
 
@@ -185,7 +210,7 @@ async def store_member_history(member_dbs, database, destiny, member_db, game_mo
         return mode_count
 
 
-async def store_all_games(database, destiny, game_mode, guild_id):
+async def store_all_games(database, destiny, redis, game_mode, guild_id):
     guild_db = await database.get(Guild, guild_id=guild_id)
 
     try:
@@ -211,7 +236,7 @@ async def store_all_games(database, destiny, game_mode, guild_id):
 
         tasks.extend([
             store_member_history(
-                member_dbs, database, destiny, member_db, game_mode)
+                member_dbs, database, destiny, redis, member_db, game_mode)
             for member_db in member_dbs
         ])
 

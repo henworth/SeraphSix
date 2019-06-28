@@ -6,6 +6,7 @@ from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.database import Member as MemberDb, ClanMember, Clan
 from seraphsix.models.destiny import Member
+from seraphsix.tasks.activity import execute_pydest
 
 logging.getLogger(__name__)
 
@@ -28,16 +29,16 @@ async def sort_members(database, member_list):
     return sorted(return_list, key=lambda s: s.lower())
 
 
-async def get_all_members(destiny, group_id):
-    group = await destiny.api.get_group_members(group_id)
+async def get_all_members(destiny, redis, group_id):
+    group = await execute_pydest(destiny.api.get_group_members(group_id), redis)
     group_members = group['Response']['results']
     for member in group_members:
         yield Member(member)
 
 
-async def get_bungie_members(destiny, clan_id):
+async def get_bungie_members(destiny, redis, clan_id):
     members = {}
-    async for member in get_all_members(destiny, clan_id):  # pylint: disable=not-an-iterable
+    async for member in get_all_members(destiny, redis, clan_id):  # pylint: disable=not-an-iterable
         members[f'{clan_id}-{member}'] = member
     return members
 
@@ -56,7 +57,7 @@ async def get_database_members(database, clan_id):
     return members
 
 
-async def member_sync(database, destiny, guild_id):  # noqa
+async def member_sync(database, destiny, redis, guild_id):  # noqa
     clan_dbs = await database.get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
@@ -71,7 +72,7 @@ async def member_sync(database, destiny, guild_id):  # noqa
     # Generate a dict of all members from both Bungie and the database
     for clan_db in clan_dbs:
         clan_id = clan_db.clan_id
-        bungie_tasks.append(get_bungie_members(destiny, clan_id))
+        bungie_tasks.append(get_bungie_members(destiny, redis, clan_id))
         db_tasks.append(get_database_members(database, clan_id))
 
     results = await asyncio.gather(*bungie_tasks, *db_tasks)
@@ -140,12 +141,12 @@ async def member_sync(database, destiny, guild_id):  # noqa
     return member_changes
 
 
-async def info_sync(database, destiny, guild_id):
+async def info_sync(database, destiny, redis, guild_id):
     clan_dbs = await database.get_clans_by_guild(guild_id)
 
     clan_changes = {}
     for clan_db in clan_dbs:
-        res = await destiny.api.get_group(clan_db.clan_id)
+        res = await execute_pydest(destiny.api.get_group(clan_db.clan_id), redis)
         group = res['Response']
         bungie_name = group['detail']['name']
         bungie_callsign = group['detail']['clanInfo']['clanCallsign']

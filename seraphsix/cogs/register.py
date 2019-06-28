@@ -1,4 +1,3 @@
-import aioredis
 import asyncio
 import discord
 import logging
@@ -10,6 +9,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Member
 from seraphsix.models.destiny import User
+from seraphsix.tasks.activity import execute_pydest
 
 logging.getLogger(__name__)
 
@@ -18,11 +18,6 @@ class RegisterCog(commands.Cog, name='Register'):
 
     def __init__(self, bot):
         self.bot = bot
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        """Initialize Redis connection when bot loads"""
-        self.redis = await aioredis.create_redis_pool(self.bot.config.redis_url)
 
     @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
@@ -36,8 +31,7 @@ class RegisterCog(commands.Cog, name='Register'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         auth_url = (
-            f'https://{self.bot.config.bungie.redirect_host}'
-            f'/oauth?state={ctx.author.id}'
+            f'https://{self.bot.config.bungie.redirect_host}/oauth?state={ctx.author.id}'
         )
 
         if not isinstance(ctx.channel, discord.abc.PrivateChannel):
@@ -70,7 +64,7 @@ class RegisterCog(commands.Cog, name='Register'):
 
         # Fetch platform specific display names and membership IDs
         try:
-            res = await self.bot.destiny.api.get_membership_current_user(bungie_access_token)
+            res = await execute_pydest(self.bot.destiny.api.get_membership_current_user(bungie_access_token))
         except Exception as e:
             logging.exception(e)
             await manager.send_private_message(

@@ -45,3 +45,9 @@ class ConfigurationError(CommandError):
 class InvalidCommandError(CommandError):
     def __init__(self, message, *args):
         super().__init__(message, *args)
+
+
+class MaintenanceError(CommandError):
+    def __init__(self, *args):
+        message = "Bungie systems are currently undergoing maintenance, please try again later"
+        super().__init__(message, *args)

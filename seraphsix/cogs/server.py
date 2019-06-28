@@ -6,6 +6,7 @@ from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
 from seraphsix.constants import PLATFORM_MAP
 from seraphsix.database import TwitterChannel, Clan, Guild
+from seraphsix.tasks.activity import execute_pydest
 
 logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class ServerCog(commands.Cog, name='Server'):
                 "Command must include the Bungie clan ID")
             return await manager.clean_messages()
 
-        res = await self.bot.destiny.api.get_group(clan_id)
+        res = await execute_pydest(self.bot.destiny.api.get_group(clan_id))
         clan_name = res['Response']['detail']['name']
         callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 
