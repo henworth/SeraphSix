@@ -1,0 +1,62 @@
+{
+  "displayProperties": {
+    "description": "\"The opportunity of a lifetime.\"",
+    "name": "Last Wish: Level 55",
+    "icon": "/common/destiny2_content/icons/8b1bfd1c1ce1cab51d23c78235a6e067.png",
+    "hasIcon": true
+  },
+  "originalDisplayProperties": {
+    "description": "\"The opportunity of a lifetime.\"",
+    "name": "Last Wish",
+    "icon": "/img/misc/missing_icon_d2.png",
+    "hasIcon": false
+  },
+  "selectionScreenDisplayProperties": {
+    "description": "Delve deep into the Dreaming City.\n\nRaids are 6-player cooperative activities that test the limits of your skill and teamwork. Master the unique mechanics of each encounter to succeed and earn powerful exclusive rewards.",
+    "name": "Level 55",
+    "hasIcon": false
+  },
+  "releaseIcon": "/img/misc/missing_icon_d2.png",
+  "releaseTime": 0,
+  "activityLevel": 50,
+  "completionUnlockHash": 0,
+  "activityLightLevel": 550,
+  "destinationHash": 2779202173,
+  "placeHash": 2877881518,
+  "activityTypeHash": 2043403989,
+  "tier": 0,
+  "pgcrImage": "/img/destiny_content/pgcr/raid_beanstalk.jpg",
+  "rewards": [{ "rewardItems": [{ "itemHash": 4039143015, "quantity": 0 }] }],
+  "modifiers": [],
+  "isPlaylist": false,
+  "challenges": [],
+  "optionalUnlockStrings": [],
+  "inheritFromFreeRoam": false,
+  "suppressOtherRewards": false,
+  "playlistItems": [],
+  "matchmaking": {
+    "isMatchmade": false,
+    "minParty": 1,
+    "maxParty": 6,
+    "maxPlayers": 6,
+    "requiresGuardianOath": false
+  },
+  "isPvP": false,
+  "insertionPoints": [
+    { "phaseHash": 1126840038, "unlockHash": 0 },
+    { "phaseHash": 3370459802, "unlockHash": 0 },
+    { "phaseHash": 1040714588, "unlockHash": 0 },
+    { "phaseHash": 1349075536, "unlockHash": 0 },
+    { "phaseHash": 4249034918, "unlockHash": 0 },
+    { "phaseHash": 2169047898, "unlockHash": 0 },
+    { "phaseHash": 436847112, "unlockHash": 0 },
+    { "phaseHash": 2879343438, "unlockHash": 0 },
+    { "phaseHash": 2392610624, "unlockHash": 0 },
+    { "phaseHash": 378163510, "unlockHash": 0 }
+  ],
+  "activityLocationMappings": [],
+  "hash": 2122313384,
+  "index": 362,
+  "redacted": false,
+  "blacklisted": false
+}

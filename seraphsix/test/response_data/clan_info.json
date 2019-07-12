@@ -1,0 +1,139 @@
+{
+  "Response": {
+    "detail": {
+      "groupId": "803613",
+      "name": "Low Sodium Destiny Xbox",
+      "groupType": 1,
+      "membershipIdCreated": "9464184",
+      "creationDate": "2015-02-03T16: 41: 13.533Z",
+      "modificationDate": "2019-04-03T15: 00: 26.22Z",
+      "about": "Welcome fellow guardians!\n\nThis is the Xbox clan for the official Low Sodium Destiny subreddit community. This clan shares all the same ideals and rules as the primary clan.\n\nWe use Discord for our official clan chat, the Bungie chat may get limited responses. If you'd like to join us, please join the clan Discord to request an invite.\n\nClan Discord: https://discord.gg/RVqUTTn\n\nthe100: https://www.the100.io/groups/5280\n\nLow Sodium Destiny ecosystem:\n\nReddit: https://www.reddit.com/r/LowSodiumDestiny\n\nReddit Discord: https://discord.gg/UbnFs5v\n\nMain/PS Clan: https://www.bungie.net/en/ClanV2?groupid=2994471\n\nPC Clan: https://www.bungie.net/en/ClanV2?groupid=3002041",
+      "tags": [],
+      "memberCount": 70,
+      "isPublic": false,
+      "isPublicTopicAdminOnly": false,
+      "motto": "The official Xbox clan of Salt Free Guardians!",
+      "allowChat": true,
+      "isDefaultPostPublic": false,
+      "chatSecurity": 0,
+      "locale": "en",
+      "avatarImageIndex": 70010,
+      "homepage": 0,
+      "membershipOption": 0,
+      "defaultPublicity": 2,
+      "theme": "Group_Director",
+      "bannerPath": "/img/Themes/Group_Director/struct_images/group_top_banner.jpg",
+      "avatarPath": "/img/profile/avatars/group/010.jpg",
+      "conversationId": "8802425",
+      "enableInvitationMessagingForAdmins": false,
+      "banExpireDate": "2001-01-01T00: 00: 00Z",
+      "features": {
+        "maximumMembers": 100,
+        "maximumMembershipsOfGroupType": 1,
+        "capabilities": 31,
+        "membershipTypes": [1, 2, 4, 10],
+        "invitePermissionOverride": true,
+        "updateCulturePermissionOverride": true,
+        "hostGuidedGamePermissionOverride": 2,
+        "updateBannerPermissionOverride": true,
+        "joinLevel": 2
+      },
+      "clanInfo": {
+        "d2ClanProgressions": {
+          "584850370": {
+            "progressionHash": 584850370,
+            "dailyProgress": 600000,
+            "dailyLimit": 0,
+            "weeklyProgress": 0,
+            "weeklyLimit": 0,
+            "currentProgress": 600000,
+            "level": 6,
+            "levelCap": 6,
+            "stepIndex": 6,
+            "progressToNextLevel": 0,
+            "nextLevelAt": 0
+          },
+          "1273404180": {
+            "progressionHash": 1273404180,
+            "dailyProgress": 0,
+            "dailyLimit": 0,
+            "weeklyProgress": 0,
+            "weeklyLimit": 0,
+            "currentProgress": 0,
+            "level": 1,
+            "levelCap": 6,
+            "stepIndex": 1,
+            "progressToNextLevel": 0,
+            "nextLevelAt": 1
+          },
+          "3759191272": {
+            "progressionHash": 3759191272,
+            "dailyProgress": 0,
+            "dailyLimit": 0,
+            "weeklyProgress": 0,
+            "weeklyLimit": 0,
+            "currentProgress": 0,
+            "level": 1,
+            "levelCap": 6,
+            "stepIndex": 1,
+            "progressToNextLevel": 0,
+            "nextLevelAt": 1
+          },
+          "3381682691": {
+            "progressionHash": 3381682691,
+            "dailyProgress": 0,
+            "dailyLimit": 0,
+            "weeklyProgress": 0,
+            "weeklyLimit": 0,
+            "currentProgress": 0,
+            "level": 1,
+            "levelCap": 6,
+            "stepIndex": 1,
+            "progressToNextLevel": 0,
+            "nextLevelAt": 1
+          }
+        },
+        "clanCallsign": "RLSD",
+        "clanBannerData": {
+          "decalId": 4142223378,
+          "decalColorId": 3379387797,
+          "decalBackgroundColorId": 3535193487,
+          "gonfalonId": 1473910866,
+          "gonfalonColorId": 2157636326,
+          "gonfalonDetailId": 1664476156,
+          "gonfalonDetailColorId": 4095345224
+        }
+      }
+    },
+    "founder": {
+      "memberType": 5,
+      "isOnline": false,
+      "lastOnlineStatusChange": "1556854084",
+      "groupId": "803613",
+      "destinyUserInfo": {
+        "iconPath": "/img/theme/destiny/icons/icon_xbl.png",
+        "membershipType": 1,
+        "membershipId": "4611686018438304870",
+        "displayName": "Testdummy653"
+      },
+      "bungieNetUserInfo": {
+        "supplementalDisplayName": "9464184",
+        "iconPath": "/img/profile/avatars/Destiny16.jpg",
+        "membershipType": 254,
+        "membershipId": "9464184",
+        "displayName": "Testdummy653"
+      },
+      "joinDate": "2016-05-04T06: 23: 13Z"
+    },
+    "alliedIds": [],
+    "allianceStatus": 0,
+    "groupJoinInviteCount": 0,
+    "currentUserMemberMap": {},
+    "currentUserPotentialMemberMap": {}
+  },
+  "ErrorCode": 1,
+  "ThrottleSeconds": 0,
+  "ErrorStatus": "Success",
+  "Message": "Ok",
+  "MessageData": {}
+}

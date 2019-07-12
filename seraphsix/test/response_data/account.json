@@ -1,0 +1,40 @@
+{
+    "Response": {
+        "destinyMemberships": [
+            {
+                "iconPath": "/img/theme/destiny/icons/icon_xbl.png",
+                "membershipType": 1,
+                "membershipId": "4611686018469069377",
+                "displayName": "lifeinchains"
+            }
+        ],
+        "bungieNetUser": {
+            "membershipId": "15971319",
+            "uniqueName": "15971319",
+            "displayName": "lifeinchains",
+            "profilePicture": 70688,
+            "profileTheme": 1105,
+            "userTitle": 0,
+            "successMessageFlags": "0",
+            "isDeleted": false,
+            "about": "",
+            "firstAccess": "2017-09-16T20: 43: 14.323Z",
+            "lastUpdate": "2018-09-06T22: 48: 20.792Z",
+            "xboxDisplayName": "lifeinchains",
+            "showActivity": true,
+            "locale": "en",
+            "localeInheritDefault": false,
+            "showGroupMessaging": true,
+            "profilePicturePath": "/img/profile/avatars/cc60.jpg",
+            "profileThemeName": "d2_05",
+            "userTitleDisplay": "Newbie",
+            "statusText": "",
+            "statusDate": "0001-01-01T00: 00: 00Z"
+        }
+    },
+    "ErrorCode": 1,
+    "ThrottleSeconds": 0,
+    "ErrorStatus": "Success",
+    "Message": "Ok",
+    "MessageData": {}
+}

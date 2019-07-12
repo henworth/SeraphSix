@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "6a9c4f79dda278fc6139eb1be38361844eba082022e558d2f3be81a7d50c1292"
+            "sha256": "eb25ceb4fb98c49519b1a93229c1143f728eb828d57efd6fd91e795ef5cb9cab"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -112,10 +112,10 @@
         },
         "discord.py": {
             "hashes": [
-                "sha256:ee6ee8f52145e550f534c1858169fa49f3b355ad708a021cd59a934ee963ccc7"
+                "sha256:4684733fa137cc7def18087ae935af615212e423e3dbbe3e84ef01d7ae8ed17d"
             ],
             "index": "pypi",
-            "version": "==1.2.2"
+            "version": "==1.2.3"
         },
         "flask": {
             "hashes": [
@@ -338,8 +338,8 @@
             "version": "==2.8.2"
         },
         "pydest": {
-            "git": "https://github.com/henworth/pydest",
-            "ref": "b92f6864577fbc401c71ad548473c4a0754295ec"
+            "editable": true,
+            "file": "file:///Users/mhennessy/git/personal/pydest"
         },
         "pytz": {
             "hashes": [
@@ -577,10 +577,9 @@
         },
         "snowballstemmer": {
             "hashes": [
-                "sha256:919f26a68b2c17a7634da993d91339e288964f93c274f1343e3bbbe2096e1128",
-                "sha256:9f3bcd3c401c3e862ec0ebe6d2c069ebc012ce142cce209c098ccb5b09136e89"
+                "sha256:9f3b9ffe0809d174f7047e121431acf99c89a7040f0ca84f94ba53a498e6d0c9"
             ],
-            "version": "==1.2.1"
+            "version": "==1.9.0"
         }
     }
 }
