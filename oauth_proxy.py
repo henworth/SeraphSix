@@ -35,7 +35,13 @@ red = redis.from_url(os.environ.get('REDIS_URL'))
 @app.route('/')
 def index():
     if not session.get('access_token'):
-        return redirect('/oauth')
+        return redirect(
+            url_for(
+                'oauth_index',
+                state=request.args.get('state'),
+                code=request.args.get('code')
+            )
+        )
 
     user_info = dict(
         membership_id=session.get('membership_id'),
@@ -51,13 +57,18 @@ def index():
 @app.route('/oauth')
 def oauth_index():
     if not session.get('access_token'):
-        return redirect(url_for('oauth_callback', state=request.args.get('state')))
+        return redirect(
+            url_for(
+                'oauth_callback',
+                state=request.args.get('state'),
+                code=request.args.get('code')
+            )
+        )
 
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
         s.headers.update({'X-API-KEY': os.environ.get('BUNGIE_API_KEY')})
-        r = s.get(
-            f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
+        r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
     r.raise_for_status()
     return redirect('/')
