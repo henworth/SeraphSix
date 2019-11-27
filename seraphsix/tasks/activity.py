@@ -9,6 +9,7 @@ from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.database import ClanGame as ClanGameDb, ClanMember, Game, GameMember, Guild, Member
 from seraphsix.errors import MaintenanceError
 from seraphsix.models.destiny import ClanGame
+from ratelimit import limits, RateLimitException
 
 logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ def parse_platform(member_db, platform_id):
     max_tries=1, logger=None)
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=10)
 @backoff.on_exception(backoff.expo, asyncio.TimeoutError, max_tries=1)
+@backoff.on_exception(backoff.expo, RateLimitException, max_tries=10, logger=None)
+@limits(calls=25, period=1)
 async def execute_pydest(function, redis):
     is_maintenance = await redis.get('global-bungie-maintenance')
     if is_maintenance and eval(is_maintenance):

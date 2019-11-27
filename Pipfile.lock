@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "51e4a383771a9d15b65b169a6ff2dbf7925a1d9a2f61d1aef4c22031202f8d39"
+            "sha256": "d5a2fc2f48f41ce89e4f47534657a206c488d8a8fccd2299dcc725310ab5dce5"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -379,6 +379,10 @@
             ],
             "index": "pypi",
             "version": "==2019.3"
+        },
+        "ratelimit": {
+            "git": "https://github.com/evemorgen/ratelimit.git",
+            "ref": "14c87100677fa905408d7a75b634bd4bdee0301c"
         },
         "redis": {
             "hashes": [

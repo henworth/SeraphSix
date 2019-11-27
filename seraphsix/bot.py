@@ -134,8 +134,9 @@ class SeraphSix(commands.Bot):
                 logging.info(f"Bungie maintenance is ongoing: {e}")
                 self.bungie_maintenance = True
         else:
-            self.bungie_maintenance = False
-            logging.info("Bungie maintenance has ended")
+            if self.bungie_maintenance:
+                self.bungie_maintenance = False
+                logging.info("Bungie maintenance has ended")
 
     @update_member_games.before_loop
     async def before_update_member_games(self):
