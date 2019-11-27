@@ -4,6 +4,7 @@ import pytz
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+
 @dataclass
 class BungieConfig:
     api_key: str

@@ -75,7 +75,7 @@ class RegisterCog(commands.Cog, name='Register'):
 
     @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
-    async def register(self, ctx):
+    async def register(self, ctx):  # noqa TODO
         """Register your Destiny 2 account with Seraph Six
 
         This command will let Seraph Six know which Destiny 2 profile to associate

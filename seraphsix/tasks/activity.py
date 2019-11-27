@@ -210,7 +210,7 @@ async def store_member_history(member_dbs, bot, member_db, game_mode):  # noqa T
 
         # Check if player count is below the threshold, or if the game
         # occurred before Forsaken released (ie. Season 4), or if the game
-        # occurred before a configured cutoff date or if the member joined 
+        # occurred before a configured cutoff date or if the member joined
         # before game time. If any of those apply, the game is not eligible.
         if (len(game.clan_players) < game_mode_details['threshold'] or
                 game.date < constants.FORSAKEN_RELEASE or
