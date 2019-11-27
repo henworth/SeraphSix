@@ -1,7 +1,8 @@
 import os
+import pytz
 
 from dataclasses import dataclass, asdict
-
+from datetime import datetime
 
 @dataclass
 class BungieConfig:
@@ -23,7 +24,7 @@ class The100Config:
     base_url: str
 
     def __init__(self):
-        self.api_key = os.environ.get('BUNGIE_API_KEY')
+        self.api_key = os.environ.get('THE100_API_KEY')
         self.base_url = os.environ.get('THE100_API_URL')
 
 
@@ -52,6 +53,10 @@ class Config:
     database_url: str
     discord_api_key: str
     redis_url: str
+    home_server: int
+    log_channel: int
+    enable_activity_tracking: bool
+    activity_cutoff: str
 
     def __init__(self):
         self.bungie = BungieConfig()
@@ -60,3 +65,7 @@ class Config:
         self.database_url = os.environ.get('DATABASE_URL')
         self.discord_api_key = os.environ.get('DISCORD_API_KEY')
         self.redis_url = os.environ.get('REDIS_URL')
+        self.home_server = int(os.environ.get('HOME_SERVER'))
+        self.log_channel = int(os.environ.get('HOME_SERVER_LOG_CHANNEL'))
+        self.enable_activity_tracking = os.environ.get('ENABLE_ACTIVITY_TRACKING') == 'True'
+        self.activity_cutoff = datetime.strptime(os.environ.get('ACTIVITY_CUTOFF'), '%Y-%m-%d').astimezone(tz=pytz.utc)

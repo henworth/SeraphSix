@@ -6,7 +6,7 @@ from seraphsix.constants import BUNGIE_DATE_FORMAT
 
 
 def merge_dicts(a, b, path=None):
-    "merges b into a"
+    # Merge dict `b` into dict `a`
     if path is None:
         path = []
     for key in b:

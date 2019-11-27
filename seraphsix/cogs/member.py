@@ -14,7 +14,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
 from seraphsix.cogs.utils.helpers import get_timezone_name
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.tasks.activity import get_game_counts, execute_pydest
+from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, execute_pydest
 
 from seraphsix.database import Member, ClanMember, Clan, Guild
 
@@ -74,13 +74,15 @@ class MemberCog(commands.Cog, name='Member'):
         if member_db.bungie_id:
             try:
                 bungie_info = await execute_pydest(
-                    self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id))
+                    self.bot.destiny.api.get_membership_data_by_id(member_db.bungie_id),
+                    self.bot.redis
+                )
             except pydest.PydestException:
                 bungie_link = member_db.bungie_username
             else:
                 membership_info = bungie_info['Response']['bungieNetUser']
                 bungie_member_id = membership_info['membershipId']
-                bungie_member_type = constants.PLATFORM_BNG
+                bungie_member_type = constants.PLATFORM_BUNGIE
                 bungie_member_name = membership_info['displayName']
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 bungie_link = f"[{bungie_member_name}]({bungie_url})"
@@ -96,7 +98,7 @@ class MemberCog(commands.Cog, name='Member'):
             display_name = member_name
 
         if member_db.discord_id and not discord_username:
-            member_discord = await commands.MemberConverter().convert(ctx, member_db.discord_id)
+            member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
             discord_username = f"{member_discord.name}#{member_discord.discriminator}"
 
         embed = discord.Embed(
@@ -111,10 +113,15 @@ class MemberCog(commands.Cog, name='Member'):
         embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
         embed.add_field(name="PSN Username", value=member_db.psn_username)
         embed.add_field(name="Blizzard Username", value=member_db.blizzard_username)
+        embed.add_field(name="Steam Username", value=member_db.steam_username)
+        embed.add_field(name="Stadia Username", value=member_db.stadia_username)
         embed.add_field(name="Discord Username", value=discord_username)
         embed.add_field(name="Bungie Username", value=bungie_link)
         embed.add_field(name="The100 Username", value=the100_link)
-
+        embed.add_field(
+            name="Is Sherpa",
+            value=constants.EMOJI_CHECKMARK if member_db.clanmember.is_sherpa else constants.EMOJI_CROSSMARK
+        )
         await manager.send_embed(embed)
 
     @member.command(help="Link member to discord account")
@@ -144,7 +151,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         msg = await manager.send_message_react(
             "What is the member's game platform?",
-            reactions=[constants.EMOJI_PC, constants.EMOJI_PSN, constants.EMOJI_XBOX],
+            reactions=[constants.EMOJI_STEAM, constants.EMOJI_PSN, constants.EMOJI_XBOX],
             clean=False)
         res = await manager.get_next_message()
         platform = res.content
@@ -157,7 +164,7 @@ class MemberCog(commands.Cog, name='Member'):
             return await manager.clean_messages()
 
         try:
-            member_db = await self.bot.database.get_member_by_platform_username(platform_id, gamertag)
+            member_db = await self.bot.database.get_member_by_platform_username(gamertag, platform_id)
         except DoesNotExist:
             await manager.send_message(f"Gamertag/username \"{gamertag}\" does not match a valid member")
             return
@@ -212,24 +219,24 @@ Example: ?member games raid
                 member_db = await self.bot.database.get_member_by_discord_id(discord_id)
             except DoesNotExist:
                 await ctx.send(
-                    f"User {ctx.author.display_name} has not registered or is not a clan member")
+                    f"User `{ctx.author.display_name}` has not registered or is not a clan member")
                 return
             logging.info(
-                f"Getting {game_mode} games for {ctx.author.display_name}")
+                f"Getting {game_mode} games for \"{ctx.author.display_name}\"")
         else:
             try:
                 member_db = await self.bot.database.get_member_by_naive_username(member_name)
             except DoesNotExist:
-                await ctx.send(f"Invalid member name {member_name}")
+                await ctx.send(f"Invalid member name `{member_name}`")
                 return
             logging.info(
-                f"Getting {game_mode} games by Gamertag {member_name} for {ctx.author.display_name}")
+                f"Getting {game_mode} games by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
 
         game_counts = await get_game_counts(self.bot.database, game_mode, member_db=member_db)
 
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP')} Games for {member_name}"
+            title=f"Eligible {game_mode.title().replace('Pvp', 'PvP').replace('Pve', 'PvE')} Games for {member_name}"
         )
 
         total_count = 0
@@ -241,6 +248,49 @@ Example: ?member games raid
                 total_count += count
 
         embed.description = str(total_count)
+        await manager.send_embed(embed)
+
+    @member.command(
+        help=f"""
+Show total time spent in activities with at least one sherpa member.
+
+Example: ?member sherpatime
+""")
+    async def sherpatime(self, ctx, *args):
+        """
+        Show total time spent in activities with at least one sherpa member.
+        """
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        member_name = ' '.join(args)
+
+        if not member_name:
+            discord_id = ctx.author.id
+            member_name = ctx.author.display_name
+            try:
+                member_db = await self.bot.database.get_member_by_discord_id(discord_id)
+            except DoesNotExist:
+                await ctx.send(
+                    f"User `{ctx.author.display_name}` has not registered or is not a clan member")
+                return
+            logging.info(
+                f"Getting sherpa time played for \"{ctx.author.display_name}\"")
+        else:
+            try:
+                member_db = await self.bot.database.get_member_by_naive_username(member_name)
+            except DoesNotExist:
+                await ctx.send(f"Invalid member name `{member_name}`")
+                return
+            logging.info(
+                f"Getting sherpa time played by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
+
+        time_played = await get_sherpa_time_played(self.bot.database, member_db)
+
+        embed = discord.Embed(
+            colour=constants.BLUE,
+            title=f"Time played with a Sherpa by {member_name}",
+            description=f"{time_played / 3600:.2f} hours"
+        )
         await manager.send_embed(embed)
 
     @is_registered()
@@ -256,8 +306,7 @@ Example: ?member games raid
                     f"Your current timezone is set to `{member_db.timezone}`,"
                     f"would you like to change it?"),
                 reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
-                clean=False,
-                with_cancel=True
+                clean=False
             )
 
             if res == constants.EMOJI_CROSSMARK:
@@ -284,12 +333,11 @@ Example: ?member games raid
             res = await manager.send_message_react(
                 message_text=f"Is the timezone `{timezone}` correct?",
                 reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
-                clean=False,
-                with_cancel=True
+                clean=False
             )
 
             if res == constants.EMOJI_CROSSMARK:
-                await manager.send_message("Canceling post")
+                await manager.send_message("Canceling change")
                 return await manager.clean_messages()
 
             member_db.timezone = timezone

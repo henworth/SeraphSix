@@ -81,19 +81,20 @@ class MessageManager:
         return await self.ctx.author.send(message_text)
 
     async def send_message_react(self, reactions, message_text=None, embed=None, clean=True, with_cancel=False):  # noqa
+        reactions = list(reactions)
         self.reaction_emojis = []
         if embed:
             self.msg = await self.send_embed(embed, content=message_text, clean=clean)
         if message_text and not embed:
             self.msg = await self.send_message(message_text, clean)
+        if with_cancel:
+            reactions.append(constants.EMOJI_STOP)
         for reaction in reactions:
             reaction_id = self.ctx.bot.get_emoji(reaction)
             if not reaction_id:
                 reaction_id = reaction
             self.reaction_emojis.append(reaction_id)
             await self.msg.add_reaction(reaction_id)
-        if with_cancel:
-            await self.msg.add_reaction(constants.EMOJI_STOP)
 
         self.match = None
         self.waiting = True
@@ -101,8 +102,7 @@ class MessageManager:
         retval = None
         while self.waiting:
             try:
-                reaction, user = await self.ctx.bot.wait_for(
-                    'reaction_add', check=self.react_check, timeout=120.0)
+                reaction, user = await self.ctx.bot.wait_for('reaction_add', check=self.react_check, timeout=120.0)
             except asyncio.TimeoutError:
                 self.waiting = False
                 try:

@@ -223,7 +223,7 @@ class GameCog(commands.Cog, name='Game'):
         platforms = {
             constants.EMOJI_XBOX: 'xbox',
             constants.EMOJI_PSN: 'psn',
-            constants.EMOJI_PC: 'pc'
+            constants.EMOJI_STEAM: 'steam'
         }
 
         platform = await manager.send_message_react(

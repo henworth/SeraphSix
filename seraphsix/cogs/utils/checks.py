@@ -146,6 +146,5 @@ def twitter_enabled():
     def predicate(ctx):
         if hasattr(ctx.bot, 'twitter'):
             return True
-        raise ConfigurationError(
-            "Twitter support is not enabled at the bot level")
+        raise ConfigurationError("Twitter support is not enabled at the bot level")
     return commands.check(predicate)

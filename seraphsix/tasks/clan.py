@@ -1,5 +1,4 @@
 import asyncio
-# import jsonpickle
 import logging
 
 from peewee import DoesNotExist
@@ -17,12 +16,16 @@ async def sort_members(database, member_list):
         clan_id, platform_id, member_id = map(int, member_hash.split('-'))
 
         member_db = await database.get_member_by_platform(member_id, platform_id)
-        if platform_id == constants.PLATFORM_BLIZ:
-            username = member_db.blizzard_username
-        elif platform_id == constants.PLATFORM_XBOX:
+        if platform_id == constants.PLATFORM_XBOX:
             username = member_db.xbox_username
         elif platform_id == constants.PLATFORM_PSN:
             username = member_db.psn_username
+        elif platform_id == constants.PLATFORM_BLIZZARD:
+            username = member_db.blizzard_username
+        elif platform_id == constants.PLATFORM_STEAM:
+            username = member_db.steam_username
+        elif platform_id == constants.PLATFORM_STADIA:
+            username = member_db.stadia_username
 
         return_list.append(username)
 
@@ -46,12 +49,16 @@ async def get_bungie_members(destiny, redis, clan_id):
 async def get_database_members(database, clan_id):
     members = {}
     for member in await database.get_clan_members([clan_id]):
-        if member.clanmember.platform_id == constants.PLATFORM_BLIZ:
-            member_id = member.blizzard_id
-        elif member.clanmember.platform_id == constants.PLATFORM_XBOX:
+        if member.clanmember.platform_id == constants.PLATFORM_XBOX:
             member_id = member.xbox_id
         elif member.clanmember.platform_id == constants.PLATFORM_PSN:
             member_id = member.psn_id
+        elif member.clanmember.platform_id == constants.PLATFORM_BLIZZARD:
+            member_id = member.blizzard_id
+        elif member.clanmember.platform_id == constants.PLATFORM_STEAM:
+            member_id = member.steam_id
+        elif member.clanmember.platform_id == constants.PLATFORM_STADIA:
+            member_id = member.stadia_id
         member_hash = f'{clan_id}-{member.clanmember.platform_id}-{member_id}'
         members[member_hash] = member
     return members
