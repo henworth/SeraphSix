@@ -118,6 +118,8 @@ class SeraphSix(commands.Bot):
 
     @tasks.loop(hours=1.0)
     async def update_member_games(self):
+        await asyncio.sleep(5 * constants.TIME_MIN_SECONDS)
+
         tasks = []
         guilds = await self.database.execute(Guild.select())
         if not guilds:
