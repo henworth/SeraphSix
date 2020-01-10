@@ -1,6 +1,7 @@
 import asyncio
 import backoff
 import logging
+import pickle
 import pydest
 
 from peewee import DoesNotExist, fn, IntegrityError
@@ -42,7 +43,7 @@ def parse_platform(member_db, platform_id):
     max_tries=1, logger=None)
 @backoff.on_exception(backoff.expo, pydest.pydest.PydestException, max_time=10)
 @backoff.on_exception(backoff.expo, asyncio.TimeoutError, max_tries=1)
-@backoff.on_exception(backoff.expo, RateLimitException, max_tries=10, logger=None)
+@backoff.on_exception(backoff.expo, RateLimitException, max_time=10, logger=None)
 @limits(calls=25, period=1)
 async def execute_pydest(function, redis):
     is_maintenance = await redis.get('global-bungie-maintenance')
@@ -52,26 +53,64 @@ async def execute_pydest(function, redis):
     try:
         return await asyncio.create_task(function)
     except pydest.pydest.PydestMaintenanceException as e:
-        await redis.set('global-bungie-maintenance', str(True), expire=60000)
+        await redis.set('global-bungie-maintenance', str(True), expire=constants.TIME_MIN_MILLI)
         logging.error(e)
         raise MaintenanceError
 
 
+async def get_data(redis, key, function):
+    redis_data = await redis.get(key)
+    if redis_data:
+        data = pickle.loads(redis_data)
+    else:
+        data = await execute_pydest(function, redis)
+    return data
+
+
+async def set_data(redis, key, data):
+    await redis.set(key, pickle.dumps(data), expire=constants.TIME_HOUR_MILLI)
+
+
 async def get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count):
-    function = destiny.api.get_activity_history(
-        platform_id, member_id, char_id, mode=mode_id, count=count
-    )
-    return await execute_pydest(function, redis)
+    redis_key = f'{member_id}-activity-history'
+    redis_data = await redis.get(redis_key)
+    if redis_data:
+        activities = pickle.loads(redis_data)
+    else:
+        function = destiny.api.get_activity_history(platform_id, member_id, char_id, mode=mode_id, count=count)
+        data = await execute_pydest(function, redis)
+        try:
+            activities = data['Response']['activities']
+        except KeyError:
+            return None
+        await set_data(redis, redis_key, activities)
+    return activities
 
 
-async def get_activity(destiny, redis, activity_id):
-    function = destiny.api.get_post_game_carnage_report(activity_id)
-    return await execute_pydest(function, redis)
+async def get_pgcr(destiny, redis, activity_id):
+    redis_key = f'{activity_id}-pcgr'
+    redis_data = await redis.get(redis_key)
+    if redis_data:
+        pgcr = pickle.loads(redis_data)
+    else:
+        function = destiny.api.get_post_game_carnage_report(activity_id)
+        data = await execute_pydest(function, redis)
+        pgcr = data['Response']
+        await set_data(redis, redis_key, pgcr)
+    return pgcr
 
 
-async def get_profile(destiny, redis, member_id, platform_id):
-    function = destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
-    return await execute_pydest(function, redis)
+async def get_characters(destiny, redis, member_id, platform_id):
+    redis_key = f'{member_id}-profile'
+    redis_data = await redis.get(redis_key)
+    if redis_data:
+        characters = pickle.loads(redis_data)
+    else:
+        function = destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
+        data = await execute_pydest(function, redis)
+        characters = data['Response']['characters']['data']
+        await set_data(redis, redis_key, characters)
+    return characters
 
 
 async def decode_activity(destiny, redis, reference_id):
@@ -83,14 +122,16 @@ async def decode_activity(destiny, redis, reference_id):
 async def get_activity_list(destiny, redis, platform_id, member_id, char_ids, mode_id, count=30):
     all_activity_ids = []
     for char_id in char_ids:
+        function = get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count)
         try:
-            res = await get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count)
-        except Exception:
-            continue
+            activities = await function
+        except RuntimeError:
+            try:
+                activities = await function
+            except Exception:
+                continue
 
-        try:
-            activities = res['Response']['activities']
-        except KeyError:
+        if not activities:
             continue
 
         all_activity_ids.extend([
@@ -104,20 +145,16 @@ async def get_last_active(destiny, redis, member_db):
     platform_id = member_db.clanmember.platform_id
     member_id, _ = parse_platform(member_db, platform_id)
 
-    try:
-        profile = await get_profile(destiny, redis, member_id, member_db.clanmember.platform_id)
-    except MaintenanceError:
-        raise
-
     acct_last_active = None
     try:
-        profile_data = profile['Response']['characters']['data'].items()
-    except (KeyError, TypeError):
-        logging.error(f"Could not get profile data for {member_db.clanmember.platform_id}-{member_id}")
-        return
+        characters = await get_characters(destiny, redis, member_id, platform_id)
+        characters = characters.items()
+    except AttributeError:
+        logging.error(f"Could not get character data for {platform_id}-{member_id}")
+        return acct_last_active
 
-    for _, data in profile_data:
-        char_last_active = bungie_date_as_utc(data['dateLastPlayed'])
+    for _, character in characters:
+        char_last_active = bungie_date_as_utc(character['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
             acct_last_active = char_last_active
     return acct_last_active
@@ -173,10 +210,10 @@ async def get_sherpa_time_played(database, member_db):
     except DoesNotExist:
         return None
 
-        query = GameMember.select(fn.SUM(GameMember.time_played).alias('sum')).where(
+    query = GameMember.select(fn.SUM(GameMember.time_played).alias('sum')).where(
         (GameMember.member_id == member_db.id) & (GameMember.game_id << game_sherpas)
-        )
-        time_played = await database.execute(query)
+    )
+    time_played = await database.execute(query)
 
     game_members_db = await database.execute(game_members)
     sherpa_members_db = await database.execute(clan_sherpas)
@@ -194,11 +231,11 @@ async def store_member_history(member_dbs, bot, member_db, game_mode):  # noqa T
 
     member_id, member_username = parse_platform(member_db, platform_id)
 
-    profile = await get_profile(bot.destiny, bot.redis, member_id, platform_id)
     try:
-        char_ids = profile['Response']['characters']['data'].keys()
+        characters = await get_characters(bot.destiny, bot.redis, member_id, platform_id)
+        char_ids = characters.keys()
     except (KeyError, TypeError):
-        logging.error(f"Could not get profile data for {member_db.clanmember.platform_id}-{member_id}")
+        logging.error(f"Could not get character data for {member_db.clanmember.platform_id}-{member_id}")
         return
 
     all_activity_ids = []
@@ -212,15 +249,18 @@ async def store_member_history(member_dbs, bot, member_db, game_mode):  # noqa T
     mode_count = 0
     for activity_id in all_activity_ids:
         try:
-            pgcr = await get_activity(bot.destiny, bot.redis, activity_id)
-        except Exception:
-            continue
+            pgcr = await get_pgcr(bot.destiny, bot.redis, activity_id)
+        except RuntimeError:
+            try:
+                pgcr = await get_pgcr(bot.destiny, bot.redis, activity_id)
+            except Exception:
+                continue
 
-        if not pgcr.get('Response'):
+        if not pgcr:
             logging.error(f"{member_username}: {pgcr}")
             continue
 
-        game = ClanGame(pgcr['Response'], member_dbs)
+        game = ClanGame(pgcr, member_dbs)
 
         game_mode_details = constants.MODE_MAP[game.mode_id]
 
