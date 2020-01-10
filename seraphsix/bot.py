@@ -82,9 +82,8 @@ class SeraphSix(commands.Bot):
 
         self.bungie_maintenance = False
 
-        self.update_last_active.start()
-
         if config.enable_activity_tracking:
+            self.update_last_active.start()
             self.update_member_games.start()
 
         self.update_sherpa_roles.start()
@@ -98,10 +97,20 @@ class SeraphSix(commands.Bot):
         for guild in guilds:
             guild_id = guild.guild_id
             logging.info(f"Finding last active dates for all members of {guild_id}")
-            tasks.extend([
-                store_last_active(self.database, self.destiny, self.redis, member)
-                for member in await self.database.get_clan_members_by_guild_id(guild_id)
-            ])
+
+            if not hasattr(self, "redis"):
+                await self.connect_redis()
+
+            try:
+                tasks.extend([
+                    store_last_active(self.database, self.destiny, self.redis, member)
+                    for member in await self.database.get_clan_members_by_guild_id(guild_id)
+                ])
+            except AttributeError:
+                logging.exception("Redis connection not found")
+                await self.log_channel.send("Redis connection not found")
+                break
+
         try:
             await asyncio.gather(*tasks)
         except MaintenanceError as e:
@@ -186,7 +195,12 @@ class SeraphSix(commands.Bot):
                     continue
                 self.loop.create_task(self.process_tweet(tweet))
 
+    async def connect_redis(self):
+        self.redis = await aioredis.create_redis_pool(self.config.redis_url)
+
     async def on_ready(self):
+        await self.connect_redis()
+
         self.log_channel = self.get_channel(self.config.log_channel)
 
         start_message = (
@@ -195,8 +209,6 @@ class SeraphSix(commands.Bot):
         )
         logging.info(start_message)
         await self.log_channel.send("Seraph Six has started...")
-
-        self.redis = await aioredis.create_redis_pool(self.config.redis_url)
 
         if self.twitter:
             logging.info("Starting Twitter stream tracking")
