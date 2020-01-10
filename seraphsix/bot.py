@@ -82,8 +82,9 @@ class SeraphSix(commands.Bot):
 
         self.bungie_maintenance = False
 
+        self.update_last_active.start()
+
         if config.enable_activity_tracking:
-            self.update_last_active.start()
             self.update_member_games.start()
 
         self.update_sherpa_roles.start()

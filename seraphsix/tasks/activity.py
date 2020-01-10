@@ -53,7 +53,7 @@ async def execute_pydest(function, redis):
     try:
         return await asyncio.create_task(function)
     except pydest.pydest.PydestMaintenanceException as e:
-        await redis.set('global-bungie-maintenance', str(True), expire=constants.TIME_MIN_MILLI)
+        await redis.set('global-bungie-maintenance', str(True), expire=constants.TIME_MIN_SECONDS)
         logging.error(e)
         raise MaintenanceError
 
@@ -68,7 +68,7 @@ async def get_data(redis, key, function):
 
 
 async def set_data(redis, key, data):
-    await redis.set(key, pickle.dumps(data), expire=constants.TIME_HOUR_MILLI)
+    await redis.set(key, pickle.dumps(data), expire=constants.TIME_HOUR_SECONDS)
 
 
 async def get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count):
@@ -157,6 +157,7 @@ async def get_last_active(destiny, redis, member_db):
         char_last_active = bungie_date_as_utc(character['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
             acct_last_active = char_last_active
+            logging.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
     return acct_last_active
 
 

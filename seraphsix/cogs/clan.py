@@ -134,7 +134,7 @@ class ClanCog(commands.Cog, name='Clan'):
         embeds = []
         clan_info_redis = await self.bot.redis.get(f'{ctx.guild.id}-clan-info')
         if clan_info_redis and '-nocache' not in args:
-            await self.bot.redis.expire(f'{ctx.guild.id}-clan-info', constants.TIME_HOUR_MILLI)
+            await self.bot.redis.expire(f'{ctx.guild.id}-clan-info', constants.TIME_HOUR_SECONDS)
             embeds = pickle.loads(clan_info_redis)
         else:
             for clan_db in clan_dbs:
@@ -168,7 +168,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 )
                 embeds.append(embed)
             await self.bot.redis.set(
-                f'{ctx.guild.id}-clan-info', pickle.dumps(embeds), expire=constants.TIME_HOUR_MILLI)
+                f'{ctx.guild.id}-clan-info', pickle.dumps(embeds), expire=constants.TIME_HOUR_SECONDS)
 
         if len(embeds) > 1:
             paginator = EmbedPages(ctx, embeds)
@@ -190,7 +190,7 @@ class ClanCog(commands.Cog, name='Clan'):
         members = []
         members_redis = await self.bot.redis.lrange(f'{ctx.guild.id}-clan-roster', 0, -1)
         if members_redis and '-nocache' not in args:
-            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_MILLI)
+            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_SECONDS)
             for member in members_redis:
                 members.append(pickle.loads(member))
         else:
@@ -198,7 +198,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
             for member in members_db:
                 await self.bot.redis.rpush(f'{ctx.guild.id}-clan-roster', pickle.dumps(member))
-            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_MILLI)
+            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_SECONDS)
             members = members_db
 
         entries = []
