@@ -151,7 +151,7 @@ async def get_game_counts(database, game_mode, member_db=None):
 
 
 async def get_sherpa_time_played(database, member_db):
-    sherpas = Member.select(Member.id).join(ClanMember).where((ClanMember.is_sherpa) & (Member.id != member_db.id))
+    clan_sherpas = Member.select(Member.id).join(ClanMember).where((ClanMember.is_sherpa) & (Member.id != member_db.id))
 
     full_list = list(constants.SUPPORTED_GAME_MODES.values())
     mode_list = list(set([mode for sublist in full_list for mode in sublist]))
@@ -160,20 +160,33 @@ async def get_sherpa_time_played(database, member_db):
         (GameMember.member_id == member_db.id) & (Game.mode_id << mode_list)
     )
 
-    sherpa_query = Game.select(Game.id.distinct()).join(GameMember).join(Member).join(ClanMember).where(
-        (Game.id << games) & (Member.id << sherpas)
+    game_sherpas = Game.select(Game.id.distinct()).join(GameMember).join(Member).join(ClanMember).where(
+        (Game.id << games) & (Member.id << clan_sherpas)
+    )
+
+    game_members = Member.select(Member.id.distinct()).join(GameMember).join(Game).where(
+        (Game.id << games) & (Member.id << clan_sherpas)
     )
 
     try:
-        await database.execute(sherpa_query)
+        await database.execute(game_sherpas)
     except DoesNotExist:
         return None
-    else:
+
         query = GameMember.select(fn.SUM(GameMember.time_played).alias('sum')).where(
-            (GameMember.member_id == member_db.id) & (GameMember.game_id << sherpa_query)
+        (GameMember.member_id == member_db.id) & (GameMember.game_id << game_sherpas)
         )
         time_played = await database.execute(query)
-    return time_played[0].sum
+
+    game_members_db = await database.execute(game_members)
+    sherpa_members_db = await database.execute(clan_sherpas)
+
+    game_member_set = set([member.id for member in game_members_db])
+    clan_sherpa_set = set([sherpa.id for sherpa in sherpa_members_db])
+
+    game_sherpas_unique = list(game_member_set.intersection(clan_sherpa_set))
+
+    return (time_played[0].sum, game_sherpas_unique)
 
 
 async def store_member_history(member_dbs, bot, member_db, game_mode):  # noqa TODO
@@ -242,11 +255,17 @@ async def store_member_history(member_dbs, bot, member_db, game_mode):  # noqa T
                     logging.info((player.membership_id, player.membership_type, member_db.clanmember.clan_id))
                     raise
                 try:
+                    # Create the game members
                     await bot.database.create(
                         GameMember, member=player_db.id, game=game_db.id,
                         completed=player.completed, time_played=player.time_played)
                 except IntegrityError:
-                    logging.info((player_db.id, game_db.id, player.completed, player.time_played))
+                    # If one already exists, increment the time played and set the completion flag
+                    game_member_db = await bot.database.get(GameMember, game=game_db.id, member=player_db.id)
+                    game_member_db.time_played += player.time_played
+                    if not game_member_db.completed or game_member_db.completed != player.completed:
+                        game_member_db.completed = player.completed
+                    await bot.database.update(game_member_db)
                     continue
 
     if mode_count:
