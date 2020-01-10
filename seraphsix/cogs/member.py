@@ -35,7 +35,7 @@ class MemberCog(commands.Cog, name='Member'):
     @member.command(help="Get member information")
     @clan_is_linked()
     @commands.guild_only()
-    async def info(self, ctx, *args):
+    async def info(self, ctx, *args):  #noqa TODO
         """Show member information"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
@@ -43,6 +43,13 @@ class MemberCog(commands.Cog, name='Member'):
 
         if not member_name:
             member_name = ctx.message.author
+
+        requestor_db = await self.bot.database.get(
+            Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
+                Guild.guild_id == ctx.guild.id,
+                Member.discord_id == ctx.author.id
+            )
+        )
 
         discord_username = None
         member_discord = None
@@ -101,14 +108,33 @@ class MemberCog(commands.Cog, name='Member'):
             member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
             discord_username = f"{member_discord.name}#{member_discord.discriminator}"
 
+        requestor_is_admin = False
+        if requestor_db and requestor_db.clanmember.member_type >= constants.CLAN_MEMBER_ADMIN:
+            requestor_is_admin = True
+
+        member_is_admin = False
+        if member_db.clanmember.member_type >= constants.CLAN_MEMBER_ADMIN:
+            member_is_admin = True
+
         embed = discord.Embed(
             colour=constants.BLUE,
             title=f"Member Info for {display_name}"
         )
         embed.add_field(
-            name="Clan", value=f"{member_db.clanmember.clan.name} [{member_db.clanmember.clan.callsign}]")
+            name="Clan",
+            value=f"{member_db.clanmember.clan.name} [{member_db.clanmember.clan.callsign}]"
+        )
         embed.add_field(
-            name="Join Date", value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S'))
+            name="Join Date",
+            value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')
+        )
+
+        if requestor_is_admin:
+            embed.add_field(
+                name="Last Active Date",
+                value=member_db.clanmember.last_active.strftime('%Y-%m-%d %H:%M:%S')
+            )
+
         embed.add_field(name="Time Zone", value=timezone)
         embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
         embed.add_field(name="PSN Username", value=member_db.psn_username)
@@ -121,6 +147,10 @@ class MemberCog(commands.Cog, name='Member'):
         embed.add_field(
             name="Is Sherpa",
             value=constants.EMOJI_CHECKMARK if member_db.clanmember.is_sherpa else constants.EMOJI_CROSSMARK
+        )
+        embed.add_field(
+            name="Is Admin",
+            value=constants.EMOJI_CHECKMARK if member_is_admin else constants.EMOJI_CROSSMARK
         )
         await manager.send_embed(embed)
 
@@ -284,12 +314,23 @@ Example: ?member sherpatime
             logging.info(
                 f"Getting sherpa time played by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
 
-        time_played = await get_sherpa_time_played(self.bot.database, member_db)
+        time_played, sherpa_ids = await get_sherpa_time_played(self.bot.database, member_db)
+
+        sherpa_list = []
+        sherpas = await self.bot.database.execute(Member.select().where(Member.id << sherpa_ids))
+        for sherpa in sherpas:
+            if sherpa.discord_id:
+                sherpa_discord = await commands.MemberConverter().convert(ctx, str(sherpa.discord_id))
+                sherpa_list.append(f"{sherpa_discord.name}#{sherpa_discord.discriminator}")
 
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Time played with a Sherpa by {member_name}",
+            title=f"Total time played with a Sherpa by {member_name}",
             description=f"{time_played / 3600:.2f} hours"
+        )
+        embed.add_field(
+            name="Sherpas Played With",
+            value=', '.join(sherpa_list)
         )
         await manager.send_embed(embed)
 
