@@ -163,6 +163,7 @@ MODE_VEXOFFENSIVE = 78
 MODE_NIGHTMAREHUNT = 79
 MODE_ELIMINATION = 80
 MODE_MOMENTUM = 81
+MODE_THESUNDIAL = 83
 
 MODES_QUICKPLAY = [
     MODE_ALLMAYHEM, MODE_SUPREMACY, MODE_DOUBLES,
@@ -188,7 +189,7 @@ MODES_STRIKE = [
 MODES_PVE = [
     MODE_STRIKE, MODE_NIGHTFALL, MODE_MENAGERIE, MODE_SCOREDNIGHTFALL,
     MODE_VEXOFFENSIVE, MODE_BLACKARMORYRUN, MODE_NIGHTMAREHUNT, MODE_RAID,
-    MODE_HEROICADVENTURE
+    MODE_HEROICADVENTURE, MODE_THESUNDIAL
 ]
 
 MODE_MAP = {
@@ -220,6 +221,7 @@ MODE_MAP = {
     MODE_HEROICADVENTURE: {'title': 'heroic adventure', 'player_count': 3, 'threshold': 2},
     MODE_ELIMINATION: {'title': 'elimination', 'player_count': 3, 'threshold': 2},
     MODE_MOMENTUM: {'title': 'momentum control', 'player_count': 6, 'threshold': 3},
+    MODE_THESUNDIAL: {'title': 'the sundial', 'player_count': 6, 'threshold': 3}
 }
 
 SUPPORTED_GAME_MODES = {
