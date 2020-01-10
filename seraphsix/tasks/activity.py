@@ -67,8 +67,12 @@ async def get_data(redis, key, function):
     return data
 
 
-async def set_data(redis, key, data):
-    await redis.set(key, pickle.dumps(data), expire=constants.TIME_HOUR_SECONDS)
+async def set_data(redis, key, data, expire=constants.TIME_HOUR_SECONDS):
+    try:
+        await redis.set(key, pickle.dumps(data), expire=expire)
+    except Exception as e:
+        logging.exception("Error setting data in redis")
+        return
 
 
 async def get_activity_history(destiny, redis, platform_id, member_id, char_id, mode_id, count):
@@ -83,7 +87,7 @@ async def get_activity_history(destiny, redis, platform_id, member_id, char_id, 
             activities = data['Response']['activities']
         except KeyError:
             return None
-        await set_data(redis, redis_key, activities)
+        await set_data(redis, redis_key, activities, expire=constants.TIME_MIN_SECONDS * 45)
     return activities
 
 
