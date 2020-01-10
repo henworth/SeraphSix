@@ -70,7 +70,7 @@ async def get_data(redis, key, function):
 async def set_data(redis, key, data, expire=constants.TIME_HOUR_SECONDS):
     try:
         await redis.set(key, pickle.dumps(data), expire=expire)
-    except Exception as e:
+    except Exception:
         logging.exception("Error setting data in redis")
         return
 
