@@ -264,7 +264,9 @@ class ServerCog(commands.Cog, name='Server'):
 
         for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
             try:
-                role_db = await self.bot.database.get(Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role])
+                role_db = await self.bot.database.get(
+                    Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role]
+                )
             except DoesNotExist:
                 role_name = "None"
             else:
