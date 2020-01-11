@@ -71,6 +71,7 @@ def oauth_index():
         r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
     r.raise_for_status()
+    session['state'] = request.args.get('state')
     return redirect('/')
 
 
