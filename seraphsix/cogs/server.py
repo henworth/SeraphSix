@@ -263,11 +263,16 @@ class ServerCog(commands.Cog, name='Server'):
         )
 
         for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
-            role_db = await self.bot.database.get(Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role])
-            role_obj = discord.utils.get(ctx.guild.roles, id=role_db.role_id)
+            try:
+                role_db = await self.bot.database.get(Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role])
+            except DoesNotExist:
+                role_name = "None"
+            else:
+                role_obj = discord.utils.get(ctx.guild.roles, id=role_db.role_id)
+                role_name = role_obj.name
             kwargs = dict(
                 name=self.bot.get_emoji(emoji),
-                value=role_obj.name,
+                value=role_name,
                 inline=True
             )
             base_embed.add_field(**kwargs)
