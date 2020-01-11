@@ -8,11 +8,13 @@ import secrets
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from requests_oauth2 import OAuth2, OAuth2BearerToken
+from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
+
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
+logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = secrets.os.urandom(20)
-
-logging.basicConfig(level=logging.INFO)
 
 
 class BungieClient(OAuth2):
@@ -33,7 +35,13 @@ red = redis.from_url(os.environ.get('REDIS_URL'))
 @app.route('/')
 def index():
     if not session.get('access_token'):
-        return redirect('/oauth/')
+        return redirect(
+            url_for(
+                'oauth_index',
+                state=request.args.get('state'),
+                code=request.args.get('code')
+            )
+        )
 
     user_info = dict(
         membership_id=session.get('membership_id'),
@@ -46,16 +54,21 @@ def index():
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
 
-@app.route('/oauth/')
+@app.route('/oauth')
 def oauth_index():
     if not session.get('access_token'):
-        return redirect(url_for('oauth_callback', state=request.args.get('state')))
+        return redirect(
+            url_for(
+                'oauth_callback',
+                state=request.args.get('state'),
+                code=request.args.get('code')
+            )
+        )
 
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
         s.headers.update({'X-API-KEY': os.environ.get('BUNGIE_API_KEY')})
-        r = s.get(
-            f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
+        r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
     r.raise_for_status()
     return redirect('/')
@@ -86,6 +99,12 @@ def oauth_callback():
     session['membership_id'] = data.get('membership_id')
     session['state'] = request.args.get('state')
     return redirect('/')
+
+
+@app.route('/the100webhook/slack', methods=['POST'])
+def the100_webhook():
+    logging.info(request.get_json(force=True))
+    return 'Success!'
 
 
 if __name__ == '__main__':

@@ -1,10 +1,13 @@
+import discord
 import logging
 
 from discord.ext import commands
 from peewee import DoesNotExist
-from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix import constants
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
-from seraphsix.constants import PLATFORM_MAP
+from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.database import TwitterChannel, Clan, Guild, Role
+from seraphsix.tasks.activity import execute_pydest
 
 logging.getLogger(__name__)
 
@@ -66,30 +69,28 @@ class ServerCog(commands.Cog, name='Server'):
                 "Command must include the Bungie clan ID")
             return await manager.clean_messages()
 
-        res = await self.bot.destiny.api.get_group(clan_id)
+        res = await execute_pydest(self.bot.destiny.api.get_group(clan_id), self.bot.redis)
         clan_name = res['Response']['detail']['name']
         callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 
         try:
-            clan_db = await self.bot.database.get_clan(clan_id)
+            clan_db = await self.bot.database.get(Clan, clan_id=clan_id)
         except DoesNotExist:
-            await self.bot.database.create_clan(
-                ctx.guild.id, clan_id=clan_id, name=clan_name, callsign=callsign)
+            guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+            await self.bot.database.create(
+                Clan, clan_id=clan_id, name=clan_name, callsign=callsign, guild=guild_db)
         else:
             if clan_db.guild_id:
-                await manager.send_message(
-                    f"*{clan_name} [{callsign}]** is already linked to another server.")
+                await manager.send_message(f"*{clan_name} [{callsign}]** is already linked to another server.")
                 return await manager.clean_messages()
             else:
-                guild_db = await self.bot.database.get_guild(ctx.guild.id)
+                guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
                 clan_db.guild = guild_db
                 clan_db.name = clan_name
                 clan_db.callsign = callsign
                 await self.bot.database.update(clan_db)
 
-        await manager.send_message((
-            f"Server **{ctx.message.guild.name}** "
-            f"linked to **{clan_name} [{callsign}]**"))
+        await manager.send_message(f"Server **{ctx.message.guild.name}** linked to **{clan_name} [{callsign}]**")
         return await manager.clean_messages()
 
     @server.command()
@@ -107,9 +108,7 @@ class ServerCog(commands.Cog, name='Server'):
         else:
             clan_db.guild_id = None
             await self.bot.database.update(clan_db)
-            message = (
-                f"Server **{ctx.message.guild.name}** "
-                f"unlinked from **{clan_db.name} [{clan_db.callsign}]**")
+            message = f"Server **{ctx.message.guild.name}** unlinked from **{clan_db.name} [{clan_db.callsign}]**"
 
         await manager.send_message(message)
         return await manager.clean_messages()
@@ -125,7 +124,7 @@ class ServerCog(commands.Cog, name='Server'):
         if len(new_prefix) > 5:
             message = "Prefix must be less than 6 characters."
         else:
-            guild_db = await self.bot.database.get_guild(ctx.guild.id)
+            guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
             guild_db.prefix = new_prefix
             await self.bot.database.update(guild_db)
             message = f"Command prefix has been changed to `{new_prefix}`"
@@ -143,16 +142,184 @@ class ServerCog(commands.Cog, name='Server'):
         manager = MessageManager(ctx)
         platform = platform.lower()
 
-        platform_id = PLATFORM_MAP.get(platform)
+        platform_id = constants.PLATFORM_MAP.get(platform)
         if not platform_id:
-            message = f"Platform must be one of `{', '.join(PLATFORM_MAP.keys()).title()}`.`"
+            message = f"Platform must be one of `{', '.join(constants.PLATFORM_MAP.keys()).title()}`.`"
         else:
-            clan_db = await self.bot.database.get_clans_by_guild(ctx.guild.id)
-            clan_db.platform = platform_id
-            await self.bot.database.update(clan_db)
+            clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+            for clan_db in clan_dbs:
+                clan_db.platform = platform_id
+            await self.bot.database.bulk_update(clan_dbs, ['platform'])
             message = f"Platform has been set to `{platform}`"
 
         await manager.send_message(message)
+        return await manager.clean_messages()
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def setsherparoles(self, ctx):
+        """Map server roles to game platforms (Manage Server only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        roles = []
+        cont = True
+        while cont:
+            name = await manager.send_and_get_response(
+                f"Enter the name of a role that denotes a \"sherpa\" "
+                f"(enter `stop` to enter `cancel` to cancel command)")
+            if name.lower() == 'cancel':
+                await manager.send_message("Canceling command")
+                roles = []
+                return await manager.clean_messages()
+            elif name.lower() == 'stop':
+                cont = False
+            else:
+                role_obj = discord.utils.get(ctx.guild.roles, name=name)
+                if role_obj:
+                    roles.append((guild_db.id, role_obj.id, True))
+                else:
+                    await manager.send_message(f"Could not find a role with name `{name}`")
+
+        if roles:
+            await self.bot.database.execute(
+                Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.is_sherpa]))
+            await manager.send_message("Sherpa roles have been set")
+        return await manager.clean_messages()
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def showsherparoles(self, ctx):
+        """Map server roles to game platforms (Manage Server only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        raise Exception
+        roles = []
+        query = Role.select().join(Guild).where((Guild.id == guild_db.id) & (Role.is_sherpa))
+        roles_db = await self.bot.database.execute(query)
+        for role in roles_db:
+            role_obj = discord.utils.get(ctx.guild.roles, id=role.role_id)
+            roles.append(role_obj.name)
+
+        base_embed = discord.Embed(
+            color=constants.BLUE,
+            title=f"Sherpa Roles for {ctx.guild.name}",
+            description=', '.join(roles)
+        )
+
+        await manager.send_embed(base_embed, clean=True)
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def setplatformroles(self, ctx):
+        """Map server roles to game platforms (Manage Server only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        roles = []
+        for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
+            name = await manager.send_and_get_response(
+                f"Enter the name of the role to assign for {self.bot.get_emoji(emoji)} "
+                f"(enter `cancel` to cancel command)")
+            if name.lower() == 'cancel':
+                await manager.send_message("Canceling command")
+                roles = []
+                return await manager.clean_messages()
+            else:
+                role_obj = discord.utils.get(ctx.guild.roles, name=name)
+                if role_obj:
+                    roles.append((guild_db.id, role_obj.id, constants.PLATFORM_MAP[role]))
+                else:
+                    await manager.send_message(f"Could not find a role with name `{name}`")
+
+        if roles:
+            await self.bot.database.execute(
+                Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.platform_id]))
+            await manager.send_message("Platforms have been set")
+        return await manager.clean_messages()
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def showplatformroles(self, ctx):
+        """Map server roles to game platforms (Manage Server only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        base_embed = discord.Embed(
+            color=constants.BLUE,
+            title=f"Platform Roles for {ctx.guild.name}"
+        )
+
+        for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
+            role_db = await self.bot.database.get(Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role])
+            role_obj = discord.utils.get(ctx.guild.roles, id=role_db.role_id)
+            kwargs = dict(
+                name=self.bot.get_emoji(emoji),
+                value=role_obj.name,
+                inline=True
+            )
+            base_embed.add_field(**kwargs)
+
+        await manager.send_embed(base_embed, clean=True)
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def clearplatformroles(self, ctx):
+        """Map server roles to game platforms (Manage Server only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        base_embed = discord.Embed(
+            color=constants.BLUE,
+            title=f"Platform Roles for {ctx.guild.name}"
+        )
+
+        for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
+            role_db = await self.bot.database.get(Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role])
+            role_obj = discord.utils.get(ctx.guild.roles, id=role_db.role_id)
+            kwargs = dict(
+                name=self.bot.get_emoji(emoji),
+                value=role_obj.name,
+                inline=True
+            )
+            base_embed.add_field(**kwargs)
+
+        await manager.send_embed(base_embed, clean=True)
+
+        clear_reactions = {
+            constants.EMOJI_CHECKMARK: 'clear',
+            constants.EMOJI_CROSSMARK: ''
+        }
+        clear = await manager.send_message_react(
+            message_text="Clear platform roles?",
+            reactions=clear_reactions.keys(),
+            clean=False,
+            with_cancel=True
+        )
+
+        if not clear:
+            await manager.send_message("Canceling command")
+            return await manager.clean_messages()
+
+        role_query = Role.delete().join(Guild).where(Guild.guild_id == guild_db.id)
+        await self.bot.database.execute(role_query)
+
+        await manager.send_message("Platform roles cleared")
         return await manager.clean_messages()
 
     @server.command()
@@ -163,7 +330,7 @@ class ServerCog(commands.Cog, name='Server'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
-        guild_db = await self.bot.database.get_guild(ctx.guild.id)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
         if guild_db.aggregate_clans:
             guild_db.aggregate_clans = False
         else:
@@ -175,15 +342,19 @@ class ServerCog(commands.Cog, name='Server'):
         return await manager.clean_messages()
 
     async def twitter_channel(self, ctx, twitter_id, message):
+        """Set a channel for particular twitter messages"""
         try:
-            channel_db = await self.bot.database.get_twitter_channel_by_guild_id(
-                ctx.message.guild.id, twitter_id)
+            # pylint: disable=assignment-from-no-return
+            query = TwitterChannel.select().where(
+                TwitterChannel.guild_id == ctx.message.guild.id,
+                TwitterChannel.twitter_id == twitter_id
+            )
+            channel_db = await self.bot.database.get(query)
         except DoesNotExist:
-            await self.bot.database.create_twitter_channel(
-                ctx.message.guild.id, ctx.message.channel.id, twitter_id)
-            await ctx.send((
-                f"{message} now enabled and will post to "
-                f"**#{ctx.message.channel.name}**."))
+            details = {'guild_id': ctx.message.guild.id,
+                       'channel_id': ctx.message.channel.id, 'twitter_id': twitter_id}
+            await self.bot.database.create(TwitterChannel, **details)
+            await ctx.send(f"{message} now enabled and will post to **#{ctx.message.channel.name}**.")
         else:
             channel = self.bot.get_channel(channel_db.channel_id)
             await ctx.send(f"{message} is already enabled in {channel.mention}.")

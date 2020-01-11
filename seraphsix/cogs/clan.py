@@ -1,5 +1,6 @@
 import discord
 import logging
+import pickle
 import pydest
 import pytz
 
@@ -8,14 +9,15 @@ from discord.ext import commands
 from peewee import DoesNotExist
 
 from seraphsix import constants
-from seraphsix.cogs.utils.checks import (
-    is_clan_admin, is_valid_game_mode, clan_is_linked)
+from seraphsix.cogs.register import register
+from seraphsix.cogs.utils.checks import is_clan_admin, is_valid_game_mode, clan_is_linked
+from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild
 from seraphsix.errors import InvalidAdminError
 from seraphsix.models.destiny import Member as DestinyMember
-from seraphsix.tasks.activity import get_all_history
+from seraphsix.tasks.activity import get_game_counts, execute_pydest
 from seraphsix.tasks.clan import info_sync, member_sync
 
 logging.getLogger(__name__)
@@ -27,7 +29,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
     async def get_admin_group(self, ctx):
         try:
-            return await self.bot.database.objects.get(
+            return await self.bot.database.get(
                 Clan.select(Clan).join(ClanMember).join(Member).switch(Clan).join(Guild).where(
                     Guild.guild_id == ctx.message.guild.id,
                     ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN,
@@ -121,42 +123,52 @@ class ClanCog(commands.Cog, name='Clan'):
     @clan.command()
     @clan_is_linked()
     @commands.guild_only()
-    async def info(self, ctx):
-        """Show clan information"""
+    async def info(self, ctx, *args):
+        """Show information for all connected clans"""
         await ctx.trigger_typing()
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
+        if not clan_dbs:
+            return await ctx.send("No connected clans found")
+
         embeds = []
-        for clan_db in clan_dbs:
-            res = await self.bot.destiny.api.get_group(clan_db.clan_id)
-            group = res['Response']
-            embed = discord.Embed(
-                colour=constants.BLUE,
-                title=group['detail']['motto'],
-                description=group['detail']['about']
-            )
-            embed.set_author(
-                name=f"{group['detail']['name']} [{group['detail']['clanInfo']['clanCallsign']}]",
-                url=f"https://www.bungie.net/en/ClanV2?groupid={clan_db.clan_id}"
-            )
-            embed.add_field(
-                name='Members',
-                value=group['detail']['memberCount'],
-                inline=True
-            )
-            embed.add_field(
-                name='Founder',
-                value=group['founder']['bungieNetUserInfo']['displayName'],
-                inline=True
-            )
-            embed.add_field(
-                name='Founded',
-                value=datetime.strptime(
-                    group['detail']['creationDate'],
-                    '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
-                inline=True
-            )
-            embeds.append(embed)
+        clan_info_redis = await self.bot.redis.get(f'{ctx.guild.id}-clan-info')
+        if clan_info_redis and '-nocache' not in args:
+            await self.bot.redis.expire(f'{ctx.guild.id}-clan-info', constants.TIME_HOUR_SECONDS)
+            embeds = pickle.loads(clan_info_redis)
+        else:
+            for clan_db in clan_dbs:
+                res = await execute_pydest(self.bot.destiny.api.get_group(clan_db.clan_id), self.bot.redis)
+                group = res['Response']
+                embed = discord.Embed(
+                    colour=constants.BLUE,
+                    title=group['detail']['motto'],
+                    description=group['detail']['about']
+                )
+                embed.set_author(
+                    name=f"{group['detail']['name']} [{group['detail']['clanInfo']['clanCallsign']}]",
+                    url=f"https://www.bungie.net/en/ClanV2?groupid={clan_db.clan_id}"
+                )
+                embed.add_field(
+                    name='Members',
+                    value=group['detail']['memberCount'],
+                    inline=True
+                )
+                embed.add_field(
+                    name='Founder',
+                    value=group['founder']['bungieNetUserInfo']['displayName'],
+                    inline=True
+                )
+                embed.add_field(
+                    name='Founded',
+                    value=datetime.strptime(
+                        group['detail']['creationDate'],
+                        '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
+                    inline=True
+                )
+                embeds.append(embed)
+            await self.bot.redis.set(
+                f'{ctx.guild.id}-clan-info', pickle.dumps(embeds), expire=constants.TIME_HOUR_SECONDS)
 
         if len(embeds) > 1:
             paginator = EmbedPages(ctx, embeds)
@@ -167,28 +179,44 @@ class ClanCog(commands.Cog, name='Clan'):
     @clan.command()
     @clan_is_linked()
     @commands.guild_only()
-    async def roster(self, ctx):
-        """Show clan roster"""
+    async def roster(self, ctx, *args):
+        """Show roster for all connected clans"""
         await ctx.trigger_typing()
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
-        clan_members = await self.bot.database.get_clan_members(
-            [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
+
+        if not clan_dbs:
+            return await ctx.send("No connected clans found")
 
         members = []
-        for member in clan_members:
+        members_redis = await self.bot.redis.lrange(f'{ctx.guild.id}-clan-roster', 0, -1)
+        if members_redis and '-nocache' not in args:
+            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_SECONDS)
+            for member in members_redis:
+                members.append(pickle.loads(member))
+        else:
+            members_db = await self.bot.database.get_clan_members(
+                [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
+            for member in members_db:
+                await self.bot.redis.rpush(f'{ctx.guild.id}-clan-roster', pickle.dumps(member))
+            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_SECONDS)
+            members = members_db
+
+        entries = []
+        for member in members:
             timezone = "Not Set"
             if member.timezone:
                 tz = datetime.now(pytz.timezone(member.timezone))
                 timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
-            members.append((
+            member_info = (
                 member.username,
-                f"Clan: {member.clanmember.clan.name} [{member.clanmember.clan.callsign}]"
-                f"\nJoin Date: {member.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')}"
-                f"\nTimezone: {timezone}"
-            ))
+                f"Clan: {member.clanmember.clan.name} [{member.clanmember.clan.callsign}]\n"
+                f"Join Date: {member.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"Timezone: {timezone}"
+            )
+            entries.append(member_info)
 
         p = FieldPages(
-            ctx, entries=members,
+            ctx, entries=entries,
             per_page=5,
             title="Roster for All Connected Clans",
             color=constants.BLUE
@@ -202,21 +230,39 @@ class ClanCog(commands.Cog, name='Clan'):
     async def pending(self, ctx):
         """Show a list of pending members (Admin only, requires registration)"""
         await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
         try:
-            members = await self.bot.destiny.api.get_group_pending_members(
-                clan_db.clan_id,
-                access_token=member_db.bungie_access_token
+            members = await execute_pydest(
+                self.bot.destiny.api.get_group_pending_members(
+                    clan_db.clan_id,
+                    access_token=member_db.bungie_access_token
+                ),
+                self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.bot.destiny.api.refresh_oauth_token(
-                member_db.bungie_refresh_token
+            tokens = await execute_pydest(
+                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.redis
             )
-            members = await self.bot.destiny.api.get_group_pending_members(
-                clan_db.clan_id,
-                access_token=tokens['access_token']
+
+            if 'error' in tokens:
+                logging.warning(f"{tokens['error_description']} Registration is needed.")
+                user_info = await register(
+                    ctx, manager, "Your registration token has expired and re-registration is needed.")
+                if not user_info:
+                    return await manager.clean_messages()
+                tokens = {token: user_info.get(token) for token in ['access_token', 'refresh_token']}
+
+            members = await execute_pydest(
+                self.bot.destiny.api.get_group_pending_members(
+                    clan_db.clan_id,
+                    access_token=tokens['access_token']
+                ),
+                self.bot.redis
             )
             member_db.bungie_access_token = tokens['access_token']
             member_db.bungie_refresh_token = tokens['refresh_token']
@@ -234,8 +280,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 bungie_name = member['destinyUserInfo']['displayName']
                 bungie_member_id = member['destinyUserInfo']['membershipId']
                 bungie_member_type = member['destinyUserInfo']['membershipType']
-                date_applied = datetime.strptime(
-                    member['creationDate'], '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%d %H:%M:%S %Z')
+                date_applied = bungie_date_as_utc(member['creationDate']).strftime('%Y-%m-%d %H:%M:%S %Z')
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 member_info = f"Date Applied: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
@@ -251,11 +296,11 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         gamertag, platform_id, platform_name = (None,)*3
 
-        if args[-1] == '--platform':
-            await ctx.send(f"Platform must be specified like `--platform ['blizzard', 'psn', 'xbox']`")
+        if args[-1] == '-platform':
+            await ctx.send(f"Platform must be specified like `-platform ['psn', 'stadia', 'steam', 'xbox']`")
             return
 
-        if '--platform' in args:
+        if '-platform' in args:
             platform_name = args[-1].lower()
             gamertag = ' '.join(args[0:-2])
             platform_id = constants.PLATFORM_MAP.get(platform_name)
@@ -279,7 +324,10 @@ class ClanCog(commands.Cog, name='Clan'):
             platform_id = clan_db.platform
 
         try:
-            player = await self.bot.destiny.api.search_destiny_player(platform_id, gamertag)
+            player = await execute_pydest(
+                self.bot.destiny.api.search_destiny_player(platform_id, gamertag),
+                self.bot.redis,
+            )
         except pydest.PydestException:
             await ctx.send(f"Invalid gamertag {gamertag}")
             return
@@ -295,23 +343,30 @@ class ClanCog(commands.Cog, name='Clan'):
             return
 
         try:
-            res = await self.bot.destiny.api.group_approve_pending_member(
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Welcome to {clan_db.name}!",
-                access_token=member_db.bungie_access_token
+            res = await execute_pydest(
+                self.bot.destiny.api.group_approve_pending_member(
+                    group_id=clan_db.clan_id,
+                    membership_type=platform_id,
+                    membership_id=membership_id,
+                    message=f"Welcome to {clan_db.name}!",
+                    access_token=member_db.bungie_access_token
+                ),
+                self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.bot.destiny.api.refresh_oauth_token(
-                member_db.bungie_refresh_token
+            tokens = await execute_pydest(
+                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.redis
             )
-            res = await self.bot.destiny.api.group_approve_pending_member(
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Welcome to {clan_db.name}!",
-                access_token=tokens['access_token']
+            res = await execute_pydest(
+                self.bot.destiny.api.group_approve_pending_member(
+                    group_id=clan_db.clan_id,
+                    membership_type=platform_id,
+                    membership_id=membership_id,
+                    message=f"Welcome to {clan_db.name}!",
+                    access_token=tokens['access_token']
+                ),
+                self.bot.redis
             )
             member_db.bungie_access_token = tokens['access_token']
             member_db.bungie_refresh_token = tokens['refresh_token']
@@ -336,17 +391,24 @@ class ClanCog(commands.Cog, name='Clan'):
         clan_db = await self.get_admin_group(ctx)
 
         try:
-            members = await self.bot.destiny.api.get_group_invited_members(
-                clan_db.clan_id,
-                access_token=member_db.bungie_access_token
+            members = await execute_pydest(
+                self.bot.destiny.api.get_group_invited_members(
+                    clan_db.clan_id,
+                    access_token=member_db.bungie_access_token
+                ),
+                self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.bot.destiny.api.refresh_oauth_token(
-                member_db.bungie_refresh_token
+            tokens = await execute_pydest(
+                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.redis
             )
-            members = await self.bot.destiny.api.get_group_invited_members(
-                clan_db.clan_id,
-                access_token=tokens['access_token']
+            members = await execute_pydest(
+                self.bot.destiny.api.get_group_invited_members(
+                    clan_db.clan_id,
+                    access_token=tokens['access_token']
+                ),
+                self.bot.redis
             )
             member_db.bungie_access_token = tokens['access_token']
             member_db.bungie_refresh_token = tokens['refresh_token']
@@ -364,8 +426,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 bungie_name = member['destinyUserInfo']['displayName']
                 bungie_member_id = member['destinyUserInfo']['membershipId']
                 bungie_member_type = member['destinyUserInfo']['membershipType']
-                date_applied = datetime.strptime(
-                    member['creationDate'], '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%d %H:%M:%S %Z')
+                date_applied = bungie_date_as_utc(member['creationDate']).strftime('%Y-%m-%d %H:%M:%S %Z')
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 member_info = f"Date Invited: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
@@ -382,7 +443,7 @@ class ClanCog(commands.Cog, name='Clan'):
         gamertag, platform_id, platform_name = (None,)*3
 
         if args[-1] == '--platform':
-            await ctx.send(f"Platform must be specified like `--platform ['blizzard', 'psn', 'xbox']`")
+            await ctx.send(f"Platform must be specified like `--platform ['psn', 'stadia', 'steam', 'xbox']`")
             return
 
         if '--platform' in args:
@@ -409,8 +470,9 @@ class ClanCog(commands.Cog, name='Clan'):
             platform_id = clan_db.platform
 
         try:
-            player = await self.bot.destiny.api.search_destiny_player(
-                platform_id, gamertag
+            player = await execute_pydest(
+                self.bot.destiny.api.search_destiny_player(platform_id, gamertag),
+                self.bot.redis
             )
         except pydest.PydestException:
             await ctx.send(f"Invalid gamertag {gamertag}")
@@ -427,23 +489,30 @@ class ClanCog(commands.Cog, name='Clan'):
             return
 
         try:
-            res = await self.bot.destiny.api.group_invite_member(
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Join my clan {clan_db.name}!",
-                access_token=member_db.bungie_access_token
+            res = await execute_pydest(
+                self.bot.destiny.api.group_invite_member(
+                    group_id=clan_db.clan_id,
+                    membership_type=platform_id,
+                    membership_id=membership_id,
+                    message=f"Join my clan {clan_db.name}!",
+                    access_token=member_db.bungie_access_token
+                ),
+                self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.bot.destiny.api.refresh_oauth_token(
-                member_db.bungie_refresh_token
+            tokens = await execute_pydest(
+                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.redis
             )
-            res = await self.bot.destiny.api.group_invite_member(
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Join my clan {clan_db.name}!",
-                access_token=tokens['access_token']
+            res = await execute_pydest(
+                self.bot.destiny.api.group_invite_member(
+                    group_id=clan_db.clan_id,
+                    membership_type=platform_id,
+                    membership_id=membership_id,
+                    message=f"Join my clan {clan_db.name}!",
+                    access_token=tokens['access_token']
+                ),
+                self.bot.redis
             )
             member_db.bungie_access_token = tokens['access_token']
             member_db.bungie_refresh_token = tokens['refresh_token']
@@ -463,11 +532,8 @@ class ClanCog(commands.Cog, name='Clan'):
     async def sync(self, ctx):
         """Sync member list with Bungie (Admin only)"""
         await ctx.trigger_typing()
-        member_changes = await member_sync(
-            self.bot.database, self.bot.destiny, ctx.guild.id,
-            self.bot.loop, self.bot.caches[ctx.guild.id])
-
-        clan_info_changes = await info_sync(self.bot.database, self.bot.destiny, ctx.guild.id)
+        member_changes = await member_sync(self.bot.database, self.bot.destiny, self.bot.redis, ctx.guild.id)
+        clan_info_changes = await info_sync(self.bot.database, self.bot.destiny, self.bot.redis, ctx.guild.id)
 
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         embeds = []
@@ -477,33 +543,42 @@ class ClanCog(commands.Cog, name='Clan'):
                 title=f"Clan Changes for {clan_db.name}",
             )
 
-            if not member_changes[clan_db.clan_id].get('added') \
-                    and not member_changes[clan_db.clan_id].get('removed') \
-                    and not member_changes[clan_db.clan_id].get('changed') \
+            added, removed, changed = [
+                member_changes[clan_db.clan_id][k] for k in ['added', 'removed', 'changed']]
+
+            if not added and not removed and not changed \
                     and not clan_info_changes.get(clan_db.clan_id):
                 embed.add_field(
                     name="No Changes",
                     value="-"
                 )
 
-            if member_changes[clan_db.clan_id].get('added'):
+            if added:
+                if len(added) > 10:
+                    members_value = f"Too many to list: {len(added)} total"
+                else:
+                    members_value = ", ".join(added)
                 embed.add_field(
                     name="Members Added",
-                    value=", ".join(member_changes[clan_db.clan_id].get('added')),
+                    value=members_value,
                     inline=False
                 )
 
-            if member_changes[clan_db.clan_id].get('removed'):
+            if removed:
+                if len(removed) >= 10:
+                    members_value = f"Too many to list: {len(removed)} total"
+                else:
+                    members_value = ", ".join(removed)
                 embed.add_field(
                     name="Members Removed",
-                    value=", ".join(member_changes[clan_db.clan_id].get('removed')),
+                    value=members_value,
                     inline=False
                 )
 
-            if member_changes[clan_db.clan_id].get('changed'):
+            if changed:
                 embed.add_field(
                     name="Members Changed",
-                    value=", ".join(member_changes[clan_db.clan_id].get('changed')),
+                    value=", ".join(changed),
                     inline=False
                 )
 
@@ -540,8 +615,7 @@ class ClanCog(commands.Cog, name='Clan'):
         await ctx.trigger_typing()
         logging.info(f"Finding all {game_mode} games for all members")
 
-        game_counts = await get_all_history(
-            self.bot.database, self.bot.destiny, game_mode)
+        game_counts = await get_game_counts(self.bot.database, game_mode)
 
         embed = discord.Embed(
             colour=constants.BLUE,
@@ -584,7 +658,7 @@ class ClanCog(commands.Cog, name='Clan'):
         return await manager.clean_messages()
 
     async def get_all_members(self, group_id):
-        group = await self.bot.destiny.api.get_group_members(group_id)
+        group = await execute_pydest(self.bot.destiny.api.get_group_members(group_id), self.bot.redis)
         group_members = group['Response']['results']
         for member in group_members:
             yield DestinyMember(member)
