@@ -139,8 +139,9 @@ class Game(object):
         self.instance_id = int(details['activityDetails']['instanceId'])
         self.reference_id = details['activityDetails']['referenceId']
         self.date = bungie_date_as_utc(details['period'])
-
         self.players = []
+
+    def set_players(self, details):
         for entry in details['entries']:
             player = Player(entry)
             self.players.append(player)
