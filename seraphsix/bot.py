@@ -103,7 +103,7 @@ class SeraphSix(commands.Bot):
 
             try:
                 tasks.extend([
-                    store_last_active(self.database, self.destiny, self.redis, member)
+                    store_last_active(self, member)
                     for member in await self.database.get_clan_members_by_guild_id(guild_id)
                 ])
             except AttributeError:
@@ -122,7 +122,7 @@ class SeraphSix(commands.Bot):
                 self.bungie_maintenance = False
                 logging.info("Bungie maintenance has ended")
 
-        logging.info(f"Done finding last active dates all guilds")
+        logging.info(f"Found last active dates in all guilds")
 
     @update_last_active.before_loop
     async def before_update_last_active(self):
@@ -130,7 +130,7 @@ class SeraphSix(commands.Bot):
 
     @tasks.loop(hours=1.0)
     async def update_member_games(self):
-        await asyncio.sleep(2 * constants.TIME_MIN_SECONDS)
+        await asyncio.sleep(constants.TIME_MIN_SECONDS)
 
         guilds = await self.database.execute(Guild.select())
         if not guilds:
@@ -213,7 +213,8 @@ class SeraphSix(commands.Bot):
             self.loop.create_task(self.track_tweets())
 
     async def on_member_update(self, before, after):
-        await update_sherpa(self, before, after)
+        if not before.bot:
+            await update_sherpa(self, before, after)
 
     async def on_guild_join(self, guild):
         await self.log_channel.send(f"Seraph Six joined {guild.name} (id:{guild.id})!")

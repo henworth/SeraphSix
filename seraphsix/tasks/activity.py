@@ -129,10 +129,10 @@ async def get_last_active(destiny, redis, member_db):
     return acct_last_active
 
 
-async def store_last_active(database, destiny, redis, member_db):
-    last_active = await get_last_active(destiny, redis, member_db)
+async def store_last_active(bot, member_db):
+    last_active = await get_last_active(bot.destiny, bot.redis, member_db)
     member_db.clanmember.last_active = last_active
-    await database.update(member_db.clanmember)
+    await bot.database.update(member_db.clanmember)
 
 
 async def get_game_counts(database, game_mode, member_db=None):
@@ -195,27 +195,26 @@ async def get_sherpa_time_played(database, member_db):
     return (time_played[0].sum, game_sherpas_unique)
 
 
-async def store_game_members(bot, player, game_db, member_db):
-    try:
-        player_db = await bot.database.get_clan_member_by_platform(
-            player.membership_id, player.membership_type, member_db.clanmember.clan_id)
-    except DoesNotExist:
-        logging.info((player.membership_id, player.membership_type, member_db.clanmember.clan_id))
-        raise
+async def store_game_member(bot, player, game_db, member_db):
+    player_db = await bot.database.get_clan_member_by_platform(
+        player.membership_id, player.membership_type, member_db.clanmember.clan_id)
 
     try:
-        # Create the game members
+        # Create the game member
         await bot.database.create(
             GameMember, member=player_db.id, game=game_db.id,
             completed=player.completed, time_played=player.time_played)
     except IntegrityError:
-        # If one already exists, increment the time played and set the completion flag
+        # If one already exists, we can assume this is due to a drop/re-join event so
+        # increment the time played and set the completion flag
         game_member_db = await bot.database.get(GameMember, game=game_db.id, member=player_db.id)
         game_member_db.time_played += player.time_played
 
         if not game_member_db.completed or game_member_db.completed != player.completed:
             game_member_db.completed = player.completed
         await bot.database.update(game_member_db)
+
+    logging.debug(f"Player {player.membership_id} created in game id {game_db.instance_id}")
 
 
 async def store_member_history(member_dbs, bot, member_db, count):
@@ -251,7 +250,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
         # if the game occurred before a configured cutoff date, or if the member
         # joined before game time, or if the game is not a supported one.
         # If any of those apply, the game is not eligible.
-        supported_modes = sum(constants.SUPPORTED_GAME_MODES.values(), [])
+        supported_modes = set(sum(constants.SUPPORTED_GAME_MODES.values(), []))
         if (game.date < constants.FORSAKEN_RELEASE or
                 game.date < bot.config.activity_cutoff or
                 game.date < member_db.clanmember.join_date or
@@ -282,11 +281,14 @@ async def store_member_history(member_dbs, bot, member_db, count):
             await bot.database.get(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
         except DoesNotExist:
             await bot.database.create(ClanGameDb, clan=member_db.clanmember.clan_id, game=game_db.id)
-            for player in game.clan_players:
-                store_game_members(bot, player, game_db, member_db)
+            tasks = [
+                store_game_member(bot, player, game_db, member_db)
+                for player in clan_game.clan_players
+            ]
+            await asyncio.gather(*tasks)
 
     if mode_count:
-        logging.debug(f"Found {mode_count} {game_title} games for {member_username}")
+        logging.debug(f"Found {mode_count} games for {member_username}")
         return mode_count
 
 
