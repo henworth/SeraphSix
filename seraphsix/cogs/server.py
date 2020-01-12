@@ -199,7 +199,7 @@ class ServerCog(commands.Cog, name='Server'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
-        raise Exception
+
         roles = []
         query = Role.select().join(Guild).where((Guild.id == guild_db.id) & (Role.is_sherpa))
         roles_db = await self.bot.database.execute(query)

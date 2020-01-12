@@ -47,7 +47,7 @@ async def register(ctx, manager, extra_message="", confirm_message=""):
         await registration_msg.delete()
         await manager.clean_messages()
         await ctx.bot.redis.unsubscribe(ctx.author.id)
-        return None
+        return (None, None)
     await ctx.author.dm_channel.trigger_typing()
 
     # Send confirmation of successful registration

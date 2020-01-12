@@ -122,23 +122,21 @@ class SeraphSix(commands.Bot):
                 self.bungie_maintenance = False
                 logging.info("Bungie maintenance has ended")
 
+        logging.info(f"Done finding last active dates all guilds")
+
     @update_last_active.before_loop
     async def before_update_last_active(self):
         await self.wait_until_ready()
 
     @tasks.loop(hours=1.0)
     async def update_member_games(self):
-        await asyncio.sleep(5 * constants.TIME_MIN_SECONDS)
+        await asyncio.sleep(2 * constants.TIME_MIN_SECONDS)
 
-        tasks = []
         guilds = await self.database.execute(Guild.select())
         if not guilds:
             return
-        for guild in guilds:
-            tasks.extend([
-                store_all_games(self, game_mode, guild.guild_id)
-                for game_mode in constants.SUPPORTED_GAME_MODES.keys()
-            ])
+
+        tasks = [store_all_games(self, guild.guild_id) for guild in guilds]
         try:
             await asyncio.gather(*tasks)
         except MaintenanceError as e:

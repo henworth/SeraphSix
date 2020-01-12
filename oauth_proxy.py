@@ -50,7 +50,11 @@ def index():
     )
 
     pickled_info = pickle.dumps(user_info)
-    red.publish(session.get('state'), pickled_info)
+    try:
+        red.publish(session.get('state'), pickled_info)
+    except Exception:
+        logging.exception(f"Failed to publish state info to redis: {user_info} {session}")
+        return render_template('message.html', message='Something went wrong.')
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
 
@@ -82,7 +86,8 @@ def oauth_callback():
     state = request.args.get('state')
 
     if error:
-        return repr(error)
+        logging.error(repr(error))
+        return render_template('message.html', message='Something went wrong.')
 
     if not code:
         return redirect(bungie_auth.authorize_url(
@@ -105,7 +110,7 @@ def oauth_callback():
 @app.route('/the100webhook/slack', methods=['POST'])
 def the100_webhook():
     logging.info(request.get_json(force=True))
-    return 'Success!'
+    return render_template('message.html', message='Success!')
 
 
 if __name__ == '__main__':
