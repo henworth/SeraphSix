@@ -138,7 +138,6 @@ class MemberCog(commands.Cog, name='Member'):
         embed.add_field(name="Time Zone", value=timezone)
         embed.add_field(name="Xbox Gamertag", value=member_db.xbox_username)
         embed.add_field(name="PSN Username", value=member_db.psn_username)
-        embed.add_field(name="Blizzard Username", value=member_db.blizzard_username)
         embed.add_field(name="Steam Username", value=member_db.steam_username)
         embed.add_field(name="Stadia Username", value=member_db.stadia_username)
         embed.add_field(name="Discord Username", value=discord_username)

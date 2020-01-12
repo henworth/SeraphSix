@@ -37,13 +37,13 @@ async def store_sherpas(bot, guild):
 
     base_member_query = ClanMember.select(ClanMember.id).join(Member)
     if sherpas_added:
-        logging.info(f"Sherpas added for {guild.id}: {sherpas_added}")
+        logging.info(f"Sherpas added for {guild.guild_id}: {sherpas_added}")
         members = base_member_query.where(Member.discord_id << sherpas_added)
         query = ClanMember.update(is_sherpa=True).from_(members).where(ClanMember.id << members)
         await bot.database.execute(query)
 
     if sherpas_removed:
-        logging.info(f"Sherpas removed for {guild.id}: {sherpas_removed}")
+        logging.info(f"Sherpas removed for {guild.guild_id}: {sherpas_removed}")
         members = base_member_query.where(Member.discord_id << sherpas_removed)
         query = ClanMember.update(is_sherpa=False).from_(members).where(ClanMember.id << members)
         await bot.database.execute(query)

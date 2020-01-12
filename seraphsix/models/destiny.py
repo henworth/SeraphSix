@@ -153,6 +153,7 @@ class Game(object):
 class ClanGame(Game):
     def __init__(self, details, member_dbs):
         super().__init__(details)
+        self.set_players(details)
 
         members = {}
         for member_db in member_dbs:
