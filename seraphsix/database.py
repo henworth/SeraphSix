@@ -246,6 +246,7 @@ class Database(object):
     async def get_member_by_naive_username(self, username):
         username = username.lower()
         query = Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).where(
+            (fn.LOWER(Member.bungie_username) == username) |
             (fn.LOWER(Member.xbox_username) == username) |
             (fn.LOWER(Member.psn_username) == username) |
             (fn.LOWER(Member.blizzard_username) == username) |

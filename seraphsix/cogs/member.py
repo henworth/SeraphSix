@@ -14,6 +14,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
 from seraphsix.cogs.utils.helpers import get_timezone_name
 from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.models.destiny import User as BungieUser
 from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, execute_pydest
 
 from seraphsix.database import Member, ClanMember, Clan, Guild
@@ -35,42 +36,43 @@ class MemberCog(commands.Cog, name='Member'):
     @member.command(help="Get member information")
     @clan_is_linked()
     @commands.guild_only()
-    async def info(self, ctx, *args):  #noqa TODO
+    async def info(self, ctx, *args):  # noqa TODO
         """Show member information"""
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
         member_name = ' '.join(args)
 
-        if not member_name:
-            member_name = ctx.message.author
-
-        requestor_db = await self.bot.database.get(
+        requestor_query = self.bot.database.get(
             Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
                 Guild.guild_id == ctx.guild.id,
                 Member.discord_id == ctx.author.id
             )
         )
 
-        discord_username = None
-        member_discord = None
         try:
-            member_discord = await commands.MemberConverter().convert(ctx, str(member_name))
-        except Exception:
-            member_query = self.bot.database.get_member_by_naive_username(member_name)
-        else:
-            discord_username = f"{member_discord.name}#{member_discord.discriminator}"
-            member_query = self.bot.database.get(
-                Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
-                    Guild.guild_id == ctx.guild.id,
-                    Member.discord_id == member_discord.id
-                )
-            )
-
-        try:
-            member_db = await asyncio.create_task(member_query)
+            requestor_db = await asyncio.create_task(requestor_query)
         except DoesNotExist:
-            await manager.send_message(f"Could not find username `{member_name}` in any connected clans")
-            return
+            requestor_db = None
+
+        if not member_name:
+            member_db = requestor_db
+            member_name = ctx.author.nick
+            member_discord = ctx.message.author
+            discord_username = str(ctx.message.author)
+        else:
+            try:
+                member_discord = await commands.MemberConverter().convert(ctx, str(member_name))
+            except BadArgument:
+                discord_username = None
+            else:
+                discord_username = str(member_discord)
+
+            member_query = self.bot.database.get_member_by_naive_username(member_name)
+            try:
+                member_db = await asyncio.create_task(member_query)
+            except DoesNotExist:
+                await manager.send_message(f"Could not find username `{member_name}` in any connected clans")
+                return
 
         the100_link = None
         if member_db.the100_username:
@@ -87,10 +89,10 @@ class MemberCog(commands.Cog, name='Member'):
             except pydest.PydestException:
                 bungie_link = member_db.bungie_username
             else:
-                membership_info = bungie_info['Response']['bungieNetUser']
-                bungie_member_id = membership_info['membershipId']
+                bungie_member_data = BungieUser(bungie_info['Response'])
+                bungie_member_id = bungie_member_data.memberships.bungie.id
                 bungie_member_type = constants.PLATFORM_BUNGIE
-                bungie_member_name = membership_info['displayName']
+                bungie_member_name = bungie_member_data.memberships.bungie.username
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 bungie_link = f"[{bungie_member_name}]({bungie_url})"
 
@@ -99,14 +101,9 @@ class MemberCog(commands.Cog, name='Member'):
             tz = datetime.now(pytz.timezone(member_db.timezone))
             timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
 
-        if member_discord:
-            display_name = member_discord.name
-        else:
-            display_name = member_name
-
-        if member_db.discord_id and not discord_username:
+        if member_db.discord_id:
             member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
-            discord_username = f"{member_discord.name}#{member_discord.discriminator}"
+            discord_username = str(member_discord)
 
         requestor_is_admin = False
         if requestor_db and requestor_db.clanmember.member_type >= constants.CLAN_MEMBER_ADMIN:
@@ -118,7 +115,7 @@ class MemberCog(commands.Cog, name='Member'):
 
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Member Info for {display_name}"
+            title=f"Member Info for {member_name}"
         )
         embed.add_field(
             name="Clan",
