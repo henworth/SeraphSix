@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from peewee import (
     Model, CharField, BigIntegerField, IntegerField, FloatField,
     ForeignKeyField, Proxy, BooleanField, Check, SQL, fn, Case,
-    InterfaceError, OperationalError)
+    InterfaceError, OperationalError, JOIN)
 from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
@@ -228,7 +228,7 @@ class Database(object):
 
     async def get_member_by_platform(self, member_id, platform_id):
         # pylint: disable=assignment-from-no-return
-        query = Member.select(Member, ClanMember).join(ClanMember)
+        query = Member.select(Member, ClanMember).join(ClanMember, JOIN.LEFT_OUTER)
         if platform_id == constants.PLATFORM_BUNGIE:
             query = query.where(Member.bungie_id == member_id)
         elif platform_id == constants.PLATFORM_PSN:
