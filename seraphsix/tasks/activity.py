@@ -272,7 +272,15 @@ async def store_member_history(member_dbs, bot, member_db, count):
             logging.debug(f"Continuing because not enough clan players in game {game.instance_id}")
             continue
 
-        game_db = await bot.database.create(Game, **vars(clan_game))
+        try:
+            game_db = await bot.database.create(Game, **vars(clan_game))
+        except IntegrityError:
+            # Mitigate possible race condition when multiple parallel jobs try to
+            # do the same thing. Likely when there are multiple people in the same
+            # game instance.
+            # TODO: Figure out a better way to "lock" things
+            continue
+
         game_title = game_mode_details['title'].title()
         logging.info(f"{game_title} game id {game.instance_id} created")
         mode_count += 1
