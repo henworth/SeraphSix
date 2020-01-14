@@ -14,7 +14,7 @@ from playhouse.postgres_ext import DateTimeTZField
 from seraphsix import constants
 from urllib.parse import urlparse
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 database_proxy = Proxy()
 

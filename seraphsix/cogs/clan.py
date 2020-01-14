@@ -20,7 +20,7 @@ from seraphsix.models.destiny import Member as DestinyMember
 from seraphsix.tasks.activity import get_game_counts, execute_pydest
 from seraphsix.tasks.clan import info_sync, member_sync
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class ClanCog(commands.Cog, name='Clan'):
@@ -250,7 +250,7 @@ class ClanCog(commands.Cog, name='Clan'):
             )
 
             if 'error' in tokens:
-                logging.warning(f"{tokens['error_description']} Registration is needed.")
+                log.warning(f"{tokens['error_description']} Registration is needed.")
                 user_info = await register(
                     ctx, manager, "Your registration token has expired and re-registration is needed.")
                 if not user_info:
@@ -374,7 +374,7 @@ class ClanCog(commands.Cog, name='Clan'):
 
         if res['ErrorStatus'] != 'Success':
             message = f"Could not approve **{gamertag}**"
-            logging.error(f"Could not approve \"{gamertag}\": {res}")
+            log.info(f"Could not approve \"{gamertag}\": {res}")
         else:
             message = f"Approved **{gamertag}** as a member of clan **{clan_db.name}**"
 
@@ -613,7 +613,7 @@ class ClanCog(commands.Cog, name='Clan'):
     async def games(self, ctx, game_mode: str):
         """Show totals of all eligible clan games for all members"""
         await ctx.trigger_typing()
-        logging.info(f"Finding all {game_mode} games for all members")
+        log.info(f"Finding all {game_mode} games for all members")
 
         game_counts = await get_game_counts(self.bot.database, game_mode)
 

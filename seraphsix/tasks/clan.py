@@ -7,7 +7,7 @@ from seraphsix.database import Member as MemberDb, ClanMember, Clan
 from seraphsix.models.destiny import Member
 from seraphsix.tasks.activity import execute_pydest
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 async def sort_members(database, member_list):
@@ -131,7 +131,7 @@ async def member_sync(database, destiny, redis, guild_id):  # noqa
         try:
             member_db = await database.get_member_by_platform(member_id, platform_id)
         except DoesNotExist:
-            logging.info(member_id)
+            log.info(member_id)
             continue
         clanmember_db = await database.get(ClanMember, member_id=member_db.id)
         await database.delete(clanmember_db)
@@ -140,10 +140,10 @@ async def member_sync(database, destiny, redis, guild_id):  # noqa
     for clan, changes in member_changes.items():
         if len(changes['added']):
             changes['added'] = await sort_members(database, changes['added'])
-            logging.info(f"Added members {changes['added']}")
+            log.info(f"Added members {changes['added']}")
         if len(changes['removed']):
             changes['removed'] = await sort_members(database, changes['removed'])
-            logging.info(f"Removed members {changes['removed']}")
+            log.info(f"Removed members {changes['removed']}")
 
     return member_changes
 

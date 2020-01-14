@@ -13,7 +13,7 @@ from seraphsix.cogs.utils.paginator import EmbedPages
 from seraphsix.database import Clan, ClanMember, Guild, Member
 from seraphsix.tasks.the100 import collate_the100_activities
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class GameCog(commands.Cog, name='Game'):
@@ -46,7 +46,7 @@ class GameCog(commands.Cog, name='Game'):
         games = []
         for result in results:
             if isinstance(result, dict) and result.get('error'):
-                logging.error(result)
+                log.error(result)
                 continue
             games.extend(result)
 

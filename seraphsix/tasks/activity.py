@@ -11,7 +11,7 @@ from seraphsix.errors import MaintenanceError
 from seraphsix.models.destiny import Game as GameApi, ClanGame
 from ratelimit import limits, RateLimitException
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def parse_platform(member_db, platform_id):
@@ -38,7 +38,7 @@ def parse_platform(member_db, platform_id):
 
 def backoff_hdlr(details):
     if details["wait"] > 30 or details["tries"] > 10:
-        logging.info(
+        log.info(
             f"Backing off {details['wait']:0.1f} seconds after {details['tries']} tries "
             f"for {details['args'][3]}-{details['args'][2]}"
         )
@@ -61,10 +61,10 @@ async def execute_pydest(function, redis, member_id=None, caller=None):
         return await asyncio.create_task(function)
     except pydest.pydest.PydestMaintenanceException as e:
         await redis.set('global-bungie-maintenance', str(True), expire=constants.TIME_MIN_SECONDS)
-        logging.error(e)
+        log.error(e)
         raise MaintenanceError
     except RuntimeError as e:
-        logging.error(f"{member_id} {caller} {e}")
+        log.error(f"{member_id} {caller} {e}")
         return None
 
 
@@ -118,14 +118,14 @@ async def get_last_active(destiny, redis, member_db):
         characters = await get_characters(destiny, redis, member_id, platform_id, "get_last_active")
         characters = characters.items()
     except AttributeError:
-        logging.error(f"Could not get character data for {platform_id}-{member_id}")
+        log.error(f"Could not get character data for {platform_id}-{member_id}")
         return acct_last_active
 
     for _, character in characters:
         char_last_active = bungie_date_as_utc(character['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
             acct_last_active = char_last_active
-            logging.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
+            log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
     return acct_last_active
 
 
@@ -214,7 +214,7 @@ async def store_game_member(bot, player, game_db, member_db):
             game_member_db.completed = player.completed
         await bot.database.update(game_member_db)
 
-    logging.debug(f"Player {player.membership_id} created in game id {game_db.instance_id}")
+    log.debug(f"Player {player.membership_id} created in game id {game_db.instance_id}")
 
 
 async def store_member_history(member_dbs, bot, member_db, count):
@@ -227,7 +227,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
             bot.destiny, bot.redis, member_id, platform_id, "store_member_history")
         char_ids = characters.keys()
     except (KeyError, TypeError):
-        logging.error(f"Could not get character data for {member_db.clanmember.platform_id}-{member_id}")
+        log.error(f"Could not get character data for {member_db.clanmember.platform_id}-{member_id}")
         return
 
     all_activities = await get_activity_list(
@@ -243,7 +243,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
         except DoesNotExist:
             pass
         else:
-            logging.debug(f"Continuing because game {game.instance_id} exists")
+            log.debug(f"Continuing because game {game.instance_id} exists")
             continue
 
         # Check if the game occurred before Forsaken released (ie. Season 4), or
@@ -255,13 +255,13 @@ async def store_member_history(member_dbs, bot, member_db, count):
                 game.date < bot.config.activity_cutoff or
                 game.date < member_db.clanmember.join_date or
                 game.mode_id not in supported_modes):
-            logging.debug(f"Continuing because game {game.instance_id} isn't eligible")
+            log.debug(f"Continuing because game {game.instance_id} isn't eligible")
             continue
 
         pgcr = await get_pgcr(bot.destiny, bot.redis, game.instance_id)
         if not pgcr:
-            logging.error(f"{member_username}: {pgcr}")
-            logging.debug(f"Continuing because error with game {game.instance_id}")
+            log.error(f"{member_username}: {pgcr}")
+            log.debug(f"Continuing because error with game {game.instance_id}")
             continue
 
         clan_game = ClanGame(pgcr, member_dbs)
@@ -269,7 +269,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
         # Check if player count is below the threshold
         game_mode_details = constants.MODE_MAP[game.mode_id]
         if len(clan_game.clan_players) < game_mode_details['threshold']:
-            logging.debug(f"Continuing because not enough clan players in game {game.instance_id}")
+            log.debug(f"Continuing because not enough clan players in game {game.instance_id}")
             continue
 
         try:
@@ -282,7 +282,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
             continue
 
         game_title = game_mode_details['title'].title()
-        logging.info(f"{game_title} game id {game.instance_id} created")
+        log.info(f"{game_title} game id {game.instance_id} created")
         mode_count += 1
 
         try:
@@ -296,7 +296,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
             await asyncio.gather(*tasks)
 
     if mode_count:
-        logging.debug(f"Found {mode_count} games for {member_username}")
+        log.debug(f"Found {mode_count} games for {member_username}")
         return mode_count
 
 
@@ -308,13 +308,13 @@ async def store_all_games(bot, guild_id, count=30):
     except DoesNotExist:
         return
 
-    logging.info(f"Finding all games for members of server {guild_id} active in the last hour")
+    log.info(f"Finding all games for members of server {guild_id} active in the last hour")
 
     tasks = []
     member_dbs = []
     for clan_db in clan_dbs:
         if not clan_db.activity_tracking:
-            logging.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
+            log.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
             continue
 
         active_members = await bot.database.get_clan_members_active(clan_db.id, days=7)
@@ -330,7 +330,7 @@ async def store_all_games(bot, guild_id, count=30):
 
     results = await asyncio.gather(*tasks)
 
-    logging.info(
+    log.info(
         f"Found {sum(filter(None, results))} games for members "
         f"of server {guild_id} active in the last hour"
     )
