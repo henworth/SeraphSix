@@ -26,5 +26,6 @@ def main():
     bot = SeraphSix(config)
     bot.run(config.discord_api_key)
 
+
 if __name__ == '__main__':
     main()
