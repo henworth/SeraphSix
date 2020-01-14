@@ -9,7 +9,7 @@ from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import TwitterChannel, Clan, Guild, Role
 from seraphsix.tasks.activity import execute_pydest
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class ServerCog(commands.Cog, name='Server'):

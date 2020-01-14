@@ -10,8 +10,12 @@ from flask import Flask, redirect, render_template, request, session, url_for
 from requests_oauth2 import OAuth2, OAuth2BearerToken
 from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
-logging.getLogger(__name__)
+log = logging.getLogger()
+log.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter(fmt=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
+handler.setFormatter(formatter)
+log.addHandler(handler)
 
 app = Flask(__name__)
 app.secret_key = secrets.os.urandom(20)
@@ -53,7 +57,7 @@ def index():
     try:
         red.publish(session.get('state'), pickled_info)
     except Exception:
-        logging.exception(f"Failed to publish state info to redis: {user_info} {session}")
+        log.exception(f"Failed to publish state info to redis: {user_info} {session}")
         return render_template('message.html', message='Something went wrong.')
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
@@ -86,7 +90,7 @@ def oauth_callback():
     state = request.args.get('state')
 
     if error:
-        logging.error(repr(error))
+        log.error(repr(error))
         return render_template('message.html', message='Something went wrong.')
 
     if not code:
@@ -109,7 +113,7 @@ def oauth_callback():
 
 @app.route('/the100webhook/slack', methods=['POST'])
 def the100_webhook():
-    logging.info(request.get_json(force=True))
+    log.info(request.get_json(force=True))
     return render_template('message.html', message='Success!')
 
 

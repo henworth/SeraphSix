@@ -19,7 +19,7 @@ from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, ex
 
 from seraphsix.database import Member, ClanMember, Clan, Guild
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class MemberCog(commands.Cog, name='Member'):
@@ -208,7 +208,7 @@ class MemberCog(commands.Cog, name='Member'):
             message = (
                 f"Could not link gamertag/username \"{gamertag}\" to "
                 f"Discord user \"{member_discord.display_name}\" (id:{member_discord.id}")
-            logging.exception(message)
+            log.exception(message)
             await manager.send_message(message)
             return await manager.clean_messages()
         await manager.send_message((
@@ -247,7 +247,7 @@ Example: ?member games raid
                 await ctx.send(
                     f"User `{ctx.author.display_name}` has not registered or is not a clan member")
                 return
-            logging.info(
+            log.info(
                 f"Getting {game_mode} games for \"{ctx.author.display_name}\"")
         else:
             try:
@@ -255,7 +255,7 @@ Example: ?member games raid
             except DoesNotExist:
                 await ctx.send(f"Invalid member name `{member_name}`")
                 return
-            logging.info(
+            log.info(
                 f"Getting {game_mode} games by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
 
         game_counts = await get_game_counts(self.bot.database, game_mode, member_db=member_db)
@@ -299,7 +299,7 @@ Example: ?member sherpatime
                 await ctx.send(
                     f"User `{ctx.author.display_name}` has not registered or is not a clan member")
                 return
-            logging.info(
+            log.info(
                 f"Getting sherpa time played for \"{ctx.author.display_name}\"")
         else:
             try:
@@ -307,7 +307,7 @@ Example: ?member sherpatime
             except DoesNotExist:
                 await ctx.send(f"Invalid member name `{member_name}`")
                 return
-            logging.info(
+            log.info(
                 f"Getting sherpa time played by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
 
         time_played, sherpa_ids = await get_sherpa_time_played(self.bot.database, member_db)

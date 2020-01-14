@@ -23,7 +23,7 @@ from seraphsix.errors import (
 from seraphsix.tasks.activity import store_all_games, store_last_active
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
 
-logging.getLogger(__name__)
+log = log = logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
     'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
@@ -78,7 +78,7 @@ class SeraphSix(commands.Bot):
                 self.load_extension(extension)
             except Exception as e:
                 exc = traceback.format_exception(type(e), e, e.__traceback__)
-                logging.error(f"Failed to load extension {extension}: {exc}")
+                log.error(f"Failed to load extension {extension}: {exc}")
 
         self.bungie_maintenance = False
 
@@ -96,7 +96,7 @@ class SeraphSix(commands.Bot):
             return
         for guild in guilds:
             guild_id = guild.guild_id
-            logging.info(f"Finding last active dates for all members of {guild_id}")
+            log.info(f"Finding last active dates for all members of {guild_id}")
 
             if not hasattr(self, "redis"):
                 await self.connect_redis()
@@ -107,7 +107,7 @@ class SeraphSix(commands.Bot):
                     for member in await self.database.get_clan_members_by_guild_id(guild_id)
                 ])
             except AttributeError:
-                logging.exception("Redis connection not found")
+                log.exception("Redis connection not found")
                 await self.log_channel.send("Redis connection not found")
                 break
 
@@ -115,14 +115,14 @@ class SeraphSix(commands.Bot):
             await asyncio.gather(*tasks)
         except MaintenanceError as e:
             if not self.bungie_maintenance:
-                logging.info(f"Bungie maintenance is ongoing: {e}")
+                log.info(f"Bungie maintenance is ongoing: {e}")
                 self.bungie_maintenance = True
         else:
             if self.bungie_maintenance:
                 self.bungie_maintenance = False
-                logging.info("Bungie maintenance has ended")
+                log.info("Bungie maintenance has ended")
 
-        logging.info(f"Found last active dates in all guilds")
+        log.info(f"Found last active dates in all guilds")
 
     @update_last_active.before_loop
     async def before_update_last_active(self):
@@ -141,12 +141,12 @@ class SeraphSix(commands.Bot):
             await asyncio.gather(*tasks)
         except MaintenanceError as e:
             if not self.bungie_maintenance:
-                logging.info(f"Bungie maintenance is ongoing: {e}")
+                log.info(f"Bungie maintenance is ongoing: {e}")
                 self.bungie_maintenance = True
         else:
             if self.bungie_maintenance:
                 self.bungie_maintenance = False
-                logging.info("Bungie maintenance has ended")
+                log.info("Bungie maintenance has ended")
 
     @update_member_games.before_loop
     async def before_update_member_games(self):
@@ -170,7 +170,7 @@ class SeraphSix(commands.Bot):
         channels = await self.database.execute(query)
 
         if not channels:
-            logging.info(
+            log.info(
                 f"Could not find any Discord channels for {tweet.user.screen_name} ({tweet.user.id})")
             return
 
@@ -178,7 +178,7 @@ class SeraphSix(commands.Bot):
         log_message = f"Sending tweet {tweet.id} by {tweet.user.screen_name} to "
 
         for channel in channels:
-            logging.info(log_message + str(channel.channel_id))
+            log.info(log_message + str(channel.channel_id))
             channel = self.get_channel(channel.channel_id)
             await channel.send(twitter_url)
 
@@ -205,11 +205,11 @@ class SeraphSix(commands.Bot):
             f"Logged in as {self.user.name} ({self.user.id}) "
             f"{discord.utils.oauth_url(self.user.id)}"
         )
-        logging.info(start_message)
+        log.info(start_message)
         await self.log_channel.send("Seraph Six has started...")
 
         if self.twitter:
-            logging.info("Starting Twitter stream tracking")
+            log.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
 
     async def on_member_update(self, before, after):
@@ -240,7 +240,7 @@ class SeraphSix(commands.Bot):
             text = f"Required argument `{error.param}` is missing."
         else:
             error_trace = traceback.format_exception(type(error), error, error.__traceback__)
-            logging.error(f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
+            log.error(f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
             if ctx.guild:
                 location = f"guild `{ctx.guild.id}`"
             else:

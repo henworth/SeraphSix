@@ -11,7 +11,7 @@ from seraphsix.database import Member, Role, Guild
 from seraphsix.models.destiny import User
 from seraphsix.tasks.activity import execute_pydest
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 async def register(ctx, manager, extra_message="", confirm_message=""):
@@ -99,7 +99,7 @@ class RegisterCog(commands.Cog, name='Register'):
                 self.bot.redis
             )
         except Exception as e:
-            logging.exception(e)
+            log.exception(e)
             await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")
             return await manager.clean_messages()
 

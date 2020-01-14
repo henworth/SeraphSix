@@ -4,7 +4,7 @@ import logging
 from peewee import DoesNotExist
 from seraphsix.database import Clan, ClanMember, Guild, Member, Role
 
-logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 async def find_sherpas(bot, guild):
@@ -37,13 +37,13 @@ async def store_sherpas(bot, guild):
 
     base_member_query = ClanMember.select(ClanMember.id).join(Member)
     if sherpas_added:
-        logging.info(f"Sherpas added for {guild.guild_id}: {sherpas_added}")
+        log.info(f"Sherpas added for {guild.guild_id}: {sherpas_added}")
         members = base_member_query.where(Member.discord_id << sherpas_added)
         query = ClanMember.update(is_sherpa=True).from_(members).where(ClanMember.id << members)
         await bot.database.execute(query)
 
     if sherpas_removed:
-        logging.info(f"Sherpas removed for {guild.guild_id}: {sherpas_removed}")
+        log.info(f"Sherpas removed for {guild.guild_id}: {sherpas_removed}")
         members = base_member_query.where(Member.discord_id << sherpas_removed)
         query = ClanMember.update(is_sherpa=False).from_(members).where(ClanMember.id << members)
         await bot.database.execute(query)
