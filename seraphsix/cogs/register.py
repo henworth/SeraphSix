@@ -41,8 +41,9 @@ async def register(ctx, manager, extra_message="", confirm_message=""):
 
     tsk = asyncio.create_task(wait_for_msg(res[0]))
     try:
-        user_info = await asyncio.wait_for(tsk, timeout=30)
+        user_info = await asyncio.wait_for(tsk, timeout=constants.TIME_MIN_SECONDS)
     except asyncio.TimeoutError:
+        log.debug(f"Timed out waiting for {str(ctx.author)} ({ctx.author.id}) to register")
         await manager.send_private_message("I'm not sure where you went. We can try this again later.")
         await registration_msg.delete()
         await manager.clean_messages()
