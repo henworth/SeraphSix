@@ -11,7 +11,7 @@ from requests_oauth2 import OAuth2, OAuth2BearerToken
 from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 
 log = logging.getLogger()
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(fmt=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
 handler.setFormatter(formatter)
@@ -39,6 +39,7 @@ red = redis.from_url(os.environ.get('REDIS_URL'))
 @app.route('/')
 def index():
     if not session.get('access_token'):
+        log.debug(f"No access_token found in session, redirecting to /oauth")
         return redirect(
             url_for(
                 'oauth_index',
@@ -57,7 +58,7 @@ def index():
     try:
         red.publish(session.get('state'), pickled_info)
     except Exception:
-        log.exception(f"Failed to publish state info to redis: {user_info} {session}")
+        log.exception(f"/: Failed to publish state info to redis: {user_info} {session}")
         return render_template('message.html', message='Something went wrong.')
     return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
@@ -65,6 +66,7 @@ def index():
 @app.route('/oauth')
 def oauth_index():
     if not session.get('access_token'):
+        log.debug(f"No access_token found in session, redirecting to /oauth/callback")
         return redirect(
             url_for(
                 'oauth_callback',
@@ -80,6 +82,7 @@ def oauth_index():
 
     r.raise_for_status()
     session['state'] = request.args.get('state')
+    log.debug(f"/oauth: {session} {request.args}")
     return redirect('/')
 
 
@@ -94,6 +97,7 @@ def oauth_callback():
         return render_template('message.html', message='Something went wrong.')
 
     if not code:
+        log.debug(f"No code found, redirecting to bungie")
         return redirect(bungie_auth.authorize_url(
             response_type='code',
             state=state
@@ -108,6 +112,7 @@ def oauth_callback():
     session['refresh_token'] = data.get('refresh_token')
     session['membership_id'] = data.get('membership_id')
     session['state'] = request.args.get('state')
+    log.debug(f"/oauth/callback: {session} {request.args}")
     return redirect('/')
 
 
