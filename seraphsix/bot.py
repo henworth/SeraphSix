@@ -23,7 +23,7 @@ from seraphsix.errors import (
 from seraphsix.tasks.activity import store_all_games, store_last_active
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
 
-log = log = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
     'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
@@ -85,8 +85,6 @@ class SeraphSix(commands.Bot):
         if config.enable_activity_tracking:
             self.update_last_active.start()
             self.update_member_games.start()
-
-        self.update_sherpa_roles.start()
 
     @tasks.loop(minutes=5.0)
     async def update_last_active(self):
@@ -152,17 +150,12 @@ class SeraphSix(commands.Bot):
     async def before_update_member_games(self):
         await self.wait_until_ready()
 
-    @tasks.loop(hours=1.0)
     async def update_sherpa_roles(self):
         guilds = await self.database.execute(Guild.select())
         if not guilds:
             return
         tasks = [store_sherpas(self, guild) for guild in guilds]
         await asyncio.gather(*tasks)
-
-    @update_sherpa_roles.before_loop
-    async def before_update_sherpa_roles(self):
-        await self.wait_until_ready()
 
     async def process_tweet(self, tweet):
         # pylint: disable=assignment-from-no-return
@@ -211,6 +204,8 @@ class SeraphSix(commands.Bot):
         if self.twitter:
             log.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
+
+        self.update_sherpa_roles()
 
     async def on_member_update(self, before, after):
         if not before.bot:

@@ -8,6 +8,7 @@ from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import TwitterChannel, Clan, Guild, Role
 from seraphsix.tasks.activity import execute_pydest
+from seraphsix.tasks.discord import store_sherpas
 
 log = logging.getLogger(__name__)
 
@@ -214,6 +215,26 @@ class ServerCog(commands.Cog, name='Server'):
         )
 
         await manager.send_embed(base_embed, clean=True)
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def syncsherpas(self, ctx):
+        """Map server roles to game platforms (Manage Server only)"""
+        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        added, removed = await store_sherpas(self.bot, guild_db)
+        embed = discord.Embed(
+            color=constants.BLUE,
+            title=f"Sherpas synced for {ctx.guild.name}"
+        )
+        embed.add_field(name="Added", value=added)
+        embed.add_field(name="Removed", value=removed)
+
+        await manager.send_embed(embed, clean=True)
 
     @server.command()
     @clan_is_linked()

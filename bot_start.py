@@ -20,7 +20,7 @@ def main():
     logging.getLogger('aioredis').setLevel(logging.DEBUG)
     logging.getLogger('backoff').setLevel(logging.DEBUG)
     logging.getLogger('bot').setLevel(logging.DEBUG)
-    logging.getLogger('seraphsix').setLevel(logging.DEBUG)
+    logging.getLogger('seraphsix.tasks.discord').setLevel(logging.DEBUG)
 
     config = Config()
     bot = SeraphSix(config)
