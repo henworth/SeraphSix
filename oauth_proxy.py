@@ -110,7 +110,7 @@ def oauth_callback():
     session['refresh_token'] = data.get('refresh_token')
     session['membership_id'] = data.get('membership_id')
     log.debug(f"/oauth/callback: {session} {request.args}")
-    return redirect(url_for('/', state=state))
+    return redirect(url_for('index', state=state))
 
 
 @app.route('/the100webhook/slack', methods=['POST'])
