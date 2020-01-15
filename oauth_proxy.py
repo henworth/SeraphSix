@@ -38,14 +38,13 @@ red = redis.from_url(os.environ.get('REDIS_URL'))
 
 @app.route('/')
 def index():
+    code = request.args.get('code')
+    state = request.args.get('state')
+
     if not session.get('access_token'):
-        log.debug(f"No access_token found in session, redirecting to /oauth")
+        log.debug(f"No access_token found in session, redirecting to /oauth, {state}, {code}")
         return redirect(
-            url_for(
-                'oauth_index',
-                state=request.args.get('state'),
-                code=request.args.get('code')
-            )
+            url_for('oauth_index', state=state, code=code)
         )
 
     user_info = dict(
@@ -56,7 +55,7 @@ def index():
 
     pickled_info = pickle.dumps(user_info)
     try:
-        red.publish(session.get('state'), pickled_info)
+        red.publish(state, pickled_info)
     except Exception:
         log.exception(f"/: Failed to publish state info to redis: {user_info} {session}")
         return render_template('message.html', message='Something went wrong.')
@@ -65,14 +64,13 @@ def index():
 
 @app.route('/oauth')
 def oauth_index():
+    code = request.args.get('code')
+    state = request.args.get('state')
+
     if not session.get('access_token'):
-        log.debug(f"No access_token found in session, redirecting to /oauth/callback")
+        log.debug(f"No access_token found in session, redirecting to /oauth/callback, {state}, {code}")
         return redirect(
-            url_for(
-                'oauth_callback',
-                state=request.args.get('state'),
-                code=request.args.get('code')
-            )
+            url_for('oauth_callback', state=state, code=code)
         )
 
     with requests.Session() as s:
@@ -81,7 +79,7 @@ def oauth_index():
         r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
     r.raise_for_status()
-    session['state'] = request.args.get('state')
+    session['state'] = state
     log.debug(f"/oauth: {session} {request.args}")
     return redirect('/')
 
@@ -97,7 +95,7 @@ def oauth_callback():
         return render_template('message.html', message='Something went wrong.')
 
     if not code:
-        log.debug(f"No code found, redirecting to bungie")
+        log.debug(f"No code found, redirecting to bungie, {state}, {code}")
         return redirect(bungie_auth.authorize_url(
             response_type='code',
             state=state
@@ -111,9 +109,8 @@ def oauth_callback():
     session['access_token'] = data.get('access_token')
     session['refresh_token'] = data.get('refresh_token')
     session['membership_id'] = data.get('membership_id')
-    session['state'] = request.args.get('state')
     log.debug(f"/oauth/callback: {session} {request.args}")
-    return redirect('/')
+    return redirect(url_for('/', state=state))
 
 
 @app.route('/the100webhook/slack', methods=['POST'])
