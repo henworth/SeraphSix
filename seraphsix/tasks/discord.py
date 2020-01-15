@@ -32,31 +32,50 @@ async def store_sherpas(bot, guild):
     discord_set = set(sherpas_discord_ids)
     db_set = set(sherpas_db_ids)
 
+    log.debug(f"discord_set {discord_set}")
+    log.debug(f"db_set {db_set}")
+
     sherpas_added = list(discord_set - db_set)
     sherpas_removed = list(db_set - discord_set)
 
+    log.debug(f"sherpas_added {sherpas_added}")
+    log.debug(f"sherpas_removed {sherpas_removed}")
+
+    db_added = db_removed = 0
     base_member_query = ClanMember.select(ClanMember.id).join(Member)
     if sherpas_added:
         log.info(f"Sherpas added for {guild.guild_id}: {sherpas_added}")
         members = base_member_query.where(Member.discord_id << sherpas_added)
         query = ClanMember.update(is_sherpa=True).from_(members).where(ClanMember.id << members)
-        await bot.database.execute(query)
+        db_added = await bot.database.execute(query)
 
     if sherpas_removed:
         log.info(f"Sherpas removed for {guild.guild_id}: {sherpas_removed}")
         members = base_member_query.where(Member.discord_id << sherpas_removed)
         query = ClanMember.update(is_sherpa=False).from_(members).where(ClanMember.id << members)
-        await bot.database.execute(query)
+        db_removed = await bot.database.execute(query)
+
+    return (db_added, db_removed)
 
 
 async def update_sherpa(bot, before, after):
-    role_ids = set([role.id for role in after.roles])
+    before_role_ids = set([role.id for role in before.roles])
+    after_role_ids = set([role.id for role in after.roles])
+
+    if before_role_ids != after_role_ids:
+        log.info(
+            f"Checking for sherpa role updates on user {str(after)} ({after.id}) "
+            f"in {str(after.guild)} ({after.guild.id})"
+        )
+    else:
+        return
 
     roles_query = Role.select(Role).join(Guild).where(
         (Guild.guild_id == after.guild.id) & (Role.is_sherpa)
     )
     roles_db = await bot.database.execute(roles_query)
     role_db_ids = set([role.role_id for role in roles_db])
+    log.debug(f"before_role_ids: {before_role_ids}, after_role_ids: {after_role_ids}, role_db_ids: {role_db_ids}")
 
     try:
         member_query = ClanMember.select(ClanMember).join(Member).where(Member.discord_id == after.id)
@@ -64,8 +83,13 @@ async def update_sherpa(bot, before, after):
     except DoesNotExist:
         return
 
-    if role_ids.intersection(role_db_ids):
+    if not after_role_ids:
+        log.debug(f"if after_role_ids: {after_role_ids}")
+        member_db.is_sherpa = False
+    elif after_role_ids.intersection(role_db_ids):
+        log.debug(f"if after_role_ids.intersection(role_db_ids): {after_role_ids.intersection(role_db_ids)}")
         member_db.is_sherpa = True
     else:
+        log.debug(f"else:")
         member_db.is_sherpa = False
     await bot.database.update(member_db)
