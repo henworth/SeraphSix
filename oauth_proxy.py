@@ -113,9 +113,10 @@ def oauth_callback():
     return redirect(url_for('index', state=state))
 
 
-@app.route('/the100webhook/slack', methods=['POST'])
-def the100_webhook():
-    log.info(request.get_json(force=True))
+@app.route('/the100webhook/<int:guild_id>/slack', methods=['POST'])
+def the100_webhook(guild_id):
+    data = request.get_json(force=True)
+    log.info(f"{guild_id} {data}")
     return render_template('message.html', message='Success!')
 
 
