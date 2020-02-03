@@ -334,7 +334,7 @@ class ServerCog(commands.Cog, name='Server'):
             constants.EMOJI_CROSSMARK: ''
         }
         clear = await manager.send_message_react(
-            message_text="Clear platform roles?",
+            "Clear platform roles?",
             reactions=clear_reactions.keys(),
             clean=False,
             with_cancel=True

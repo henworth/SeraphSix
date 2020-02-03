@@ -176,9 +176,9 @@ class GameCog(commands.Cog, name='Game'):
             )
 
             react = await manager.send_message_react(
-                message_text="Which activity?",
-                embed=embed,
+                "Which activity?",
                 reactions=reacts.keys(),
+                embed=embed,
                 clean=False,
                 with_cancel=True
             )
@@ -227,7 +227,7 @@ class GameCog(commands.Cog, name='Game'):
         }
 
         platform = await manager.send_message_react(
-            message_text="Which platform?",
+            "Which platform?",
             reactions=platforms.keys(),
             clean=False,
             with_cancel=True
@@ -246,7 +246,7 @@ class GameCog(commands.Cog, name='Game'):
         }
 
         group = await manager.send_message_react(
-            message_text="Group only?",
+            "Group only?",
             reactions=group_only.keys(),
             clean=False,
             with_cancel=True
@@ -269,7 +269,7 @@ class GameCog(commands.Cog, name='Game'):
         }
 
         confirm_res = await manager.send_message_react(
-            message_text="Create game?",
+            "Create game?",
             reactions=confirm.keys(),
             clean=False
         )
