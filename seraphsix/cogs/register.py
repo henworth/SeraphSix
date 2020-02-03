@@ -165,14 +165,6 @@ class RegisterCog(commands.Cog, name='Register'):
             guild_roles_db = await self.bot.database.execute(guild_query)
             member_platforms = [platform_id for member_id, platform_id in member_ids if member_id]
 
-            key_list = list(constants.PLATFORM_MAP.keys())
-            val_list = list(constants.PLATFORM_MAP.values())
-
-            emojis = [
-                constants.PLATFORM_EMOJI_MAP.get(key_list[val_list.index(platform)])
-                for platform in member_platforms
-            ]
-
             guild_roles = [
                 discord.utils.get(ctx.guild.roles, id=role_db.role_id)
                 for role_db in guild_roles_db
@@ -181,17 +173,26 @@ class RegisterCog(commands.Cog, name='Register'):
 
             await ctx.author.add_roles(*guild_roles)
 
-            if emojis:
-                value = ""
-                for emoji in emojis:
-                    if emoji:
-                        value += f'{self.bot.get_emoji(emoji)} '
+            platform_names = list(constants.PLATFORM_MAP.keys())
+            platform_ids = list(constants.PLATFORM_MAP.values())
+
+            platform_emojis = [
+                constants.PLATFORM_EMOJI_MAP.get(platform_names[platform_ids.index(platform)])
+                for platform in member_platforms
+            ]
+
+            message = f"User {str(ctx.author)} ({ctx.author.id}) has registered"
+
+            if platform_emojis:
+                emojis = [str(self.bot.get_emoji(emoji)) for emoji in platform_emojis if emoji]
                 e.add_field(
                     name="Platforms Connected",
-                    value=value
+                    value=' '.join(emojis)
                 )
+                message = f"{message} with platforms {' '.join(emojis)}"
 
             await embed.edit(embed=e)
+            await self.bot.log_channel.send(message)
 
         return await manager.clean_messages()
 
