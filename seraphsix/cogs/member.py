@@ -286,19 +286,23 @@ Example: ?member sherpatime
             try:
                 member_db = await self.bot.database.get_member_by_discord_id(discord_id)
             except DoesNotExist:
-                await ctx.send(
+                return await manager.send_and_clean(
                     f"User `{ctx.author.display_name}` has not registered or is not a clan member")
-                return
             log.info(
                 f"Getting sherpa time played for \"{ctx.author.display_name}\"")
         else:
             try:
                 member_db = await self.bot.database.get_member_by_naive_username(member_name)
             except DoesNotExist:
-                await ctx.send(f"Invalid member name `{member_name}`")
-                return
+                try:
+                    member_discord = await commands.MemberConverter().convert(ctx, member_name)
+                    member_db = await self.bot.database.get_member_by_discord_id(member_discord.id)
+                except (BadArgument, DoesNotExist):                
+                    return await manager.send_and_clean(f"Invalid member name `{member_name}`")
+                else:
+                    member_name = member_discord.display_name
             log.info(
-                f"Getting sherpa time played by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
+                f"Getting sherpa time played by username \"{member_name}\" for \"{ctx.author}\"")
 
         time_played, sherpa_ids = await get_sherpa_time_played(self.bot.database, member_db)
 
