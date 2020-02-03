@@ -157,64 +157,54 @@ class MemberCog(commands.Cog, name='Member'):
         await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
-        msg = await manager.send_message(
-            "What is the gamertag/username to link to?", clean=False)
-        res = await manager.get_next_message()
-        gamertag = res.content
-        await msg.delete()
-        await res.delete()
+        username = await manager.send_and_get_response(
+            "What is the in-game username to link to? (enter `cancel` to cancel command)")
+        if username.lower() == 'cancel':
+            return await manager.send_and_clean("Canceling command")
 
-        msg = await manager.send_message("What is the discord user to link to?", clean=False)
-        res = await manager.get_next_message()
-        discord_user = res.content
-        await msg.delete()
-        await res.delete()
+        discord_user = await manager.send_and_get_response(
+            "What is the discord user to link to? (enter `cancel` to cancel command)")
+        if discord_user.lower() == 'cancel':
+            return await manager.send_and_clean("Canceling command")
+
         try:
             member_discord = await commands.MemberConverter().convert(ctx, discord_user)
         except BadArgument:
-            await manager.send_message(f"Discord user \"{discord_user}\" not found")
-            return await manager.clean_messages()
+            return await manager.send_and_clean(f"Discord user \"{discord_user}\" not found")
 
-        msg = await manager.send_message_react(
+        react = await manager.send_message_react(
             "What is the member's game platform?",
             reactions=[constants.EMOJI_STEAM, constants.EMOJI_PSN, constants.EMOJI_XBOX],
-            clean=False)
-        res = await manager.get_next_message()
-        platform = res.content
-        await msg.delete()
-        await res.delete()
-        try:
-            platform_id = constants.PLATFORM_MAP[platform]
-        except KeyError:
-            await manager.send_message(f"Invalid platform `{platform}` was specified")
-            return await manager.clean_messages()
+            clean=False,
+            with_cancel=True
+        )
+
+        if not react:
+            return await manager.send_and_clean("Canceling command")
+
+        platform_id = constants.PLATFORM_EMOJI_ID[react.id]
 
         try:
-            member_db = await self.bot.database.get_member_by_platform_username(gamertag, platform_id)
+            member_db = await self.bot.database.get_member_by_platform_username(username, platform_id)
         except DoesNotExist:
-            await manager.send_message(f"Gamertag/username \"{gamertag}\" does not match a valid member")
-            return
+            return await manager.send_and_clean(f"Username \"{username}\" does not match a valid member")
+
         if member_db.discord_id:
             member_discord = await commands.MemberConverter().convert(ctx, str(member_db.discord_id))
-            await manager.send_message((
-                f"Gamertag/username \"{gamertag}\" already linked to "
-                f"Discord user \"{member_discord.display_name}\""))
-            return await manager.clean_messages()
+            return await manager.send_and_clean(
+                f"Username \"{username}\" already linked to Discord user \"{member_discord.display_name}\"")
 
         member_db.discord_id = member_discord.id
         try:
             await self.bot.database.update(member_db)
         except Exception:
             message = (
-                f"Could not link gamertag/username \"{gamertag}\" to "
-                f"Discord user \"{member_discord.display_name}\" (id:{member_discord.id}")
+                f"Could not link username \"{username}\" to Discord user \"{member_discord.display_name}\"")
             log.exception(message)
-            await manager.send_message(message)
-            return await manager.clean_messages()
-        await manager.send_message((
-            f"Linked gamertag/username \"{gamertag}\" to "
-            f"Discord user \"{member_discord.display_name}\""))
-        return await manager.clean_messages()
+            return await manager.send_and_clean(message)
+
+        return await manager.send_and_clean(
+            f"Linked username \"{username}\" to Discord user \"{member_discord.display_name}\"")
 
     @member.command(
         help=f"""
@@ -344,9 +334,7 @@ Example: ?member sherpatime
         member_db = await self.bot.database.get(Member, discord_id=ctx.author.id)
         if member_db.timezone:
             res = await manager.send_message_react(
-                message_text=(
-                    f"Your current timezone is set to `{member_db.timezone}`,"
-                    f"would you like to change it?"),
+                f"Your current timezone is set to `{member_db.timezone}`, would you like to change it?",
                 reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
                 clean=False
             )
@@ -373,7 +361,7 @@ Example: ?member sherpatime
             timezone = next(iter(timezones))
 
             res = await manager.send_message_react(
-                message_text=f"Is the timezone `{timezone}` correct?",
+                f"Is the timezone `{timezone}` correct?",
                 reactions=[constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK],
                 clean=False
             )

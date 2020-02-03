@@ -18,6 +18,10 @@ class MessageManager:
         """Remove a message from being cleaned"""
         self.messages_to_clean.remove(message)
 
+    async def send_and_clean(self, message):
+        await self.send_message(message)
+        await self.clean_messages()
+
     async def clean_messages(self):
         """Delete messages marked for cleaning"""
         def message_needs_cleaning(message):
@@ -80,7 +84,7 @@ class MessageManager:
         """Send a private message to the user"""
         return await self.ctx.author.send(message_text)
 
-    async def send_message_react(self, reactions, message_text=None, embed=None, clean=True, with_cancel=False):  # noqa
+    async def send_message_react(self, message_text, reactions=[], embed=None, clean=True, with_cancel=False):  # noqa
         reactions = list(reactions)
         self.reaction_emojis = []
         if embed:
