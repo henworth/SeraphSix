@@ -22,7 +22,7 @@ from seraphsix.database import Member, ClanMember, Clan, Guild
 log = logging.getLogger(__name__)
 
 
-class MemberCog(commands.Cog, name='Member'):
+class MemberCog(commands.Cog, name="Member"):
 
     def __init__(self, bot):
         self.bot = bot
@@ -38,9 +38,8 @@ class MemberCog(commands.Cog, name='Member'):
     @commands.guild_only()
     async def info(self, ctx, *args):  # noqa TODO
         """Show member information"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
-        member_name = ' '.join(args)
+        member_name = " ".join(args)
 
         requestor_query = self.bot.database.get(
             Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
@@ -71,8 +70,7 @@ class MemberCog(commands.Cog, name='Member'):
             try:
                 member_db = await asyncio.create_task(member_query)
             except DoesNotExist:
-                await manager.send_message(f"Could not find username `{member_name}` in any connected clans")
-                return
+                return await manager.send_and_clean(f"Could not find username `{member_name}` in any connected clans")
 
         the100_link = None
         if member_db.the100_username:
@@ -89,7 +87,7 @@ class MemberCog(commands.Cog, name='Member'):
             except pydest.PydestException:
                 bungie_link = member_db.bungie_username
             else:
-                bungie_member_data = BungieUser(bungie_info['Response'])
+                bungie_member_data = BungieUser(bungie_info["Response"])
                 bungie_member_id = bungie_member_data.memberships.bungie.id
                 bungie_member_type = constants.PLATFORM_BUNGIE
                 bungie_member_name = bungie_member_data.memberships.bungie.username
@@ -123,13 +121,13 @@ class MemberCog(commands.Cog, name='Member'):
         )
         embed.add_field(
             name="Join Date",
-            value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')
+            value=member_db.clanmember.join_date.strftime("%Y-%m-%d %H:%M:%S")
         )
 
         if requestor_is_admin:
             embed.add_field(
                 name="Last Active Date",
-                value=member_db.clanmember.last_active.strftime('%Y-%m-%d %H:%M:%S')
+                value=member_db.clanmember.last_active.strftime("%Y-%m-%d %H:%M:%S")
             )
 
         embed.add_field(name="Time Zone", value=timezone)
@@ -154,17 +152,16 @@ class MemberCog(commands.Cog, name='Member'):
     @commands.has_permissions(administrator=True)
     async def link(self, ctx):
         """Link Discord user to Gamertag (Admin)"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         username = await manager.send_and_get_response(
             "What is the in-game username to link to? (enter `cancel` to cancel command)")
-        if username.lower() == 'cancel':
+        if username.lower() == "cancel":
             return await manager.send_and_clean("Canceling command")
 
         discord_user = await manager.send_and_get_response(
             "What is the discord user to link to? (enter `cancel` to cancel command)")
-        if discord_user.lower() == 'cancel':
+        if discord_user.lower() == "cancel":
             return await manager.send_and_clean("Canceling command")
 
         try:
@@ -221,12 +218,11 @@ Example: ?member games raid
         Show itemized list of all eligible clan games participated in
         Eligiblity is simply whether the fireteam is at least half clan members.
         """
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         command = command.split()
         game_mode = command[0]
-        member_name = ' '.join(command[1:])
+        member_name = " ".join(command[1:])
 
         if not member_name:
             discord_id = ctx.author.id
@@ -234,17 +230,15 @@ Example: ?member games raid
             try:
                 member_db = await self.bot.database.get_member_by_discord_id(discord_id)
             except DoesNotExist:
-                await ctx.send(
-                    f"User `{ctx.author.display_name}` has not registered or is not a clan member")
-                return
+                return await manager.send_and_clean(
+                    f"User `{ctx.author.display_name}` has not registered or is not a clan member", mention=False)
             log.info(
                 f"Getting {game_mode} games for \"{ctx.author.display_name}\"")
         else:
             try:
                 member_db = await self.bot.database.get_member_by_naive_username(member_name)
             except DoesNotExist:
-                await ctx.send(f"Invalid member name `{member_name}`")
-                return
+                return await manager.send_and_clean(f"Invalid member name `{member_name}`", mention=False)
             log.info(
                 f"Getting {game_mode} games by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
 
@@ -276,9 +270,8 @@ Example: ?member sherpatime
         """
         Show total time spent in activities with at least one sherpa member.
         """
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
-        member_name = ' '.join(args)
+        member_name = " ".join(args)
 
         if not member_name:
             discord_id = ctx.author.id
@@ -325,14 +318,13 @@ Example: ?member sherpatime
         if sherpa_list:
             embed.add_field(
                 name="Sherpas Played With",
-                value=', '.join(sherpa_list)
+                value=", ".join(sherpa_list)
             )
         await manager.send_embed(embed)
 
     @is_registered()
     @member.command(help="Set member timezone")
     async def settimezone(self, ctx):
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         member_db = await self.bot.database.get(Member, discord_id=ctx.author.id)
@@ -344,24 +336,20 @@ Example: ?member sherpatime
             )
 
             if res == constants.EMOJI_CROSSMARK:
-                await manager.send_message("Canceling post")
-                return await manager.clean_messages()
+                await manager.send_and_clean("Canceling command")
 
         res = await manager.send_and_get_response(
             "Enter your timezone name and country code, accepted formats are:\n"
             "```EST US\nAmerica/New_York US\n0500 US```")
-        if res.lower() == 'cancel':
-            await manager.send_message("Canceling")
-            return await manager.clean_messages()
+        if res.lower() == "cancel":
+            return await manager.send_and_clean("Canceling command")
 
-        timezone, country_code = res.split(' ')
+        timezone, country_code = res.split(" ")
         timezones = get_timezone_name(timezone, country_code)
 
         if not timezones:
-            await manager.send_message(f"No timezone found for `{res}`, canceling")
-            return await manager.clean_messages()
-
-        if len(timezones) == 1:
+            return await manager.send_and_clean(f"No timezone found for `{res}`, canceling")
+        elif len(timezones) == 1:
             timezone = next(iter(timezones))
 
             res = await manager.send_message_react(
@@ -371,26 +359,23 @@ Example: ?member sherpatime
             )
 
             if res == constants.EMOJI_CROSSMARK:
-                await manager.send_message("Canceling change")
-                return await manager.clean_messages()
+                return await manager.send_and_clean("Canceling command")
 
             member_db.timezone = timezone
             await self.bot.database.update(member_db)
-            await manager.send_message("Timezone updated successfully!")
-            return await manager.clean_messages()
-
-        text = '\n'.join(sorted(timezones, key=lambda s: s.lower()))
-        res = await manager.send_and_get_response(f"Which of these timezones is correct?\n```{text}```")
-        if res.lower() == 'cancel':
-            await manager.send_message("Canceling")
-
-        if res in timezones:
-            member_db.timezone = res
-            await self.bot.database.update(member_db)
-            await manager.send_message("Timezone updated successfully!")
         else:
-            await manager.send_message("Unexpected response, canceling")
-        return await manager.clean_messages()
+            text = "\n".join(sorted(timezones, key=lambda s: s.lower()))
+            res = await manager.send_and_get_response(f"Which of these timezones is correct?\n```{text}```")
+            if res.lower() == "cancel":
+                return await manager.send_and_clean("Canceling command")
+
+            if res in timezones:
+                member_db.timezone = res
+                await self.bot.database.update(member_db)
+            else:
+                return await manager.send_and_clean("Unexpected response, canceling")
+
+        return await manager.send_and_clean("Timezone updated successfully!")
 
 
 def setup(bot):

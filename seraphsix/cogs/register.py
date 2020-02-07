@@ -19,7 +19,7 @@ async def register(ctx, manager, extra_message="", confirm_message=""):
         confirm_message = "Registration Complete"
 
     auth_url = (
-        f'https://{ctx.bot.config.bungie.redirect_host}/oauth?state={ctx.author.id}'
+        f"https://{ctx.bot.config.bungie.redirect_host}/oauth?state={ctx.author.id}"
     )
 
     if not isinstance(ctx.channel, discord.abc.PrivateChannel):
@@ -69,7 +69,7 @@ async def wait_for_msg(ch):
         return pickle.loads(pickled_msg)
 
 
-class RegisterCog(commands.Cog, name='Register'):
+class RegisterCog(commands.Cog, name="Register"):
 
     def __init__(self, bot):
         self.bot = bot
@@ -83,7 +83,6 @@ class RegisterCog(commands.Cog, name='Register'):
         with your Discord profile. Registering is a prerequisite to using any
         commands that require knowledge of your Destiny 2 profile.
         """
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         embed, user_info = await register(ctx, manager, confirm_message="Initial Registration Complete...")
@@ -91,7 +90,7 @@ class RegisterCog(commands.Cog, name='Register'):
             await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
             return await manager.clean_messages()
 
-        bungie_access_token = user_info.get('access_token')
+        bungie_access_token = user_info.get("access_token")
 
         # Fetch platform specific display names and membership IDs
         try:
@@ -104,7 +103,7 @@ class RegisterCog(commands.Cog, name='Register'):
             await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")
             return await manager.clean_messages()
 
-        if res['ErrorCode'] != 1:
+        if res["ErrorCode"] != 1:
             await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
             return await manager.clean_messages()
 
@@ -113,7 +112,7 @@ class RegisterCog(commands.Cog, name='Register'):
                 "Oops, you don't have any public accounts attached to your Bungie.net profile.")
             return await manager.clean_messages()
 
-        bungie_user = User(res['Response'])
+        bungie_user = User(res["Response"])
 
         member_ids = [
             (bungie_user.memberships.xbox.id, constants.PLATFORM_XBOX),
@@ -149,7 +148,7 @@ class RegisterCog(commands.Cog, name='Register'):
 
         member_db.discord_id = ctx.author.id
         member_db.bungie_access_token = bungie_access_token
-        member_db.bungie_refresh_token = user_info.get('refresh_token')
+        member_db.bungie_refresh_token = user_info.get("refresh_token")
 
         await self.bot.database.update(member_db)
 
@@ -187,7 +186,7 @@ class RegisterCog(commands.Cog, name='Register'):
                 emojis = [str(self.bot.get_emoji(emoji)) for emoji in platform_emojis if emoji]
                 e.add_field(
                     name="Platforms Connected",
-                    value=' '.join(emojis)
+                    value=" ".join(emojis)
                 )
                 message = f"{message} with platforms {' '.join(emojis)}"
 
@@ -198,7 +197,7 @@ class RegisterCog(commands.Cog, name='Register'):
 
     def user_has_connected_accounts(self, json):
         """Return true if user has connected destiny accounts"""
-        if len(json['Response']['destinyMemberships']):
+        if len(json["Response"]["destinyMemberships"]):
             return True
 
 

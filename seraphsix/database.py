@@ -36,7 +36,7 @@ class BaseModel(Model):
 
 class Guild(BaseModel):
     guild_id = BigIntegerField(unique=True)
-    prefix = CharField(max_length=5, null=True, default='?')
+    prefix = CharField(max_length=5, null=True, default="?")
     clear_spam = BooleanField(default=False)
     aggregate_clans = BooleanField(default=True)
 
@@ -49,8 +49,8 @@ class Clan(BaseModel):
     platform = IntegerField(
         null=True,
         constraints=[Check(
-            f'platform in ({constants.PLATFORM_XBOX}, {constants.PLATFORM_PSN}, '
-            f'{constants.PLATFORM_BLIZZARD}, {constants.PLATFORM_STEAM}, {constants.PLATFORM_STADIA})'
+            f"platform in ({constants.PLATFORM_XBOX}, {constants.PLATFORM_PSN}, "
+            f"{constants.PLATFORM_BLIZZARD}, {constants.PLATFORM_STEAM}, {constants.PLATFORM_STADIA})"
         )]
     )
     the100_group_id = IntegerField(unique=True, null=True)
@@ -79,8 +79,8 @@ class Member(BaseModel):
 
     class Meta:
         indexes = (
-            (('discord_id', 'bungie_id', 'xbox_id', 'psn_id', 'blizzard_id',
-              'steam_id', 'stadia_id', 'the100_id'), True),
+            (("discord_id", "bungie_id", "xbox_id", "psn_id", "blizzard_id",
+              "steam_id", "stadia_id", "the100_id"), True),
         )
 
 
@@ -95,9 +95,9 @@ class ClanMember(BaseModel):
     member_type = IntegerField(
         null=True,
         constraints=[Check(
-            f'member_type in ({constants.CLAN_MEMBER_NONE}, {constants.CLAN_MEMBER_BEGINNER},'
-            f'{constants.CLAN_MEMBER_MEMBER}, {constants.CLAN_MEMBER_ADMIN}, '
-            f'{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})'
+            f"member_type in ({constants.CLAN_MEMBER_NONE}, {constants.CLAN_MEMBER_BEGINNER},"
+            f"{constants.CLAN_MEMBER_MEMBER}, {constants.CLAN_MEMBER_ADMIN}, "
+            f"{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})"
         )]
     )
 
@@ -110,7 +110,7 @@ class Game(BaseModel):
 
     class Meta:
         indexes = (
-            (('mode_id', 'reference_id'), False),
+            (("mode_id", "reference_id"), False),
         )
 
 
@@ -120,7 +120,7 @@ class ClanGame(BaseModel):
 
     class Meta:
         indexes = (
-            (('clan', 'game'), True),
+            (("clan", "game"), True),
         )
 
 
@@ -132,7 +132,7 @@ class GameMember(BaseModel):
 
     class Meta:
         indexes = (
-            (('member', 'game'), True),
+            (("member", "game"), True),
         )
 
 
@@ -143,7 +143,7 @@ class TwitterChannel(BaseModel):
 
     class Meta:
         indexes = (
-            (('channel_id', 'twitter_id', 'guild_id'), True),
+            (("channel_id", "twitter_id", "guild_id"), True),
         )
 
 
@@ -155,7 +155,7 @@ class Role(BaseModel):
 
     class Meta:
         indexes = (
-            (('guild', 'role_id'), True),
+            (("guild", "role_id"), True),
         )
 
 
@@ -177,12 +177,12 @@ class Database(object):
         database_proxy.initialize(self._database)
         Guild.create_table(True)
 
-        index_names = [index.name for index in self._database.get_indexes('member')]
+        index_names = [index.name for index in self._database.get_indexes("member")]
         for platform in constants.PLATFORM_MAP.keys():
-            index_name = f'member_{platform}_username_lower'
+            index_name = f"member_{platform}_username_lower"
             if index_name not in index_names:
                 Member.add_index(SQL(
-                    f'CREATE INDEX {index_name} ON member(lower({platform}_username) varchar_pattern_ops)'
+                    f"CREATE INDEX {index_name} ON member(lower({platform}_username) varchar_pattern_ops)"
                 ))
 
         Member.create_table(True)
@@ -286,12 +286,12 @@ class Database(object):
             (constants.PLATFORM_STADIA, Member.stadia_username))
         )
 
-        query = Member.select(Member, ClanMember, Clan, username.alias('username')).join(
+        query = Member.select(Member, ClanMember, Clan, username.alias("username")).join(
             ClanMember).join(Clan).where(Clan.clan_id << clan_ids)
 
-        if sorted_by == 'join_date':
+        if sorted_by == "join_date":
             query = query.order_by(ClanMember.join_date)
-        elif sorted_by == 'username':
+        elif sorted_by == "username":
             query = query.order_by(username)
         return await self.execute(query)
 

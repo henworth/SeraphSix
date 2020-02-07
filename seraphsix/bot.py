@@ -26,22 +26,22 @@ from seraphsix.tasks.discord import store_sherpas, update_sherpa
 log = logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
-    'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
-    'seraphsix.cogs.register', 'seraphsix.cogs.server'
+    "seraphsix.cogs.clan", "seraphsix.cogs.game", "seraphsix.cogs.member",
+    "seraphsix.cogs.register", "seraphsix.cogs.server"
 ]
 
 
 async def _prefix_callable(bot, message):
     """Get current command prefix"""
-    base = [f'<@{bot.user.id}> ']
+    base = [f"<@{bot.user.id}> "]
     if isinstance(message.channel, discord.abc.PrivateChannel):
-        base.append('?')
+        base.append("?")
     else:
         try:
             guild = await bot.database.get(Guild, guild_id=message.guild.id)
         except DoesNotExist:
             await bot.database.create(Guild, guild_id=message.guild.id)
-            base.append('?')
+            base.append("?")
         else:
             base.append(guild.prefix)
     return base
@@ -205,7 +205,7 @@ class SeraphSix(commands.Bot):
             log.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
 
-        self.update_sherpa_roles()
+        await self.update_sherpa_roles()
 
     async def on_member_update(self, before, after):
         if not before.bot:
@@ -246,7 +246,7 @@ class SeraphSix(commands.Bot):
             )
             await self.log_channel.send(
                 content=log_channel_message,
-                file=discord.File(io.BytesIO(''.join(error_trace).encode('utf-8')), filename='exception.txt')
+                file=discord.File(io.BytesIO("".join(error_trace).encode("utf-8")), filename="exception.txt")
             )
             await manager.send_message(
                 (
@@ -257,9 +257,7 @@ class SeraphSix(commands.Bot):
             )
 
         if text:
-            await manager.send_message(
-                f"{text}\nType `{ctx.prefix}help` for more information.")
-            await manager.clean_messages()
+            await manager.send_and_clean(f"{text}\nType `{ctx.prefix}help` for more information.")
 
     # Update guild count at bot listing sites and in bots status/presence
     # async def update_status(self):

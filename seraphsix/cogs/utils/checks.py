@@ -13,7 +13,7 @@ def is_event(message):
     """Check if a message contains event data"""
     if len(message.embeds) > 0:
         embed = message.embeds[0]
-        return (message.channel.name == 'upcoming-events'
+        return (message.channel.name == "upcoming-events"
                 and embed.fields
                 and embed.fields[0]
                 and embed.fields[1]
@@ -144,7 +144,7 @@ def is_clan_admin():
 
 def twitter_enabled():
     def predicate(ctx):
-        if hasattr(ctx.bot, 'twitter'):
+        if hasattr(ctx.bot, "twitter"):
             return True
         raise ConfigurationError("Twitter support is not enabled at the bot level")
     return commands.check(predicate)
