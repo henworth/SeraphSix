@@ -7,6 +7,9 @@ verify_ssl = true
 autopep8 = "*"
 pylama = "*"
 pyopenssl = "*"
+migra = {extras = ["pg"],version = "*"}
+aio-pika = "*"
+pika = "*"
 
 [packages]
 aiopg = ">=0.15.0"
@@ -30,6 +33,7 @@ jsonpickle = "*"
 the100 = {git = "https://github.com/henworth/the100"}
 pydest = {git = "https://github.com/henworth/pydest",ref = "82e89a67c714bfd39f26339f53d05e9f5b55697c"}
 ratelimit = {git = "https://github.com/evemorgen/ratelimit.git",ref = "14c87100677fa905408d7a75b634bd4bdee0301c"}
+flask-kvsession = "*"
 
 [requires]
 python_version = "3.8"
