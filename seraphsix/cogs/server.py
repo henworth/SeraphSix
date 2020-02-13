@@ -95,7 +95,7 @@ class ServerCog(commands.Cog, name="Server"):
                 Clan, clan_id=clan_id, name=clan_name, callsign=callsign, guild=guild_db)
         else:
             if clan_db.guild_id:
-                return await manager.send_and_clean(f"*{clan_name} [{callsign}]** is already linked to another server.")
+                return await manager.send_and_clean(f"**{clan_name} [{callsign}]** is already linked to another server.")
             else:
                 guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
                 clan_db.guild = guild_db
