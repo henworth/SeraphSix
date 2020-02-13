@@ -243,9 +243,14 @@ class Database(object):
             query = query.where(Member.stadia_id == member_id)
         return await self.get(query)
 
-    async def get_member_by_naive_username(self, username):
+    async def get_member_by_naive_username(self, username, include_clan=True):
         username = username.lower()
-        query = Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).where(
+        if include_clan:
+            query = Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan)
+        else:
+            query = Member.select(Member)
+
+        query = query.where(
             (fn.LOWER(Member.bungie_username) == username) |
             (fn.LOWER(Member.xbox_username) == username) |
             (fn.LOWER(Member.psn_username) == username) |

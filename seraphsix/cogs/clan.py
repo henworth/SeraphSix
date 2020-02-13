@@ -1,3 +1,4 @@
+import asyncio
 import discord
 import logging
 import pickle
@@ -6,6 +7,7 @@ import pytz
 
 from datetime import datetime
 from discord.ext import commands
+from discord.ext.commands.errors import BadArgument
 from peewee import DoesNotExist
 
 from seraphsix import constants
@@ -15,7 +17,7 @@ from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild
-from seraphsix.errors import InvalidAdminError
+from seraphsix.errors import InvalidAdminError, InvalidCommandError
 from seraphsix.models.destiny import Member as DestinyMember
 from seraphsix.tasks.activity import get_game_counts, execute_pydest
 from seraphsix.tasks.clan import info_sync, member_sync
@@ -38,6 +40,78 @@ class ClanCog(commands.Cog, name="Clan"):
             )
         except DoesNotExist:
             raise InvalidAdminError
+
+    async def get_user_details(self, args):
+        username, platform_id = (None,)*2
+
+        if not args:
+            raise InvalidCommandError("Username is required")
+
+        if args[-1] == "-platform":
+            raise InvalidCommandError(
+                f"Platform must be specified like `-platform {list(constants.PLATFORM_EMOJI_MAP.keys())}`")
+
+        if "-platform" in args:
+            platform_name = args[-1].lower()
+            username = " ".join(args[0:-2])
+            platform_id = constants.PLATFORM_MAP.get(platform_name)
+            if not platform_id:
+                raise InvalidCommandError(f"Invalid platform `{platform_name}` was specified")
+        else:
+            username = " ".join(args)
+
+        if not username:
+            raise InvalidCommandError("Username is required")
+
+        return username, platform_id
+
+    async def get_member_db(self, ctx, username):
+        try:
+            member_discord = await commands.MemberConverter().convert(ctx, str(username))
+        except BadArgument:
+            member_query = self.bot.database.get_member_by_naive_username(username, include_clan=False)
+        else:
+            member_query = self.bot.database.get_member_by_discord_id(member_discord.id)
+
+        try:
+            member_db = await asyncio.create_task(member_query)
+        except DoesNotExist:
+            raise InvalidCommandError(f"Could not find username `{username}`")
+        return member_db
+
+    async def get_bungie_details(self, username, bungie_id=None, platform_id=None):
+        membership_id = None
+
+        if bungie_id:
+            try:
+                player = await execute_pydest(
+                    self.bot.destiny.api.get_membership_data_by_id(bungie_id),
+                    self.bot.redis
+                )
+            except pydest.PydestException:
+                raise InvalidCommandError(f"Could not find Destiny player for {username}")
+
+            for membership in player["Response"]["destinyMemberships"]:
+                if membership["membershipType"] != constants.PLATFORM_BUNGIE:
+                    membership_id = membership["membershipId"]
+                    platform_id = membership["membershipType"]
+                    break
+        else:
+            try:
+                player = await execute_pydest(
+                    self.bot.destiny.api.search_destiny_player(platform_id, username),
+                    self.bot.redis
+                )
+            except pydest.PydestException:
+                raise InvalidCommandError(f"Could not find Destiny player for {username}")
+
+            membership_id = None
+            for membership in player["Response"]:
+                if membership["membershipType"] == platform_id and membership["displayName"] == username:
+                    membership_id = membership["membershipId"]
+                    break
+
+        return membership_id, platform_id
 
     @commands.group()
     async def clan(self, ctx):
@@ -279,59 +353,41 @@ class ClanCog(commands.Cog, name="Clan"):
 
         await manager.send_embed(embed)
 
-    @clan.command()
+    @clan.command(
+        help=f"""
+Admin only, requires registration
+
+Approve a pending clan member based on either their Discord info or in-game username.
+
+To approve based on Discord info, the user must be registered. Once that is done,
+the command takes any Discord user info (username, nickname, id, etc.)
+
+For in-game username if the server default platform is not set, the `-platform`
+argument is required.
+
+Examples:
+?clan approve username
+?clan approve username -platform xbox
+""")
     @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def approve(self, ctx, *args):
         """Approve a pending member (Admin only, requires registration)"""
         manager = MessageManager(ctx)
-        gamertag, platform_id, platform_name = (None,)*3
+        username, platform_id = await self.get_user_details(args)
 
-        if args[-1] == "-platform":
-            return await manager.send_and_clean(
-                f"Platform must be specified like `-platform {list(constants.PLATFORM_EMOJI_MAP.keys())}`",
-                mention=False
-            )
-
-        if "-platform" in args:
-            platform_name = args[-1].lower()
-            gamertag = " ".join(args[0:-2])
-            platform_id = constants.PLATFORM_MAP.get(platform_name)
-            if not platform_id:
-                return await manager.send_and_clean(
-                    f"Invalid platform `{platform_name}` was specified", mention=False)
-        else:
-            gamertag = " ".join(args)
-
-        if not gamertag:
-            return await manager.send_and_clean(f"Gamertag is required", mention=False)
-
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        member_db = await self.get_member_db(ctx, username)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        if not platform_id and not clan_db.platform:
-            return await manager.send_and_clean(
-                "Platform was not specified and clan default platform is not set", mention=False)
-        else:
+        if clan_db.platform:
             platform_id = clan_db.platform
+        elif not platform_id and not member_db.bungie_id:
+            raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
-        try:
-            player = await execute_pydest(
-                self.bot.destiny.api.search_destiny_player(platform_id, gamertag),
-                self.bot.redis,
-            )
-        except pydest.PydestException:
-            return await manager.send_and_clean(f"Invalid gamertag {gamertag}", mention=False)
-
-        membership_id = None
-        for membership in player["Response"]:
-            if membership["membershipType"] == platform_id and membership["displayName"] == gamertag:
-                membership_id = membership["membershipId"]
-                break
-
-        if not membership_id:
-            return await manager.send_and_clean(f"Could not find Destiny player for gamertag {gamertag}", mention=False)
+        membership_id, platform_id = await self.get_bungie_details(
+            username, bungie_id=member_db.bungie_id, platform_id=platform_id)
 
         try:
             res = await execute_pydest(
@@ -340,7 +396,7 @@ class ClanCog(commands.Cog, name="Clan"):
                     membership_type=platform_id,
                     membership_id=membership_id,
                     message=f"Welcome to {clan_db.name}!",
-                    access_token=member_db.bungie_access_token
+                    access_token=admin_db.bungie_access_token
                 ),
                 self.bot.redis
             )
@@ -363,11 +419,14 @@ class ClanCog(commands.Cog, name="Clan"):
             member_db.bungie_refresh_token = tokens["refresh_token"]
             await self.bot.database.update(member_db)
 
+        if not res:
+            raise RuntimeError("Unexpected empty response from the Bungie API")
+
         if res["ErrorStatus"] != "Success":
-            message = f"Could not approve **{gamertag}**"
-            log.info(f"Could not approve \"{gamertag}\": {res}")
+            message = f"Could not approve **{username}**"
+            log.info(f"Could not approve \"{username}\": {res}")
         else:
-            message = f"Approved **{gamertag}** as a member of clan **{clan_db.name}**"
+            message = f"Approved **{username}** as a member of clan **{clan_db.name}**"
 
         return await manager.send_and_clean(message)
 
@@ -425,60 +484,41 @@ class ClanCog(commands.Cog, name="Clan"):
 
         await manager.send_embed(embed)
 
-    @clan.command()
+    @clan.command(
+        help=f"""
+Admin only, requires registration
+
+Invite a user to clan based on either their Discord info or in-game username.
+
+To invite based on Discord info, the user must be registered. Once that is done,
+the command takes any Discord user info (username, nickname, id, etc.)
+
+For in-game username if the server default platform is not set, the `-platform`
+argument is required.
+
+Examples:
+?clan invite username
+?clan invite username -platform xbox
+""")
     @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def invite(self, ctx, *args):
-        """Invite a member by gamertag (Admin only, requires registration)"""
+        """Invite a member by username (Admin only, requires registration)"""
         manager = MessageManager(ctx)
-        gamertag, platform_id, platform_name = (None,)*3
+        username, platform_id = await self.get_user_details(args)
 
-        if args[-1] == "--platform":
-            return await manager.send_and_clean(
-                f"Platform must be specified like `-platform {list(constants.PLATFORM_EMOJI_MAP.keys())}`",
-                mention=False
-            )
-
-        if "--platform" in args:
-            platform_name = args[-1].lower()
-            gamertag = " ".join(args[0:-2])
-            platform_id = constants.PLATFORM_MAP.get(platform_name)
-            if not platform_id:
-                return await manager.send_and_clean(
-                    f"Invalid platform `{platform_name}` was specified", mention=False)
-        else:
-            gamertag = " ".join(args)
-
-        if not gamertag:
-            return await manager.send_and_clean("Gamertag is required", mention=False)
-
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        member_db = await self.get_member_db(ctx, username)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        if not platform_id and not clan_db.platform:
-            return await manager.send_and_clean(
-                "Platform was not specified and clan default platform is not set", mention=False)
-        else:
+        if clan_db.platform:
             platform_id = clan_db.platform
+        elif not platform_id and not member_db.bungie_id:
+            raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
-        try:
-            player = await execute_pydest(
-                self.bot.destiny.api.search_destiny_player(platform_id, gamertag),
-                self.bot.redis
-            )
-        except pydest.PydestException:
-            return await manager.send_and_clean(f"Invalid gamertag {gamertag}", mention=False)
-
-        membership_id = None
-        for membership in player["Response"]:
-            if membership["membershipType"] == platform_id and membership["displayName"] == gamertag:
-                membership_id = membership["membershipId"]
-                break
-
-        if not membership_id:
-            return await manager.send_and_clean(
-                f"Could not find Destiny player for gamertag {gamertag}", mention=False)
+        membership_id, platform_id = await self.get_bungie_details(
+            username, bungie_id=member_db.bungie_id, platform_id=platform_id)
 
         try:
             res = await execute_pydest(
@@ -487,7 +527,7 @@ class ClanCog(commands.Cog, name="Clan"):
                     membership_type=platform_id,
                     membership_id=membership_id,
                     message=f"Join my clan {clan_db.name}!",
-                    access_token=member_db.bungie_access_token
+                    access_token=admin_db.bungie_access_token
                 ),
                 self.bot.redis
             )
@@ -510,10 +550,13 @@ class ClanCog(commands.Cog, name="Clan"):
             member_db.bungie_refresh_token = tokens["refresh_token"]
             await self.bot.database.update(member_db)
 
+        if not res:
+            raise RuntimeError("Unexpected empty response from the Bungie API")
+
         if res["ErrorStatus"] == "ClanTargetDisallowsInvites":
-            message = f"User **{gamertag}** has disabled clan invites"
+            message = f"User **{username}** has disabled clan invites"
         else:
-            message = f"Invited **{gamertag}** to clan **{clan_db.name}**"
+            message = f"Invited **{username}** to clan **{clan_db.name}**"
 
         return await manager.send_and_clean(message)
 
