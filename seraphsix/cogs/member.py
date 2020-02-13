@@ -254,8 +254,9 @@ Example: ?member games raid
             total_count, = game_counts.values()
         else:
             for game, count in game_counts.items():
-                embed.add_field(name=game.title(), value=str(count))
-                total_count += count
+                if count > 0:
+                    embed.add_field(name=game.title(), value=str(count))
+                    total_count += count
 
         embed.description = str(total_count)
         await manager.send_embed(embed)
