@@ -555,6 +555,9 @@ Examples:
 
         if res["ErrorStatus"] == "ClanTargetDisallowsInvites":
             message = f"User **{username}** has disabled clan invites"
+        elif res["ErrorStatus"] != "Success":
+            message = f"Could not invite **{username}**"
+            log.info(f"Could not invite \"{username}\": {res}")
         else:
             message = f"Invited **{username}** to clan **{clan_db.name}**"
 
