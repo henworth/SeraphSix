@@ -56,6 +56,7 @@ class Config:
     redis_url: str
     home_server: int
     log_channel: int
+    reg_channel: int
     enable_activity_tracking: bool
     activity_cutoff: str
 
@@ -68,5 +69,6 @@ class Config:
         self.redis_url = os.environ.get("REDIS_URL")
         self.home_server = int(os.environ.get("HOME_SERVER"))
         self.log_channel = int(os.environ.get("HOME_SERVER_LOG_CHANNEL"))
+        self.reg_channel = int(os.environ.get("HOME_SERVER_REG_CHANNEL"))
         self.enable_activity_tracking = os.environ.get("ENABLE_ACTIVITY_TRACKING") == "True"
         self.activity_cutoff = datetime.strptime(os.environ.get("ACTIVITY_CUTOFF"), "%Y-%m-%d").astimezone(tz=pytz.utc)

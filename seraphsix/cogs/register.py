@@ -191,7 +191,7 @@ class RegisterCog(commands.Cog, name="Register"):
                 message = f"{message} with platforms {' '.join(emojis)}"
 
             await embed.edit(embed=e)
-            await self.bot.log_channel.send(message)
+            await self.bot.reg_channel.send(message)
 
         return await manager.clean_messages()
 

@@ -193,6 +193,7 @@ class SeraphSix(commands.Bot):
         await self.connect_redis()
 
         self.log_channel = self.get_channel(self.config.log_channel)
+        self.reg_channel = self.get_channel(self.config.reg_channel)
 
         start_message = (
             f"Logged in as {self.user.name} ({self.user.id}) "
