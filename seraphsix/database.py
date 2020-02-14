@@ -49,8 +49,8 @@ class Clan(BaseModel):
     platform = IntegerField(
         null=True,
         constraints=[Check(
-            f'platform in ({constants.PLATFORM_XBOX}, {constants.PLATFORM_PSN}, '
-            f'{constants.PLATFORM_BLIZZARD}, {constants.PLATFORM_STEAM}, {constants.PLATFORM_STADIA})'
+            f"platform in ({constants.PLATFORM_XBOX}, {constants.PLATFORM_PSN}, "
+            f"{constants.PLATFORM_BLIZZARD}, {constants.PLATFORM_STEAM}, {constants.PLATFORM_STADIA})"
         )]
     )
     the100_group_id = IntegerField(unique=True, null=True)
@@ -95,9 +95,9 @@ class ClanMember(BaseModel):
     member_type = IntegerField(
         null=True,
         constraints=[Check(
-            f'member_type in ({constants.CLAN_MEMBER_NONE}, {constants.CLAN_MEMBER_BEGINNER},'
-            f'{constants.CLAN_MEMBER_MEMBER}, {constants.CLAN_MEMBER_ADMIN}, '
-            f'{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})'
+            f"member_type in ({constants.CLAN_MEMBER_NONE}, {constants.CLAN_MEMBER_BEGINNER},"
+            f"{constants.CLAN_MEMBER_MEMBER}, {constants.CLAN_MEMBER_ADMIN}, "
+            f"{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})"
         )]
     )
 
@@ -179,10 +179,10 @@ class Database(object):
 
         index_names = [index.name for index in self._database.get_indexes('member')]
         for platform in constants.PLATFORM_MAP.keys():
-            index_name = f'member_{platform}_username_lower'
+            index_name = f"member_{platform}_username_lower"
             if index_name not in index_names:
                 Member.add_index(SQL(
-                    f'CREATE INDEX {index_name} ON member(lower({platform}_username) varchar_pattern_ops)'
+                    f"CREATE INDEX {index_name} ON member(lower({platform}_username) varchar_pattern_ops)"
                 ))
 
         Member.create_table(True)
@@ -243,9 +243,14 @@ class Database(object):
             query = query.where(Member.stadia_id == member_id)
         return await self.get(query)
 
-    async def get_member_by_naive_username(self, username):
+    async def get_member_by_naive_username(self, username, include_clan=True):
         username = username.lower()
-        query = Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).where(
+        if include_clan:
+            query = Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan)
+        else:
+            query = Member.select(Member)
+
+        query = query.where(
             (fn.LOWER(Member.bungie_username) == username) |
             (fn.LOWER(Member.xbox_username) == username) |
             (fn.LOWER(Member.psn_username) == username) |

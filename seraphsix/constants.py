@@ -4,8 +4,8 @@ import pytz
 from datetime import datetime
 
 
-LOG_FORMAT_MSG = "%(name)s[%(process)d]: %(levelname)s %(message)s"
-LOG_FORMAT_TIME = "%b %d %H:%M:%S"
+LOG_FORMAT_MSG = '%(name)s[%(process)d]: %(levelname)s %(message)s'
+LOG_FORMAT_TIME = '%b %d %H:%M:%S'
 
 BLUE = discord.Color(3381759)
 CLEANUP_DELAY = 4
@@ -248,20 +248,20 @@ TWITTER_XBOX_SUPPORT = 59804598
 TWITTER_FOLLOW_USERS = [TWITTER_DESTINY_REDDIT, TWITTER_XBOX_SUPPORT]
 
 THE100_GAME_SORT_RULES = {
-    "Destiny 2": {
+    'Destiny 2': {
         'fresh': [
-            "Raid - Garden of Salvation"
-            "Raid - Crown of Sorrow",
-            "Raid - Leviathan - Prestige",
-            "Raid - Scourge of the Past",
-            "Raid - Leviathan - Normal",
-            "Raid - Last Wish"
+            'Raid - Garden of Salvation'
+            'Raid - Crown of Sorrow',
+            'Raid - Leviathan - Prestige',
+            'Raid - Scourge of the Past',
+            'Raid - Leviathan - Normal',
+            'Raid - Last Wish'
         ],
         'normal': [
-            "Blind Well",
-            "Escalation Protocol",
-            "Quest - Outbreak Perfected",
-            "Strike - Nightfall"
+            'Blind Well',
+            'Escalation Protocol',
+            'Quest - Outbreak Perfected',
+            'Strike - Nightfall'
         ],
         'anything': [
             'Quest'

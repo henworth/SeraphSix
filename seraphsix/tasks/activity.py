@@ -37,7 +37,7 @@ def parse_platform(member_db, platform_id):
 
 
 def backoff_hdlr(details):
-    if details["wait"] > 30 or details["tries"] > 10:
+    if details['wait'] > 30 or details['tries'] > 10:
         log.info(
             f"Backing off {details['wait']:0.1f} seconds after {details['tries']} tries "
             f"for {details['args'][3]}-{details['args'][2]}"
@@ -70,7 +70,7 @@ async def execute_pydest(function, redis, member_id=None, caller=None):
 
 async def get_activity_history(destiny, redis, platform_id, member_id, char_id, count):
     function = destiny.api.get_activity_history(platform_id, member_id, char_id, count=count)
-    data = await execute_pydest(function, redis, member_id, "get_activity_history")
+    data = await execute_pydest(function, redis, member_id, 'get_activity_history')
     try:
         activities = data['Response']['activities']
     except (KeyError, TypeError):
@@ -80,7 +80,7 @@ async def get_activity_history(destiny, redis, platform_id, member_id, char_id, 
 
 async def get_pgcr(destiny, redis, activity_id):
     function = destiny.api.get_post_game_carnage_report(activity_id)
-    data = await execute_pydest(function, redis, activity_id, "get_pgcr")
+    data = await execute_pydest(function, redis, activity_id, 'get_pgcr')
     pgcr = data['Response']
     return pgcr
 
@@ -93,9 +93,9 @@ async def get_characters(destiny, redis, member_id, platform_id, caller=None):
 
 
 async def decode_activity(destiny, redis, reference_id):
-    await execute_pydest(destiny.update_manifest(), reference_id, "decode_activity")
+    await execute_pydest(destiny.update_manifest(), reference_id, 'decode_activity')
     function = destiny.decode_hash(reference_id, 'DestinyActivityDefinition')
-    return await execute_pydest(function, redis, reference_id, "decode_activity")
+    return await execute_pydest(function, redis, reference_id, 'decode_activity')
 
 
 async def get_activity_list(destiny, redis, platform_id, member_id, char_ids, count):
@@ -115,7 +115,7 @@ async def get_last_active(destiny, redis, member_db):
 
     acct_last_active = None
     try:
-        characters = await get_characters(destiny, redis, member_id, platform_id, "get_last_active")
+        characters = await get_characters(destiny, redis, member_id, platform_id, 'get_last_active')
         characters = characters.items()
     except AttributeError:
         log.error(f"Could not get character data for {platform_id}-{member_id}")
@@ -224,7 +224,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
 
     try:
         characters = await get_characters(
-            bot.destiny, bot.redis, member_id, platform_id, "store_member_history")
+            bot.destiny, bot.redis, member_id, platform_id, 'store_member_history')
         char_ids = characters.keys()
     except (KeyError, TypeError):
         log.error(f"Could not get character data for {member_db.clanmember.platform_id}-{member_id}")
@@ -278,7 +278,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
             # Mitigate possible race condition when multiple parallel jobs try to
             # do the same thing. Likely when there are multiple people in the same
             # game instance.
-            # TODO: Figure out a better way to "lock" things
+            # TODO: Figure out a better way to 'lock' things
             continue
 
         game_title = game_mode_details['title'].title()
@@ -317,7 +317,7 @@ async def store_all_games(bot, guild_id, count=30):
             log.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
             continue
 
-        active_members = await bot.database.get_clan_members_active(clan_db.id, days=7)
+        active_members = await bot.database.get_clan_members_active(clan_db.id, hours=1)
         if guild_db.aggregate_clans:
             member_dbs.extend(active_members)
         else:

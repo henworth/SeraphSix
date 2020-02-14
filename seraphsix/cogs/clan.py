@@ -1,3 +1,4 @@
+import asyncio
 import discord
 import logging
 import pickle
@@ -6,6 +7,7 @@ import pytz
 
 from datetime import datetime
 from discord.ext import commands
+from discord.ext.commands.errors import BadArgument
 from peewee import DoesNotExist
 
 from seraphsix import constants
@@ -15,7 +17,7 @@ from seraphsix.cogs.utils.helpers import bungie_date_as_utc
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild
-from seraphsix.errors import InvalidAdminError
+from seraphsix.errors import InvalidAdminError, InvalidCommandError
 from seraphsix.models.destiny import Member as DestinyMember
 from seraphsix.tasks.activity import get_game_counts, execute_pydest
 from seraphsix.tasks.clan import info_sync, member_sync
@@ -23,7 +25,7 @@ from seraphsix.tasks.clan import info_sync, member_sync
 log = logging.getLogger(__name__)
 
 
-class ClanCog(commands.Cog, name='Clan'):
+class ClanCog(commands.Cog, name="Clan"):
     def __init__(self, bot):
         self.bot = bot
 
@@ -38,6 +40,88 @@ class ClanCog(commands.Cog, name='Clan'):
             )
         except DoesNotExist:
             raise InvalidAdminError
+
+    async def get_user_details(self, args):
+        username, platform_id = (None,)*2
+
+        if not args:
+            raise InvalidCommandError("Username is required")
+
+        if args[-1] == '-platform':
+            raise InvalidCommandError(
+                f"Platform must be specified like `-platform {list(constants.PLATFORM_EMOJI_MAP.keys())}`")
+
+        if '-platform' in args:
+            platform_name = args[-1].lower()
+            username = ' '.join(args[0:-2])
+            platform_id = constants.PLATFORM_MAP.get(platform_name)
+            if not platform_id:
+                raise InvalidCommandError(f"Invalid platform `{platform_name}` was specified")
+        else:
+            username = ' '.join(args)
+
+        if not username:
+            raise InvalidCommandError("Username is required")
+
+        return username, platform_id
+
+    async def get_member_db(self, ctx, username):
+        try:
+            member_discord = await commands.MemberConverter().convert(ctx, str(username))
+        except BadArgument:
+            member_query = self.bot.database.get_member_by_naive_username(username, include_clan=False)
+        else:
+            member_query = self.bot.database.get_member_by_discord_id(member_discord.id)
+
+        try:
+            member_db = await asyncio.create_task(member_query)
+        except DoesNotExist:
+            member_db = None
+
+        return member_db
+
+    async def get_bungie_details(self, username, bungie_id=None, platform_id=None):
+        membership_id = None
+
+        if bungie_id:
+            try:
+                player = await execute_pydest(
+                    self.bot.destiny.api.get_membership_data_by_id(bungie_id),
+                    self.bot.redis
+                )
+            except pydest.PydestException as e:
+                log_message = f"Could not find Destiny player for {username}"
+                log.error(f"{log_message}\n\n{e}\n\n{player}")
+                raise InvalidCommandError(log_message)
+
+            for membership in player['Response']['destinyMemberships']:
+                if membership['membershipType'] != constants.PLATFORM_BUNGIE:
+                    membership_id = membership['membershipId']
+                    platform_id = membership['membershipType']
+                    break
+        else:
+            try:
+                player = await execute_pydest(
+                    self.bot.destiny.api.search_destiny_player(platform_id, username),
+                    self.bot.redis
+                )
+            except pydest.PydestException as e:
+                log_message = f"Could not find Destiny player for {username}"
+                log.error(f"{log_message}\n\n{e}\n\n{player}")
+                raise InvalidCommandError(log_message)
+
+            if len(player['Response']) == 1:
+                membership = player['Response'][0]
+                if membership['displayName'] == username:
+                    membership_id = membership['membershipId']
+                    platform_id = membership['membershipType']
+            else:
+                for membership in player['Response']:
+                    if membership['membershipType'] == platform_id and membership['displayName'] == username:
+                        membership_id = membership['membershipId']
+                        break
+
+        return membership_id, platform_id
 
     @commands.group()
     async def clan(self, ctx):
@@ -57,36 +141,29 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.has_permissions(administrator=True)
     async def link(self, ctx, group_id):
         """Link clan to the100 group (Admin only)"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         if not group_id:
-            await manager.send_message(
-                "Command must include the the100 group ID")
-            return await manager.clean_messages()
+            return await manager.send_and_clean("Command must include the the100 group ID")
 
         res = await self.bot.the100.get_group(group_id)
         if res.get('error'):
-            await manager.send_message(
-                f"Could not locate the100 group {group_id}")
-            return await manager.clean_messages()
+            return await manager.send_and_clean(f"Could not locate the100 group {group_id}")
 
         group_name = res['name']
         callsign = res['clan_tag']
 
         clan_db = await self.get_admin_group(ctx)
         if clan_db.the100_group_id:
-            await manager.send_message(
+            return await manager.send_and_clean(
                 f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
-            return await manager.clean_messages()
 
         clan_db.the100_group_id = res['id']
         await self.bot.database.update(clan_db)
 
-        await manager.send_message((
+        return await manager.send_and_clean((
             f"**{clan_db.name} [{clan_db.callsign}]** "
             f"linked to **{group_name} [{callsign}]**"))
-        return await manager.clean_messages()
 
     @the100.command()
     @clan_is_linked()
@@ -94,20 +171,16 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.has_permissions(administrator=True)
     async def unlink(self, ctx, group_id):
         """Unlink clan from the100 group (Admin only)"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         clan_db = await self.get_admin_group(ctx)
         if not clan_db.the100_group_id:
-            await manager.send_message(
+            return await manager.send_and_clean(
                 f"**{clan_db.name} [{clan_db.callsign}]** is not linked to a the100 group.")
-            return await manager.clean_messages()
 
         res = await self.bot.the100.get_group(clan_db.the100_group_id)
         if res.get('error'):
-            await manager.send_message(
-                f"Could not locate the100 group {clan_db.the100_group_id}")
-            return await manager.clean_messages()
+            return await manager.send_and_clean(f"Could not locate the100 group {clan_db.the100_group_id}")
 
         group_name = res['name']
         callsign = res['clan_tag']
@@ -115,26 +188,30 @@ class ClanCog(commands.Cog, name='Clan'):
         clan_db.the100_group_id = None
         await self.bot.database.update(clan_db)
 
-        await manager.send_message((
-            f"**{clan_db.name} [{clan_db.callsign}]** "
-            f"unlinked from **{group_name} [{callsign}]**"))
-        return await manager.clean_messages()
+        return await manager.send_and_clean(
+            (
+                f"**{clan_db.name} [{clan_db.callsign}]** "
+                f"unlinked from **{group_name} [{callsign}]**"
+            )
+        )
 
     @clan.command()
     @clan_is_linked()
     @commands.guild_only()
     async def info(self, ctx, *args):
         """Show information for all connected clans"""
-        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         if not clan_dbs:
-            return await ctx.send("No connected clans found")
+            return await manager.send_and_clean("No connected clans found", mention=False)
 
         embeds = []
-        clan_info_redis = await self.bot.redis.get(f'{ctx.guild.id}-clan-info')
+        clan_redis_key = f"{ctx.guild.id}-clan-info"
+        clan_info_redis = await self.bot.redis.get(clan_redis_key)
         if clan_info_redis and '-nocache' not in args:
-            await self.bot.redis.expire(f'{ctx.guild.id}-clan-info', constants.TIME_HOUR_SECONDS)
+            await self.bot.redis.expire(clan_redis_key, constants.TIME_HOUR_SECONDS)
             embeds = pickle.loads(clan_info_redis)
         else:
             for clan_db in clan_dbs:
@@ -150,55 +227,55 @@ class ClanCog(commands.Cog, name='Clan'):
                     url=f"https://www.bungie.net/en/ClanV2?groupid={clan_db.clan_id}"
                 )
                 embed.add_field(
-                    name='Members',
+                    name="Members",
                     value=group['detail']['memberCount'],
                     inline=True
                 )
                 embed.add_field(
-                    name='Founder',
+                    name="Founder",
                     value=group['founder']['bungieNetUserInfo']['displayName'],
                     inline=True
                 )
                 embed.add_field(
-                    name='Founded',
+                    name="Founded",
                     value=datetime.strptime(
                         group['detail']['creationDate'],
                         '%Y-%m-%dT%H:%M:%S.%f%z').strftime('%Y-%m-%d %H:%M:%S %Z'),
                     inline=True
                 )
                 embeds.append(embed)
-            await self.bot.redis.set(
-                f'{ctx.guild.id}-clan-info', pickle.dumps(embeds), expire=constants.TIME_HOUR_SECONDS)
+            await self.bot.redis.set(clan_redis_key, pickle.dumps(embeds), expire=constants.TIME_HOUR_SECONDS)
 
         if len(embeds) > 1:
             paginator = EmbedPages(ctx, embeds)
             await paginator.paginate()
         else:
-            await ctx.send(embed=embeds[0])
+            await manager.send_embed(embeds[0])
 
     @clan.command()
     @clan_is_linked()
     @commands.guild_only()
     async def roster(self, ctx, *args):
         """Show roster for all connected clans"""
-        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         if not clan_dbs:
-            return await ctx.send("No connected clans found")
+            return await manager.send_and_clean("No connected clans found")
 
         members = []
-        members_redis = await self.bot.redis.lrange(f'{ctx.guild.id}-clan-roster', 0, -1)
+        members_redis = await self.bot.redis.lrange(f"{ctx.guild.id}-clan-roster", 0, -1)
         if members_redis and '-nocache' not in args:
-            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_SECONDS)
+            await self.bot.redis.expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
             for member in members_redis:
                 members.append(pickle.loads(member))
         else:
             members_db = await self.bot.database.get_clan_members(
                 [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
             for member in members_db:
-                await self.bot.redis.rpush(f'{ctx.guild.id}-clan-roster', pickle.dumps(member))
-            await self.bot.redis.expire(f'{ctx.guild.id}-clan-roster', constants.TIME_HOUR_SECONDS)
+                await self.bot.redis.rpush(f"{ctx.guild.id}-clan-roster", pickle.dumps(member))
+            await self.bot.redis.expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
             members = members_db
 
         entries = []
@@ -229,7 +306,6 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.has_permissions(administrator=True)
     async def pending(self, ctx):
         """Show a list of pending members (Admin only, requires registration)"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
@@ -250,7 +326,7 @@ class ClanCog(commands.Cog, name='Clan'):
             )
 
             if 'error' in tokens:
-                log.warning(f"{tokens['error_description']} Registration is needed.")
+                log.warning(f"{tokens['error_description']} Registration is needed")
                 user_info = await register(
                     ctx, manager, "Your registration token has expired and re-registration is needed.")
                 if not user_info:
@@ -285,63 +361,48 @@ class ClanCog(commands.Cog, name='Clan'):
                 member_info = f"Date Applied: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
 
-        await ctx.send(embed=embed)
+        await manager.send_embed(embed)
 
-    @clan.command()
+    @clan.command(
+        help=f"""
+Admin only, requires registration
+
+Approve a pending clan member based on either their Discord info or in-game username.
+
+To approve based on Discord info, the user must be registered. Once that is done,
+the command takes any Discord user info (username, nickname, id, etc.)
+
+For in-game username if the server default platform is not set, the `-platform`
+argument is required.
+
+Examples:
+?clan approve username
+?clan approve username -platform xbox
+""")
     @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def approve(self, ctx, *args):
         """Approve a pending member (Admin only, requires registration)"""
-        await ctx.trigger_typing()
-        gamertag, platform_id, platform_name = (None,)*3
+        manager = MessageManager(ctx)
+        username, platform_id = await self.get_user_details(args)
 
-        if args[-1] == '-platform':
-            await ctx.send(f"Platform must be specified like `-platform ['psn', 'stadia', 'steam', 'xbox']`")
-            return
-
-        if '-platform' in args:
-            platform_name = args[-1].lower()
-            gamertag = ' '.join(args[0:-2])
-            platform_id = constants.PLATFORM_MAP.get(platform_name)
-            if not platform_id:
-                await ctx.send(f"Invalid platform `{platform_name}` was specified")
-                return
-        else:
-            gamertag = ' '.join(args)
-
-        if not gamertag:
-            await ctx.send(f"Gamertag is required")
-            return
-
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        member_db = await self.get_member_db(ctx, username)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        if not platform_id and not clan_db.platform:
-            await ctx.send("Platform was not specified and clan default platform is not set")
-            return
-        else:
+        if clan_db.platform:
             platform_id = clan_db.platform
+        elif not platform_id:
+            raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
-        try:
-            player = await execute_pydest(
-                self.bot.destiny.api.search_destiny_player(platform_id, gamertag),
-                self.bot.redis,
-            )
-        except pydest.PydestException:
-            await ctx.send(f"Invalid gamertag {gamertag}")
-            return
+        bungie_id = None
+        if member_db:
+            bungie_id = member_db.bungie_id
 
-        membership_id = None
-        for membership in player['Response']:
-            if membership['membershipType'] == platform_id and membership['displayName'] == gamertag:
-                membership_id = membership['membershipId']
-                break
+        membership_id, platform_id = await self.get_bungie_details(username, bungie_id, platform_id)
 
-        if not membership_id:
-            await ctx.send(f"Could not find Destiny player for gamertag {gamertag}")
-            return
-
+        res = None
         try:
             res = await execute_pydest(
                 self.bot.destiny.api.group_approve_pending_member(
@@ -349,7 +410,7 @@ class ClanCog(commands.Cog, name='Clan'):
                     membership_type=platform_id,
                     membership_id=membership_id,
                     message=f"Welcome to {clan_db.name}!",
-                    access_token=member_db.bungie_access_token
+                    access_token=admin_db.bungie_access_token
                 ),
                 self.bot.redis
             )
@@ -372,13 +433,16 @@ class ClanCog(commands.Cog, name='Clan'):
             member_db.bungie_refresh_token = tokens['refresh_token']
             await self.bot.database.update(member_db)
 
-        if res['ErrorStatus'] != 'Success':
-            message = f"Could not approve **{gamertag}**"
-            log.info(f"Could not approve \"{gamertag}\": {res}")
-        else:
-            message = f"Approved **{gamertag}** as a member of clan **{clan_db.name}**"
+        if not res:
+            raise RuntimeError("Unexpected empty response from the Bungie API")
 
-        await ctx.send(message)
+        if res['ErrorStatus'] != 'Success':
+            message = f"Could not approve **{username}**"
+            log.info(f"Could not approve '{username}': {res}")
+        else:
+            message = f"Approved **{username}** as a member of clan **{clan_db.name}**"
+
+        return await manager.send_and_clean(message)
 
     @clan.command()
     @is_clan_admin()
@@ -386,7 +450,8 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.has_permissions(administrator=True)
     async def invited(self, ctx):
         """Show a list of invited members (Admin only, requires registration)"""
-        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
@@ -431,63 +496,48 @@ class ClanCog(commands.Cog, name='Clan'):
                 member_info = f"Date Invited: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
 
-        await ctx.send(embed=embed)
+        await manager.send_embed(embed)
 
-    @clan.command()
+    @clan.command(
+        help=f"""
+Admin only, requires registration
+
+Invite a user to clan based on either their Discord info or in-game username.
+
+To invite based on Discord info, the user must be registered. Once that is done,
+the command takes any Discord user info (username, nickname, id, etc.)
+
+For in-game username if the server default platform is not set, the `-platform`
+argument is required.
+
+Examples:
+?clan invite username
+?clan invite username -platform xbox
+""")
     @is_clan_admin()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def invite(self, ctx, *args):
-        """Invite a member by gamertag (Admin only, requires registration)"""
-        await ctx.trigger_typing()
-        gamertag, platform_id, platform_name = (None,)*3
+        """Invite a member by username (Admin only, requires registration)"""
+        manager = MessageManager(ctx)
+        username, platform_id = await self.get_user_details(args)
 
-        if args[-1] == '--platform':
-            await ctx.send(f"Platform must be specified like `--platform ['psn', 'stadia', 'steam', 'xbox']`")
-            return
-
-        if '--platform' in args:
-            platform_name = args[-1].lower()
-            gamertag = ' '.join(args[0:-2])
-            platform_id = constants.PLATFORM_MAP.get(platform_name)
-            if not platform_id:
-                await ctx.send(f"Invalid platform `{platform_name}` was specified")
-                return
-        else:
-            gamertag = ' '.join(args)
-
-        if not gamertag:
-            await ctx.send(f"Gamertag is required")
-            return
-
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        member_db = await self.get_member_db(ctx, username)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        if not platform_id and not clan_db.platform:
-            await ctx.send("Platform was not specified and clan default platform is not set")
-            return
-        else:
+        if clan_db.platform:
             platform_id = clan_db.platform
+        elif not platform_id:
+            raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
-        try:
-            player = await execute_pydest(
-                self.bot.destiny.api.search_destiny_player(platform_id, gamertag),
-                self.bot.redis
-            )
-        except pydest.PydestException:
-            await ctx.send(f"Invalid gamertag {gamertag}")
-            return
+        bungie_id = None
+        if member_db:
+            bungie_id = member_db.bungie_id
 
-        membership_id = None
-        for membership in player['Response']:
-            if membership['membershipType'] == platform_id and membership['displayName'] == gamertag:
-                membership_id = membership['membershipId']
-                break
+        membership_id, platform_id = await self.get_bungie_details(username, bungie_id, platform_id)
 
-        if not membership_id:
-            await ctx.send(f"Could not find Destiny player for gamertag {gamertag}")
-            return
-
+        res = None
         try:
             res = await execute_pydest(
                 self.bot.destiny.api.group_invite_member(
@@ -495,7 +545,7 @@ class ClanCog(commands.Cog, name='Clan'):
                     membership_type=platform_id,
                     membership_id=membership_id,
                     message=f"Join my clan {clan_db.name}!",
-                    access_token=member_db.bungie_access_token
+                    access_token=admin_db.bungie_access_token
                 ),
                 self.bot.redis
             )
@@ -518,12 +568,18 @@ class ClanCog(commands.Cog, name='Clan'):
             member_db.bungie_refresh_token = tokens['refresh_token']
             await self.bot.database.update(member_db)
 
-        if res['ErrorStatus'] == 'ClanTargetDisallowsInvites':
-            message = f"User **{gamertag}** has disabled clan invites"
-        else:
-            message = f"Invited **{gamertag}** to clan **{clan_db.name}**"
+        if not res:
+            raise RuntimeError("Unexpected empty response from the Bungie API")
 
-        await ctx.send(message)
+        if res['ErrorStatus'] == 'ClanTargetDisallowsInvites':
+            message = f"User **{username}** has disabled clan invites"
+        elif res['ErrorStatus'] != 'Success':
+            message = f"Could not invite **{username}**"
+            log.info(f"Could not invite '{username}': {res}")
+        else:
+            message = f"Invited **{username}** to clan **{clan_db.name}**"
+
+        return await manager.send_and_clean(message)
 
     @clan.command()
     @clan_is_linked()
@@ -531,9 +587,10 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
         """Sync member list with Bungie (Admin only)"""
-        await ctx.trigger_typing()
-        member_changes = await member_sync(self.bot.database, self.bot.destiny, self.bot.redis, ctx.guild.id)
-        clan_info_changes = await info_sync(self.bot.database, self.bot.destiny, self.bot.redis, ctx.guild.id)
+        manager = MessageManager(ctx)
+
+        member_changes = await member_sync(self.bot, ctx.guild.id)
+        clan_info_changes = await info_sync(self.bot, ctx.guild.id)
 
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         embeds = []
@@ -550,14 +607,14 @@ class ClanCog(commands.Cog, name='Clan'):
                     and not clan_info_changes.get(clan_db.clan_id):
                 embed.add_field(
                     name="No Changes",
-                    value="-"
+                    value='-'
                 )
 
             if added:
                 if len(added) > 10:
                     members_value = f"Too many to list: {len(added)} total"
                 else:
-                    members_value = ", ".join(added)
+                    members_value = ', '.join(added)
                 embed.add_field(
                     name="Members Added",
                     value=members_value,
@@ -568,7 +625,7 @@ class ClanCog(commands.Cog, name='Clan'):
                 if len(removed) >= 10:
                     members_value = f"Too many to list: {len(removed)} total"
                 else:
-                    members_value = ", ".join(removed)
+                    members_value = ', '.join(removed)
                 embed.add_field(
                     name="Members Removed",
                     value=members_value,
@@ -578,7 +635,7 @@ class ClanCog(commands.Cog, name='Clan'):
             if changed:
                 embed.add_field(
                     name="Members Changed",
-                    value=", ".join(changed),
+                    value=', '.join(changed),
                     inline=False
                 )
 
@@ -602,7 +659,7 @@ class ClanCog(commands.Cog, name='Clan'):
             paginator = EmbedPages(ctx, embeds)
             await paginator.paginate()
         else:
-            await ctx.send(embed=embeds[0])
+            return await manager.send_embed(embeds[0])
 
     @clan.command(
         usage=f"<{', '.join(constants.SUPPORTED_GAME_MODES.keys())}>"
@@ -612,7 +669,8 @@ class ClanCog(commands.Cog, name='Clan'):
     @commands.guild_only()
     async def games(self, ctx, game_mode: str):
         """Show totals of all eligible clan games for all members"""
-        await ctx.trigger_typing()
+        manager = MessageManager(ctx)
+
         log.info(f"Finding all {game_mode} games for all members")
 
         game_counts = await get_game_counts(self.bot.database, game_mode)
@@ -631,14 +689,13 @@ class ClanCog(commands.Cog, name='Clan'):
                 total_count += count
 
         embed.description = str(total_count)
-        await ctx.send(embed=embed)
+        await manager.send_embed(embed)
 
     @clan.command()
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def activitytracking(self, ctx):
         """Enable activity tracking on all connected clans (Admin only)"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)

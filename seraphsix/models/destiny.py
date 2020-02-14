@@ -14,7 +14,7 @@ class UserMembership(object):
         self.username = details['displayName']
 
     def __repr__(self):
-        return f'<{type(self).__name__}: {self.username}-{self.id}>'
+        return f"<{type(self).__name__}: {self.username}-{self.id}>"
 
 
 class User(object):
@@ -30,6 +30,7 @@ class User(object):
 
     def __init__(self, details):
         self.memberships = self.Memberships()
+        self.primary_membership_id = details.get('primaryMembershipId')
 
         if details.get('destinyUserInfo'):
             self._process_membership(details['destinyUserInfo'])
@@ -104,10 +105,10 @@ class Member(User):
             self.member_id = self.memberships.stadia.id
 
     def __repr__(self):
-        return f'<{type(self).__name__}: {self.platform_id}-{self.member_id}>'
+        return f"<{type(self).__name__}: {self.platform_id}-{self.member_id}>"
 
     def __str__(self):
-        return f'{self.platform_id}-{self.member_id}'
+        return f"{self.platform_id}-{self.member_id}"
 
 
 class Player(object):
@@ -130,7 +131,7 @@ class Player(object):
             self.time_played = 0.0
 
     def __repr__(self):
-        return f'<{type(self).__name__}: {self.membership_type}-{self.membership_id}>'
+        return f"<{type(self).__name__}: {self.membership_type}-{self.membership_id}>"
 
 
 class Game(object):
@@ -147,7 +148,7 @@ class Game(object):
             self.players.append(player)
 
     def __repr__(self):
-        return f'<{type(self).__name__}: {self.instance_id}>'
+        return f"<{type(self).__name__}: {self.instance_id}>"
 
 
 class ClanGame(Game):
@@ -177,6 +178,6 @@ class ClanGame(Game):
         # Also check if the member joined before the game time.
         self.clan_players = []
         for player in self.players:
-            player_hash = f'{player.membership_type}-{player.membership_id}'
+            player_hash = f"{player.membership_type}-{player.membership_id}"
             if player_hash in members.keys() and self.date > members[player_hash].clanmember.join_date:
                 self.clan_players.append(player)

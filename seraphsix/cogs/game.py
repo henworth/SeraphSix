@@ -16,7 +16,7 @@ from seraphsix.tasks.the100 import collate_the100_activities
 log = logging.getLogger(__name__)
 
 
-class GameCog(commands.Cog, name='Game'):
+class GameCog(commands.Cog, name="Game"):
     def __init__(self, bot):
         self.bot = bot
 
@@ -31,7 +31,6 @@ class GameCog(commands.Cog, name='Game'):
     @commands.guild_only()
     async def list(self, ctx):
         """List games on the100 in the linked group(s)"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
@@ -51,8 +50,7 @@ class GameCog(commands.Cog, name='Game'):
             games.extend(result)
 
         if not games:
-            await manager.send_message("No the100 game sessions found")
-            return await manager.clean_messages()
+            return await manager.send_and_clean("No the100 game sessions found")
 
         embeds = []
         for game in games:
@@ -61,8 +59,7 @@ class GameCog(commands.Cog, name='Game'):
             except TypeError:
                 continue
 
-            start_time = datetime.fromisoformat(
-                game['start_time']).astimezone(tz=pytz.utc)
+            start_time = datetime.fromisoformat(game['start_time']).astimezone(tz=pytz.utc)
 
             embed = discord.Embed(
                 color=constants.BLUE,
@@ -79,7 +76,7 @@ class GameCog(commands.Cog, name='Game'):
                 value=start_time.strftime(constants.THE100_DATE_DISPLAY)
             )
             embed.add_field(
-                name='Description',
+                name="Description",
                 value=game['name'],
                 inline=False
             )
@@ -112,8 +109,8 @@ class GameCog(commands.Cog, name='Game'):
                 inline=False
             )
             embed.add_field(
-                name='Reserves',
-                value=', '.join(reserve) or 'None',
+                name="Reserves",
+                value=', '.join(reserve) or "None",
                 inline=False
             )
             embed.set_footer(
@@ -135,7 +132,6 @@ class GameCog(commands.Cog, name='Game'):
     @commands.guild_only()
     async def create(self, ctx):
         """Create a game on the100"""
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         base_embed = discord.Embed(
@@ -144,16 +140,16 @@ class GameCog(commands.Cog, name='Game'):
         base_embed.set_thumbnail(
             url=(constants.THE100_LOGO_URL)
         )
-        for field in ['Status', 'Activity', "Start Time", 'Description', 'Platform', "Group Only"]:
+        for field in ["Status", "Activity", "Start Time", "Description", "Platform", "Group Only"]:
             kwargs = dict(
                 name=field,
                 value="Not Set",
                 inline=True
             )
-            if field in ['Description', 'Status']:
+            if field in ["Description', 'Status"]:
                 kwargs['inline'] = False
-            if field == 'Status':
-                kwargs['value'] = "**Game Creation In Progress...**"
+            if field == "Status":
+                kwargs['value'] = '**Game Creation In Progress...**'
             base_embed.add_field(**kwargs)
 
         game_embed = await manager.send_embed(base_embed, clean=True)
@@ -161,8 +157,7 @@ class GameCog(commands.Cog, name='Game'):
         # TODO: Figure out how to sanitize the Destiny 1 game activity list
         game_name = "Destiny 2"
         game = await self.bot.the100.get_game_by_name(game_name)
-        game_activities, game_activities_by_id = collate_the100_activities(
-            game['game_activities'], game_name)
+        game_activities, game_activities_by_id = collate_the100_activities(game['game_activities'], game_name)
 
         activity_id = None
         while not activity_id:
@@ -172,7 +167,7 @@ class GameCog(commands.Cog, name='Game'):
 
             embed = discord.Embed(
                 color=constants.BLUE,
-                description='\n'.join([f'{react} - {activity}' for react, activity in reacts.items()]),
+                description='\n'.join([f"{react} - {activity}" for react, activity in reacts.items()]),
             )
 
             react = await manager.send_message_react(
@@ -184,8 +179,7 @@ class GameCog(commands.Cog, name='Game'):
             )
 
             if not react:
-                await manager.send_message("Canceling post")
-                return await manager.clean_messages()
+                return await manager.send_and_clean("Canceling post")
 
             activity_react = game_activities[reacts[react]]
             if isinstance(activity_react, int):
@@ -193,14 +187,13 @@ class GameCog(commands.Cog, name='Game'):
             else:
                 game_activities = activity_react
 
-        base_embed.set_field_at(1, name='Activity', value=game_activities_by_id[activity_id])
+        base_embed.set_field_at(1, name=f"Activity", value=game_activities_by_id[activity_id])
         await game_embed.edit(embed=base_embed)
 
         time = await manager.send_and_get_response(
             "Enter time in the format `6/13 10:00pm` (enter `cancel` to cancel post)")
         if time.lower() == 'cancel':
-            await manager.send_message("Canceling post")
-            return await manager.clean_messages()
+            return await manager.send_and_clean("Canceling post")
 
         member_db = await self.bot.database.get(Member, discord_id=ctx.author.id)
 
@@ -211,33 +204,29 @@ class GameCog(commands.Cog, name='Game'):
                                 value=time_format.strftime(constants.THE100_DATE_DISPLAY))
         await game_embed.edit(embed=base_embed)
 
-        description = await manager.send_and_get_response(
-            "Enter a description (enter `cancel` to cancel post)")
+        description = await manager.send_and_get_response("Enter a description (enter `cancel` to cancel post)")
         if description.lower() == 'cancel':
-            await manager.send_message("Canceling post")
-            return await manager.clean_messages()
+            return await manager.send_and_clean("Canceling post")
 
-        base_embed.set_field_at(3, name='Description', value=description, inline=False)
+        base_embed.set_field_at(3, name="Description", value=description, inline=False)
         await game_embed.edit(embed=base_embed)
 
-        platforms = {
-            constants.EMOJI_XBOX: 'xbox',
-            constants.EMOJI_PSN: 'psn',
-            constants.EMOJI_STEAM: 'steam'
-        }
+        platform_names = list(constants.PLATFORM_EMOJI_MAP.keys())
+        platform_emoji_ids = list(constants.PLATFORM_EMOJI_MAP.values())
 
-        platform = await manager.send_message_react(
+        platform_react = await manager.send_message_react(
             "Which platform?",
-            reactions=platforms.keys(),
+            reactions=constants.PLATFORM_EMOJI_MAP.values(),
             clean=False,
             with_cancel=True
         )
 
-        if not platform:
-            await manager.send_message("Canceling post")
-            return await manager.clean_messages()
+        if not platform_react:
+            return await manager.send_and_clean("Canceling post")
 
-        base_embed.set_field_at(4, name='Platform', value=self.bot.get_emoji(platform.id))
+        platform = platform_names[platform_emoji_ids.index(platform_react)]
+
+        base_embed.set_field_at(4, name="Platform", value=self.bot.get_emoji(platform_react.id))
         await game_embed.edit(embed=base_embed)
 
         group_only = {
@@ -253,14 +242,13 @@ class GameCog(commands.Cog, name='Game'):
         )
 
         if not group:
-            await manager.send_message("Canceling post")
-            return await manager.clean_messages()
+            return await manager.send_and_clean("Canceling post")
 
         base_embed.set_field_at(5, name="Group Only", value=group)
         await game_embed.edit(embed=base_embed)
 
         base_embed.set_field_at(
-            0, name='Status', value="**Ready to post, please confirm details...**", inline=False)
+            0, name="Status", value="**Ready to post, please confirm details...**", inline=False)
         await game_embed.edit(embed=base_embed)
 
         confirm = {
@@ -274,13 +262,12 @@ class GameCog(commands.Cog, name='Game'):
             clean=False
         )
         if confirm_res == constants.EMOJI_CROSSMARK:
-            await manager.send_message("Canceling post")
-            return await manager.clean_messages()
+            return await manager.send_and_clean("Canceling post")
 
-        message = ' '.join([group_only[group], platforms[platform.id],
-                            game_activities_by_id[activity_id],
-                            time_format.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                            f"\"{description}\""])
+        message = ' '.join([
+            group_only[group], platform, game_activities_by_id[activity_id],
+            time_format.strftime('%Y-%m-%dT%H:%M:%S%z'), f"\'{description}\'"
+        ])
 
         data = {
             'guild_id': ctx.guild.id,
@@ -298,7 +285,7 @@ class GameCog(commands.Cog, name='Game'):
             msg_parts = response_msg.strip().split(' ')
             msg = ' '.join(msg_parts[0:3])
             link = msg_parts[-1]
-            base_embed.set_field_at(0, name='Status', value=f"**[{msg}]({link})**", inline=False)
+            base_embed.set_field_at(0, name="Status", value=f"**[{msg}]({link})**", inline=False)
             await game_embed.edit(embed=base_embed)
             manager.remove_message_from_clean(game_embed)
         return await manager.clean_messages()

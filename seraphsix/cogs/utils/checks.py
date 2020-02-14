@@ -10,7 +10,7 @@ from seraphsix.errors import (
 
 
 def is_event(message):
-    """Check if a message contains event data"""
+    '''Check if a message contains event data'''
     if len(message.embeds) > 0:
         embed = message.embeds[0]
         return (message.channel.name == 'upcoming-events'

@@ -14,12 +14,12 @@ from seraphsix.tasks.activity import execute_pydest
 log = logging.getLogger(__name__)
 
 
-async def register(ctx, manager, extra_message="", confirm_message=""):
+async def register(ctx, manager, extra_message='', confirm_message=''):
     if not confirm_message:
         confirm_message = "Registration Complete"
 
     auth_url = (
-        f'https://{ctx.bot.config.bungie.redirect_host}/oauth?state={ctx.author.id}'
+        f"https://{ctx.bot.config.bungie.redirect_host}/oauth?state={ctx.author.id}"
     )
 
     if not isinstance(ctx.channel, discord.abc.PrivateChannel):
@@ -69,7 +69,7 @@ async def wait_for_msg(ch):
         return pickle.loads(pickled_msg)
 
 
-class RegisterCog(commands.Cog, name='Register'):
+class RegisterCog(commands.Cog, name="Register"):
 
     def __init__(self, bot):
         self.bot = bot
@@ -83,7 +83,6 @@ class RegisterCog(commands.Cog, name='Register'):
         with your Discord profile. Registering is a prerequisite to using any
         commands that require knowledge of your Destiny 2 profile.
         """
-        await ctx.trigger_typing()
         manager = MessageManager(ctx)
 
         embed, user_info = await register(ctx, manager, confirm_message="Initial Registration Complete...")
@@ -192,7 +191,7 @@ class RegisterCog(commands.Cog, name='Register'):
                 message = f"{message} with platforms {' '.join(emojis)}"
 
             await embed.edit(embed=e)
-            await self.bot.log_channel.send(message)
+            await self.bot.reg_channel.send(message)
 
         return await manager.clean_messages()
 

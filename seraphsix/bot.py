@@ -32,8 +32,8 @@ STARTUP_EXTENSIONS = [
 
 
 async def _prefix_callable(bot, message):
-    """Get current command prefix"""
-    base = [f'<@{bot.user.id}> ']
+    '''Get current command prefix'''
+    base = [f"<@{bot.user.id}> "]
     if isinstance(message.channel, discord.abc.PrivateChannel):
         base.append('?')
     else:
@@ -96,7 +96,7 @@ class SeraphSix(commands.Bot):
             guild_id = guild.guild_id
             log.info(f"Finding last active dates for all members of {guild_id}")
 
-            if not hasattr(self, "redis"):
+            if not hasattr(self, 'redis'):
                 await self.connect_redis()
 
             try:
@@ -120,7 +120,7 @@ class SeraphSix(commands.Bot):
                 self.bungie_maintenance = False
                 log.info("Bungie maintenance has ended")
 
-        log.info(f"Found last active dates in all guilds")
+        log.info("Found last active dates in all guilds")
 
     @update_last_active.before_loop
     async def before_update_last_active(self):
@@ -193,6 +193,7 @@ class SeraphSix(commands.Bot):
         await self.connect_redis()
 
         self.log_channel = self.get_channel(self.config.log_channel)
+        self.reg_channel = self.get_channel(self.config.reg_channel)
 
         start_message = (
             f"Logged in as {self.user.name} ({self.user.id}) "
@@ -205,7 +206,7 @@ class SeraphSix(commands.Bot):
             log.info("Starting Twitter stream tracking")
             self.loop.create_task(self.track_tweets())
 
-        self.update_sherpa_roles()
+        await self.update_sherpa_roles()
 
     async def on_member_update(self, before, after):
         if not before.bot:
@@ -235,7 +236,7 @@ class SeraphSix(commands.Bot):
             text = f"Required argument `{error.param}` is missing."
         else:
             error_trace = traceback.format_exception(type(error), error, error.__traceback__)
-            log.error(f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
+            log.error(f"Ignoring exception in command '{ctx.command}': {error_trace}")
             if ctx.guild:
                 location = f"guild `{ctx.guild.id}`"
             else:
@@ -246,7 +247,7 @@ class SeraphSix(commands.Bot):
             )
             await self.log_channel.send(
                 content=log_channel_message,
-                file=discord.File(io.BytesIO(''.join(error_trace).encode('utf-8')), filename='exception.txt')
+                file=discord.File(io.BytesIO(''.join(error_trace).encode('utf-8')), filename="exception.txt")
             )
             await manager.send_message(
                 (
@@ -257,9 +258,7 @@ class SeraphSix(commands.Bot):
             )
 
         if text:
-            await manager.send_message(
-                f"{text}\nType `{ctx.prefix}help` for more information.")
-            await manager.clean_messages()
+            await manager.send_and_clean(f"{text}\nType `{ctx.prefix}help` for more information.")
 
     # Update guild count at bot listing sites and in bots status/presence
     # async def update_status(self):

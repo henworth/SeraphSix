@@ -6,7 +6,10 @@ from seraphsix.cogs.utils.checks import is_private_channel
 
 class MessageManager:
 
-    def __init__(self, ctx):
+    def __init__(self, ctx, trigger_typing=True):
+        if trigger_typing:
+            asyncio.create_task(ctx.trigger_typing())
+
         self.ctx = ctx
         self.messages_to_clean = [ctx.message]
 
@@ -58,12 +61,15 @@ class MessageManager:
                 self.messages_to_clean.append(msg)
         return msg
 
-    async def send_message(self, message_text, clean=True):
+    async def send_message(self, message_text, mention=True, clean=True):
         """Send a message to the user on ctx.channel"""
         if is_private_channel(self.ctx.channel):
             msg = await self.send_private_message(message_text)
         else:
-            msg = await self.ctx.channel.send(f"{self.ctx.author.mention}: {message_text}")
+            if mention:
+                msg = await self.ctx.channel.send(f"{self.ctx.author.mention}: {message_text}")
+            else:
+                msg = await self.ctx.channel.send(message_text)
             if clean:
                 self.messages_to_clean.append(msg)
         return msg

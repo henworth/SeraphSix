@@ -12,8 +12,8 @@ def collate_the100_activities(activities, game_name):
         val = activity['id']
         game_activities_by_id[val] = key
 
-        # Sanitize the game names to ensure merging works correctly, raids require "Fresh" to be appended,
-        # other things require "Normal", and one requires "Anything"
+        # Sanitize the game names to ensure merging works correctly, raids require 'Fresh' to be appended,
+        # other things require 'Normal', and one requires 'Anything'
         if key in THE100_GAME_SORT_RULES[game_name]['fresh']:
             key = f"{key} - Fresh"
         elif key in THE100_GAME_SORT_RULES[game_name]['normal']:
@@ -22,7 +22,7 @@ def collate_the100_activities(activities, game_name):
             key = f"{key} - Anything"
         game_activities.append({key: val})
 
-    # Create a list of nested dictionaries created by splitting the name by " - ", ie.
+    # Create a list of nested dictionaries created by splitting the name by ' - ', ie.
     #
     # If the output of the previous loop is this:
     # [{'Raid - Crown of Sorrow - Fresh': 1}, {'Raid - Last Wish - Fresh': 2}]
@@ -32,7 +32,7 @@ def collate_the100_activities(activities, game_name):
     game_activities_list = []
     for game_activity in game_activities:
         game_activities_list.append(reduce(lambda res, cur: {cur: res}, reversed(
-            list(game_activity.keys())[0].split(" - ")), list(game_activity.values())[0]))
+            list(game_activity.keys())[0].split(' - ')), list(game_activity.values())[0]))
 
     # Merge the list of dictionaries into one big dictionary
     # {'Raid': {'Crown of Sorrow': {'Fresh': 1}}, {'Last Wish': {'Fresh': 2}}}

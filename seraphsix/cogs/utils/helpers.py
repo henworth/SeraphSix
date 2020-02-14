@@ -16,7 +16,7 @@ def merge_dicts(a, b, path=None):
             elif a[key] == b[key]:
                 pass  # same leaf value
             else:
-                raise Exception('Conflict at %s' % '.'.join(path + [str(key)]))
+                raise Exception(f"Conflict at {'.'.join(path + [str(key)])}")
         else:
             a[key] = b[key]
     return a
@@ -38,7 +38,7 @@ def bungie_date_as_utc(date):
 
 def get_timezone_name(timezone, country_code):
     set_zones = set()
-    # See if it's already a valid "long" time zone name
+    # See if it's already a valid 'long' time zone name
     if '/' in timezone and timezone in pytz.all_timezones:
         set_zones.add(timezone)
         return set_zones
@@ -47,10 +47,10 @@ def get_timezone_name(timezone, country_code):
     try:
         offset = int(timezone)
         if offset > 0:
-            offset = '+' + str(offset)
+            offset = f"+{offset}"
         else:
             offset = str(offset)
-        set_zones.add('Etc/GMT' + offset)
+        set_zones.add(f"Etc/GMT{offset}")
         return set_zones
     except ValueError:
         pass
