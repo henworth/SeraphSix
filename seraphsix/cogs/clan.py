@@ -76,7 +76,8 @@ class ClanCog(commands.Cog, name="Clan"):
         try:
             member_db = await asyncio.create_task(member_query)
         except DoesNotExist:
-            raise InvalidCommandError(f"Could not find username `{username}`")
+            member_db = None
+
         return member_db
 
     async def get_bungie_details(self, username, bungie_id=None, platform_id=None):
@@ -88,8 +89,10 @@ class ClanCog(commands.Cog, name="Clan"):
                     self.bot.destiny.api.get_membership_data_by_id(bungie_id),
                     self.bot.redis
                 )
-            except pydest.PydestException:
-                raise InvalidCommandError(f"Could not find Destiny player for {username}")
+            except pydest.PydestException as e:
+                log_message = f"Could not find Destiny player for {username}"
+                log.error(f"{log_message}\n\n{e}\n\n{player}")
+                raise InvalidCommandError(log_message)
 
             for membership in player['Response']['destinyMemberships']:
                 if membership['membershipType'] != constants.PLATFORM_BUNGIE:
@@ -103,14 +106,20 @@ class ClanCog(commands.Cog, name="Clan"):
                     self.bot.redis
                 )
             except pydest.PydestException as e:
-                log.error(f"Could not find Destiny player for {username}: {e}")
-                raise InvalidCommandError(f"Could not find Destiny player for {username}")
+                log_message = f"Could not find Destiny player for {username}"
+                log.error(f"{log_message}\n\n{e}\n\n{player}")
+                raise InvalidCommandError(log_message)
 
-            membership_id = None
-            for membership in player['Response']:
-                if membership['membershipType'] == platform_id and membership['displayName'] == username:
-                    membership_id = membership['membershipId']
-                    break
+            if len(player['Response']) == 1:
+               membership = player['Response'][0]
+               if membership['displayName'] == username:
+                   membership_id = membership['membershipId']
+                   platform_id = membership['membershipType']
+            else:
+                for membership in player['Response']:
+                    if membership['membershipType'] == platform_id and membership['displayName'] == username:
+                        membership_id = membership['membershipId']
+                        break
 
         return membership_id, platform_id
 
@@ -384,12 +393,16 @@ Examples:
 
         if clan_db.platform:
             platform_id = clan_db.platform
-        elif not platform_id and not member_db.bungie_id:
+        elif not platform_id:
             raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
-        membership_id, platform_id = await self.get_bungie_details(
-            username, bungie_id=member_db.bungie_id, platform_id=platform_id)
+        bungie_id = None
+        if member_db:
+            bungie_id = member_db.bungie_id
 
+        membership_id, platform_id = await self.get_bungie_details(username, bungie_id, platform_id)
+
+        res = None
         try:
             res = await execute_pydest(
                 self.bot.destiny.api.group_approve_pending_member(
@@ -425,7 +438,7 @@ Examples:
 
         if res['ErrorStatus'] != 'Success':
             message = f"Could not approve **{username}**"
-            log.info(f"Could not approve \'{username}\': {res}")
+            log.info(f"Could not approve '{username}': {res}")
         else:
             message = f"Approved **{username}** as a member of clan **{clan_db.name}**"
 
@@ -515,12 +528,16 @@ Examples:
 
         if clan_db.platform:
             platform_id = clan_db.platform
-        elif not platform_id and not member_db.bungie_id:
+        elif not platform_id:
             raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
-        membership_id, platform_id = await self.get_bungie_details(
-            username, bungie_id=member_db.bungie_id, platform_id=platform_id)
+        bungie_id = None
+        if member_db:
+            bungie_id = member_db.bungie_id
 
+        membership_id, platform_id = await self.get_bungie_details(username, bungie_id, platform_id)
+
+        res = None
         try:
             res = await execute_pydest(
                 self.bot.destiny.api.group_invite_member(
