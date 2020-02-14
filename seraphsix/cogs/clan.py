@@ -111,10 +111,10 @@ class ClanCog(commands.Cog, name="Clan"):
                 raise InvalidCommandError(log_message)
 
             if len(player['Response']) == 1:
-               membership = player['Response'][0]
-               if membership['displayName'] == username:
-                   membership_id = membership['membershipId']
-                   platform_id = membership['membershipType']
+                membership = player['Response'][0]
+                if membership['displayName'] == username:
+                    membership_id = membership['membershipId']
+                    platform_id = membership['membershipType']
             else:
                 for membership in player['Response']:
                     if membership['membershipType'] == platform_id and membership['displayName'] == username:
