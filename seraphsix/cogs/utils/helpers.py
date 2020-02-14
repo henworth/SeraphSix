@@ -38,8 +38,8 @@ def bungie_date_as_utc(date):
 
 def get_timezone_name(timezone, country_code):
     set_zones = set()
-    # See if it's already a valid "long" time zone name
-    if "/" in timezone and timezone in pytz.all_timezones:
+    # See if it's already a valid 'long' time zone name
+    if '/' in timezone and timezone in pytz.all_timezones:
         set_zones.add(timezone)
         return set_zones
 
@@ -65,7 +65,7 @@ def get_timezone_name(timezone, country_code):
 
     for name in timezones:
         tzone = pytz.timezone(name)
-        transition_info = getattr(tzone, "_transition_info", [[None, None, datetime.now(tzone).tzname()]])
+        transition_info = getattr(tzone, '_transition_info', [[None, None, datetime.now(tzone).tzname()]])
         for utcoffset, dstoffset, tzabbrev in transition_info:
             if tzabbrev.upper() == timezone.upper():
                 set_zones.add(name)

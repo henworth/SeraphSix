@@ -39,7 +39,7 @@ class MemberCog(commands.Cog, name="Member"):
     async def info(self, ctx, *args):  # noqa TODO
         """Show member information"""
         manager = MessageManager(ctx)
-        member_name = " ".join(args)
+        member_name = ' '.join(args)
 
         requestor_query = self.bot.database.get(
             Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
@@ -121,13 +121,13 @@ class MemberCog(commands.Cog, name="Member"):
         )
         embed.add_field(
             name="Join Date",
-            value=member_db.clanmember.join_date.strftime("%Y-%m-%d %H:%M:%S")
+            value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')
         )
 
         if requestor_is_admin:
             embed.add_field(
                 name="Last Active Date",
-                value=member_db.clanmember.last_active.strftime("%Y-%m-%d %H:%M:%S")
+                value=member_db.clanmember.last_active.strftime('%Y-%m-%d %H:%M:%S')
             )
 
         embed.add_field(name="Time Zone", value=timezone)
@@ -156,12 +156,12 @@ class MemberCog(commands.Cog, name="Member"):
 
         username = await manager.send_and_get_response(
             "What is the in-game username to link to? (enter `cancel` to cancel command)")
-        if username.lower() == "cancel":
+        if username.lower() == 'cancel':
             return await manager.send_and_clean("Canceling command")
 
         discord_user = await manager.send_and_get_response(
             "What is the discord user to link to? (enter `cancel` to cancel command)")
-        if discord_user.lower() == "cancel":
+        if discord_user.lower() == 'cancel':
             return await manager.send_and_clean("Canceling command")
 
         try:
@@ -319,7 +319,7 @@ Example: ?member sherpatime
         if sherpa_list:
             embed.add_field(
                 name="Sherpas Played With",
-                value=", ".join(sherpa_list)
+                value=', '.join(sherpa_list)
             )
         await manager.send_embed(embed)
 
@@ -342,10 +342,10 @@ Example: ?member sherpatime
         res = await manager.send_and_get_response(
             "Enter your timezone name and country code, accepted formats are:\n"
             "```EST US\nAmerica/New_York US\n0500 US```")
-        if res.lower() == "cancel":
+        if res.lower() == 'cancel':
             return await manager.send_and_clean("Canceling command")
 
-        timezone, country_code = res.split(" ")
+        timezone, country_code = res.split(' ')
         timezones = get_timezone_name(timezone, country_code)
 
         if not timezones:
@@ -367,7 +367,7 @@ Example: ?member sherpatime
         else:
             text = "\n".join(sorted(timezones, key=lambda s: s.lower()))
             res = await manager.send_and_get_response(f"Which of these timezones is correct?\n```{text}```")
-            if res.lower() == "cancel":
+            if res.lower() == 'cancel':
                 return await manager.send_and_clean("Canceling command")
 
             if res in timezones:

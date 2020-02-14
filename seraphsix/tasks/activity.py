@@ -37,7 +37,7 @@ def parse_platform(member_db, platform_id):
 
 
 def backoff_hdlr(details):
-    if details["wait"] > 30 or details["tries"] > 10:
+    if details['wait'] > 30 or details['tries'] > 10:
         log.info(
             f"Backing off {details['wait']:0.1f} seconds after {details['tries']} tries "
             f"for {details['args'][3]}-{details['args'][2]}"
@@ -53,14 +53,14 @@ def backoff_hdlr(details):
 @backoff.on_exception(backoff.expo, RateLimitException, max_tries=100, logger=None, on_backoff=backoff_hdlr)
 @limits(calls=25, period=1)
 async def execute_pydest(function, redis, member_id=None, caller=None):
-    is_maintenance = await redis.get("global-bungie-maintenance")
+    is_maintenance = await redis.get('global-bungie-maintenance')
     if is_maintenance and eval(is_maintenance):
         await function()
         raise MaintenanceError
     try:
         return await asyncio.create_task(function)
     except pydest.pydest.PydestMaintenanceException as e:
-        await redis.set("global-bungie-maintenance", str(True), expire=constants.TIME_MIN_SECONDS)
+        await redis.set('global-bungie-maintenance', str(True), expire=constants.TIME_MIN_SECONDS)
         log.error(e)
         raise MaintenanceError
     except RuntimeError as e:
@@ -70,9 +70,9 @@ async def execute_pydest(function, redis, member_id=None, caller=None):
 
 async def get_activity_history(destiny, redis, platform_id, member_id, char_id, count):
     function = destiny.api.get_activity_history(platform_id, member_id, char_id, count=count)
-    data = await execute_pydest(function, redis, member_id, "get_activity_history")
+    data = await execute_pydest(function, redis, member_id, 'get_activity_history')
     try:
-        activities = data["Response"]["activities"]
+        activities = data['Response']['activities']
     except (KeyError, TypeError):
         return None
     return activities
@@ -80,22 +80,22 @@ async def get_activity_history(destiny, redis, platform_id, member_id, char_id, 
 
 async def get_pgcr(destiny, redis, activity_id):
     function = destiny.api.get_post_game_carnage_report(activity_id)
-    data = await execute_pydest(function, redis, activity_id, "get_pgcr")
-    pgcr = data["Response"]
+    data = await execute_pydest(function, redis, activity_id, 'get_pgcr')
+    pgcr = data['Response']
     return pgcr
 
 
 async def get_characters(destiny, redis, member_id, platform_id, caller=None):
     function = destiny.api.get_profile(platform_id, member_id, [constants.COMPONENT_CHARACTERS])
     data = await execute_pydest(function, redis, member_id, caller)
-    characters = data["Response"]["characters"]["data"]
+    characters = data['Response']['characters']['data']
     return characters
 
 
 async def decode_activity(destiny, redis, reference_id):
-    await execute_pydest(destiny.update_manifest(), reference_id, "decode_activity")
-    function = destiny.decode_hash(reference_id, "DestinyActivityDefinition")
-    return await execute_pydest(function, redis, reference_id, "decode_activity")
+    await execute_pydest(destiny.update_manifest(), reference_id, 'decode_activity')
+    function = destiny.decode_hash(reference_id, 'DestinyActivityDefinition')
+    return await execute_pydest(function, redis, reference_id, 'decode_activity')
 
 
 async def get_activity_list(destiny, redis, platform_id, member_id, char_ids, count):
@@ -115,14 +115,14 @@ async def get_last_active(destiny, redis, member_db):
 
     acct_last_active = None
     try:
-        characters = await get_characters(destiny, redis, member_id, platform_id, "get_last_active")
+        characters = await get_characters(destiny, redis, member_id, platform_id, 'get_last_active')
         characters = characters.items()
     except AttributeError:
         log.error(f"Could not get character data for {platform_id}-{member_id}")
         return acct_last_active
 
     for _, character in characters:
-        char_last_active = bungie_date_as_utc(character["dateLastPlayed"])
+        char_last_active = bungie_date_as_utc(character['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
             acct_last_active = char_last_active
             log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
@@ -152,7 +152,7 @@ async def get_game_counts(database, game_mode, member_db=None):
         except DoesNotExist:
             continue
         else:
-            counts[constants.MODE_MAP[mode_id]["title"]] = count
+            counts[constants.MODE_MAP[mode_id]['title']] = count
     return counts
 
 
@@ -179,7 +179,7 @@ async def get_sherpa_time_played(database, member_db):
     except DoesNotExist:
         return None
 
-    query = GameMember.select(fn.SUM(GameMember.time_played).alias("sum")).where(
+    query = GameMember.select(fn.SUM(GameMember.time_played).alias('sum')).where(
         (GameMember.member_id == member_db.id) & (GameMember.game_id << game_sherpas)
     )
     time_played = await database.execute(query)
@@ -224,7 +224,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
 
     try:
         characters = await get_characters(
-            bot.destiny, bot.redis, member_id, platform_id, "store_member_history")
+            bot.destiny, bot.redis, member_id, platform_id, 'store_member_history')
         char_ids = characters.keys()
     except (KeyError, TypeError):
         log.error(f"Could not get character data for {member_db.clanmember.platform_id}-{member_id}")
@@ -268,7 +268,7 @@ async def store_member_history(member_dbs, bot, member_db, count):
 
         # Check if player count is below the threshold
         game_mode_details = constants.MODE_MAP[game.mode_id]
-        if len(clan_game.clan_players) < game_mode_details["threshold"]:
+        if len(clan_game.clan_players) < game_mode_details['threshold']:
             log.debug(f"Continuing because not enough clan players in game {game.instance_id}")
             continue
 
@@ -278,10 +278,10 @@ async def store_member_history(member_dbs, bot, member_db, count):
             # Mitigate possible race condition when multiple parallel jobs try to
             # do the same thing. Likely when there are multiple people in the same
             # game instance.
-            # TODO: Figure out a better way to "lock" things
+            # TODO: Figure out a better way to 'lock' things
             continue
 
-        game_title = game_mode_details["title"].title()
+        game_title = game_mode_details['title'].title()
         log.info(f"{game_title} game id {game.instance_id} created")
         mode_count += 1
 
@@ -317,7 +317,7 @@ async def store_all_games(bot, guild_id, count=30):
             log.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
             continue
 
-        active_members = await bot.database.get_clan_members_active(clan_db.id, days=7)
+        active_members = await bot.database.get_clan_members_active(clan_db.id, hours=1)
         if guild_db.aggregate_clans:
             member_dbs.extend(active_members)
         else:

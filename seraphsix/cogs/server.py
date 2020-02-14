@@ -37,8 +37,8 @@ class ServerCog(commands.Cog, name="Server"):
             )
             channel_db = await self.bot.database.get(query)
         except DoesNotExist:
-            details = {"guild_id": ctx.message.guild.id,
-                       "channel_id": ctx.message.channel.id, "twitter_id": twitter_id}
+            details = {'guild_id': ctx.message.guild.id,
+                       'channel_id': ctx.message.channel.id, 'twitter_id': twitter_id}
             await self.bot.database.create(TwitterChannel, **details)
             message = f"{message} now enabled and will post to **#{ctx.message.channel.name}**."
         else:
@@ -84,8 +84,8 @@ class ServerCog(commands.Cog, name="Server"):
             return await manager.send_and_clean("Command must include the Bungie clan ID")
 
         res = await execute_pydest(self.bot.destiny.api.get_group(clan_id), self.bot.redis)
-        clan_name = res["Response"]["detail"]["name"]
-        callsign = res["Response"]["detail"]["clanInfo"]["clanCallsign"]
+        clan_name = res['Response']['detail']['name']
+        callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 
         try:
             clan_db = await self.bot.database.get(Clan, clan_id=clan_id)
@@ -158,7 +158,7 @@ class ServerCog(commands.Cog, name="Server"):
             clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
             for clan_db in clan_dbs:
                 clan_db.platform = platform_id
-            await self.bot.database.bulk_update(clan_dbs, ["platform"])
+            await self.bot.database.bulk_update(clan_dbs, ['platform'])
             message = f"Platform has been set to `{platform}`"
 
         return await manager.send_and_clean(message)
@@ -176,11 +176,11 @@ class ServerCog(commands.Cog, name="Server"):
         cont = True
         while cont:
             name = await manager.send_and_get_response(
-                f"Enter the name of a role that denotes a \"sherpa\" "
-                f"(enter `stop` to enter `cancel` to cancel command)")
-            if name.lower() == "cancel":
-                return await manager.send_and_clean("Canceling command")
-            elif name.lower() == "stop":
+                "Enter the name of a role that denotes a 'sherpa' "
+                "(enter `stop` to enter `cancel` to cancel command)")
+            if name.lower() == 'cancel':
+                return await manager.send_and_clean('Canceling command')
+            elif name.lower() == 'stop':
                 cont = False
             else:
                 role_obj = discord.utils.get(ctx.guild.roles, name=name)
@@ -214,7 +214,7 @@ class ServerCog(commands.Cog, name="Server"):
         base_embed = discord.Embed(
             color=constants.BLUE,
             title=f"Sherpa Roles for {ctx.guild.name}",
-            description=", ".join(roles)
+            description=', '.join(roles)
         )
 
         await manager.send_embed(base_embed, clean=True)
@@ -252,7 +252,7 @@ class ServerCog(commands.Cog, name="Server"):
             name = await manager.send_and_get_response(
                 f"Enter the name of the role to assign for {self.bot.get_emoji(emoji)} "
                 f"(enter `cancel` to cancel command)")
-            if name.lower() == "cancel":
+            if name.lower() == 'cancel':
                 return await manager.send_and_clean("Canceling command")
             else:
                 role_obj = discord.utils.get(ctx.guild.roles, name=name)
@@ -327,8 +327,8 @@ class ServerCog(commands.Cog, name="Server"):
         await manager.send_embed(base_embed, clean=True)
 
         clear_reactions = {
-            constants.EMOJI_CHECKMARK: "clear",
-            constants.EMOJI_CROSSMARK: ""
+            constants.EMOJI_CHECKMARK: 'clear',
+            constants.EMOJI_CROSSMARK: ''
         }
         clear = await manager.send_message_react(
             "Clear platform roles?",

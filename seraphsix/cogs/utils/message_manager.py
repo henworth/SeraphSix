@@ -41,7 +41,7 @@ class MessageManager:
         """
         def is_channel_message(message):
             return message.author == self.ctx.author and message.channel == self.ctx.channel
-        return await self.ctx.bot.wait_for("message", check=is_channel_message, timeout=115)
+        return await self.ctx.bot.wait_for('message', check=is_channel_message, timeout=115)
 
     async def get_next_private_message(self):
         """Get the next private message sent by the user
@@ -49,7 +49,7 @@ class MessageManager:
         """
         def is_private_message(message):
             return message.author.dm_channel == self.ctx.author.dm_channel
-        return await self.ctx.bot.wait_for("message", check=is_private_message, timeout=120)
+        return await self.ctx.bot.wait_for('message', check=is_private_message, timeout=120)
 
     async def send_embed(self, embed, content=None, clean=False):
         """Send an embed message to the user on ctx.channel"""
@@ -112,7 +112,7 @@ class MessageManager:
         retval = None
         while self.waiting:
             try:
-                reaction, user = await self.ctx.bot.wait_for("reaction_add", check=self.react_check, timeout=120.0)
+                reaction, user = await self.ctx.bot.wait_for('reaction_add', check=self.react_check, timeout=120.0)
             except asyncio.TimeoutError:
                 self.waiting = False
                 try:

@@ -26,22 +26,22 @@ from seraphsix.tasks.discord import store_sherpas, update_sherpa
 log = logging.getLogger(__name__)
 
 STARTUP_EXTENSIONS = [
-    "seraphsix.cogs.clan", "seraphsix.cogs.game", "seraphsix.cogs.member",
-    "seraphsix.cogs.register", "seraphsix.cogs.server"
+    'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
+    'seraphsix.cogs.register', 'seraphsix.cogs.server'
 ]
 
 
 async def _prefix_callable(bot, message):
-    """Get current command prefix"""
+    '''Get current command prefix'''
     base = [f"<@{bot.user.id}> "]
     if isinstance(message.channel, discord.abc.PrivateChannel):
-        base.append("?")
+        base.append('?')
     else:
         try:
             guild = await bot.database.get(Guild, guild_id=message.guild.id)
         except DoesNotExist:
             await bot.database.create(Guild, guild_id=message.guild.id)
-            base.append("?")
+            base.append('?')
         else:
             base.append(guild.prefix)
     return base
@@ -96,7 +96,7 @@ class SeraphSix(commands.Bot):
             guild_id = guild.guild_id
             log.info(f"Finding last active dates for all members of {guild_id}")
 
-            if not hasattr(self, "redis"):
+            if not hasattr(self, 'redis'):
                 await self.connect_redis()
 
             try:
@@ -120,7 +120,7 @@ class SeraphSix(commands.Bot):
                 self.bungie_maintenance = False
                 log.info("Bungie maintenance has ended")
 
-        log.info(f"Found last active dates in all guilds")
+        log.info("Found last active dates in all guilds")
 
     @update_last_active.before_loop
     async def before_update_last_active(self):
@@ -236,7 +236,7 @@ class SeraphSix(commands.Bot):
             text = f"Required argument `{error.param}` is missing."
         else:
             error_trace = traceback.format_exception(type(error), error, error.__traceback__)
-            log.error(f"Ignoring exception in command \"{ctx.command}\": {error_trace}")
+            log.error(f"Ignoring exception in command '{ctx.command}': {error_trace}")
             if ctx.guild:
                 location = f"guild `{ctx.guild.id}`"
             else:
@@ -247,7 +247,7 @@ class SeraphSix(commands.Bot):
             )
             await self.log_channel.send(
                 content=log_channel_message,
-                file=discord.File(io.BytesIO("".join(error_trace).encode("utf-8")), filename="exception.txt")
+                file=discord.File(io.BytesIO(''.join(error_trace).encode('utf-8')), filename="exception.txt")
             )
             await manager.send_message(
                 (
