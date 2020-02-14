@@ -123,6 +123,21 @@ class ClanCog(commands.Cog, name="Clan"):
 
         return membership_id, platform_id
 
+    async def refresh_admin_tokens(self, manager, admin_db):
+        tokens = await execute_pydest(
+            self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
+            self.bot.redis
+        )
+
+        if 'error' in tokens:
+            log.warning(f"{tokens['error_description']} Registration is needed")
+            user_info = await register(manager, "Your registration token has expired and re-registration is needed.")
+            if not user_info:
+                raise InvalidCommandError("I'm not sure where you went. We can try this again later.")
+            tokens = {token: user_info.get(token) for token in ['access_token', 'refresh_token']}
+
+        return tokens
+
     @commands.group()
     async def clan(self, ctx):
         """Clan Specific Commands"""
@@ -320,19 +335,7 @@ class ClanCog(commands.Cog, name="Clan"):
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
-                self.bot.redis
-            )
-
-            if 'error' in tokens:
-                log.warning(f"{tokens['error_description']} Registration is needed")
-                user_info = await register(
-                    ctx, manager, "Your registration token has expired and re-registration is needed.")
-                if not user_info:
-                    return await manager.clean_messages()
-                tokens = {token: user_info.get(token) for token in ['access_token', 'refresh_token']}
-
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             members = await execute_pydest(
                 self.bot.destiny.api.get_group_pending_members(
                     clan_db.clan_id,
@@ -415,10 +418,7 @@ Examples:
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
-                self.bot.redis
-            )
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             res = await execute_pydest(
                 self.bot.destiny.api.group_approve_pending_member(
                     group_id=clan_db.clan_id,
@@ -442,7 +442,7 @@ Examples:
         else:
             message = f"Approved **{username}** as a member of clan **{clan_db.name}**"
 
-        return await manager.send_and_clean(message)
+        return await manager.send_message(message, clean=False)
 
     @clan.command()
     @is_clan_admin()
@@ -464,10 +464,7 @@ Examples:
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
-                self.bot.redis
-            )
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             members = await execute_pydest(
                 self.bot.destiny.api.get_group_invited_members(
                     clan_db.clan_id,
@@ -550,10 +547,7 @@ Examples:
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
-                self.bot.redis
-            )
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             res = await execute_pydest(
                 self.bot.destiny.api.group_invite_member(
                     group_id=clan_db.clan_id,
@@ -579,7 +573,7 @@ Examples:
         else:
             message = f"Invited **{username}** to clan **{clan_db.name}**"
 
-        return await manager.send_and_clean(message)
+        return await manager.send_message(message, clean=False)
 
     @clan.command()
     @clan_is_linked()
