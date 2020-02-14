@@ -14,7 +14,9 @@ from seraphsix.tasks.activity import execute_pydest
 log = logging.getLogger(__name__)
 
 
-async def register(ctx, manager, extra_message='', confirm_message=''):
+async def register(manager, extra_message='', confirm_message=''):
+    ctx = manager.ctx
+
     if not confirm_message:
         confirm_message = "Registration Complete"
 
@@ -85,7 +87,7 @@ class RegisterCog(commands.Cog, name="Register"):
         """
         manager = MessageManager(ctx)
 
-        embed, user_info = await register(ctx, manager, confirm_message="Initial Registration Complete...")
+        embed, user_info = await register(manager, confirm_message="Initial Registration Complete...")
         if not user_info:
             await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
             return await manager.clean_messages()
