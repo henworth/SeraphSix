@@ -123,7 +123,7 @@ class ClanCog(commands.Cog, name="Clan"):
 
         return membership_id, platform_id
 
-    async def get_admin_tokens(self, manager, admin_db):
+    async def refresh_admin_tokens(self, manager, admin_db):
         tokens = await execute_pydest(
             self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
             self.bot.redis
@@ -335,7 +335,7 @@ class ClanCog(commands.Cog, name="Clan"):
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.get_admin_tokens(manager, admin_db)
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             members = await execute_pydest(
                 self.bot.destiny.api.get_group_pending_members(
                     clan_db.clan_id,
@@ -418,7 +418,7 @@ Examples:
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.get_admin_tokens(manager, admin_db)
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             res = await execute_pydest(
                 self.bot.destiny.api.group_approve_pending_member(
                     group_id=clan_db.clan_id,
@@ -464,7 +464,7 @@ Examples:
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.get_admin_tokens(manager, admin_db)
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             members = await execute_pydest(
                 self.bot.destiny.api.get_group_invited_members(
                     clan_db.clan_id,
@@ -547,7 +547,7 @@ Examples:
                 self.bot.redis
             )
         except pydest.PydestTokenException:
-            tokens = await self.get_admin_tokens(manager, admin_db)
+            tokens = await self.refresh_admin_tokens(manager, admin_db)
             res = await execute_pydest(
                 self.bot.destiny.api.group_invite_member(
                     group_id=clan_db.clan_id,
