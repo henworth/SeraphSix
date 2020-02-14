@@ -41,7 +41,7 @@ async def get_all_members(bot, group_id):
 
 async def get_bungie_members(bot, clan_id):
     members = {}
-    async for member in get_all_members(bot.destiny, bot.redis, clan_id):  # pylint: disable=not-an-iterable
+    async for member in get_all_members(bot, clan_id):  # pylint: disable=not-an-iterable
         members[f"{clan_id}-{member}"] = member
     return members
 
