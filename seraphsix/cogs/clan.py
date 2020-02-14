@@ -308,20 +308,20 @@ class ClanCog(commands.Cog, name="Clan"):
         """Show a list of pending members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
 
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
         try:
             members = await execute_pydest(
                 self.bot.destiny.api.get_group_pending_members(
                     clan_db.clan_id,
-                    access_token=member_db.bungie_access_token
+                    access_token=admin_db.bungie_access_token
                 ),
                 self.bot.redis
             )
         except pydest.PydestTokenException:
             tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
                 self.bot.redis
             )
 
@@ -340,9 +340,9 @@ class ClanCog(commands.Cog, name="Clan"):
                 ),
                 self.bot.redis
             )
-            member_db.bungie_access_token = tokens['access_token']
-            member_db.bungie_refresh_token = tokens['refresh_token']
-            await self.bot.database.update(member_db)
+            admin_db.bungie_access_token = tokens['access_token']
+            admin_db.bungie_refresh_token = tokens['refresh_token']
+            await self.bot.database.update(admin_db)
 
         embed = discord.Embed(
             colour=constants.BLUE,
@@ -416,7 +416,7 @@ Examples:
             )
         except pydest.PydestTokenException:
             tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
                 self.bot.redis
             )
             res = await execute_pydest(
@@ -429,9 +429,9 @@ Examples:
                 ),
                 self.bot.redis
             )
-            member_db.bungie_access_token = tokens['access_token']
-            member_db.bungie_refresh_token = tokens['refresh_token']
-            await self.bot.database.update(member_db)
+            admin_db.bungie_access_token = tokens['access_token']
+            admin_db.bungie_refresh_token = tokens['refresh_token']
+            await self.bot.database.update(admin_db)
 
         if not res:
             raise RuntimeError("Unexpected empty response from the Bungie API")
@@ -452,20 +452,20 @@ Examples:
         """Show a list of invited members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
 
-        member_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
         try:
             members = await execute_pydest(
                 self.bot.destiny.api.get_group_invited_members(
                     clan_db.clan_id,
-                    access_token=member_db.bungie_access_token
+                    access_token=admin_db.bungie_access_token
                 ),
                 self.bot.redis
             )
         except pydest.PydestTokenException:
             tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
                 self.bot.redis
             )
             members = await execute_pydest(
@@ -475,9 +475,9 @@ Examples:
                 ),
                 self.bot.redis
             )
-            member_db.bungie_access_token = tokens['access_token']
-            member_db.bungie_refresh_token = tokens['refresh_token']
-            await self.bot.database.update(member_db)
+            admin_db.bungie_access_token = tokens['access_token']
+            admin_db.bungie_refresh_token = tokens['refresh_token']
+            await self.bot.database.update(admin_db)
 
         embed = discord.Embed(
             colour=constants.BLUE,
@@ -551,7 +551,7 @@ Examples:
             )
         except pydest.PydestTokenException:
             tokens = await execute_pydest(
-                self.bot.destiny.api.refresh_oauth_token(member_db.bungie_refresh_token),
+                self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
                 self.bot.redis
             )
             res = await execute_pydest(
@@ -564,9 +564,9 @@ Examples:
                 ),
                 self.bot.redis
             )
-            member_db.bungie_access_token = tokens['access_token']
-            member_db.bungie_refresh_token = tokens['refresh_token']
-            await self.bot.database.update(member_db)
+            admin_db.bungie_access_token = tokens['access_token']
+            admin_db.bungie_refresh_token = tokens['refresh_token']
+            await self.bot.database.update(admin_db)
 
         if not res:
             raise RuntimeError("Unexpected empty response from the Bungie API")
