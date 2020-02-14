@@ -5,7 +5,7 @@ from seraphsix.tasks.config import Config
 import logging
 import warnings
 
-warnings.filterwarnings("ignore", category=UserWarning, module="psycopg2")
+warnings.filterwarnings('ignore', category=UserWarning, module='psycopg2')
 
 
 def main():
@@ -16,16 +16,16 @@ def main():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    logging.getLogger("aiohttp.client").setLevel(logging.ERROR)
-    logging.getLogger("aioredis").setLevel(logging.DEBUG)
-    logging.getLogger("backoff").setLevel(logging.DEBUG)
-    logging.getLogger("bot").setLevel(logging.DEBUG)
-    logging.getLogger("seraphsix.tasks.discord").setLevel(logging.DEBUG)
+    logging.getLogger('aiohttp.client').setLevel(logging.ERROR)
+    logging.getLogger('aioredis').setLevel(logging.DEBUG)
+    logging.getLogger('backoff').setLevel(logging.DEBUG)
+    logging.getLogger('bot').setLevel(logging.DEBUG)
+    logging.getLogger('seraphsix.tasks.discord').setLevel(logging.DEBUG)
 
     config = Config()
     bot = SeraphSix(config)
     bot.run(config.discord_api_key)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
