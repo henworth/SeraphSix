@@ -123,8 +123,8 @@ async def member_sync(bot, guild_id):  # noqa
             ClanMember, clan=clan_db, member=member_db, **member_details)
 
         clan_member_db = await bot.database.execute(
-            Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
-                Member.id == member_db.id
+            MemberDb.select(MemberDb, ClanMember).join(ClanMember).join(Clan).where(
+                MemberDb.id == member_db.id
             )
         )
 
