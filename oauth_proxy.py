@@ -15,7 +15,7 @@ from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 from simplekv.memory.redisstore import RedisStore
 
 log = logging.getLogger()
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(fmt=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
 handler.setFormatter(formatter)
@@ -70,8 +70,7 @@ def index():
 
 @app.route('/oauth')
 def oauth_index():
-    state = request.args.get('state')
-    session['state'] = state
+    session['state'] = request.args.get('state')
 
     if not session.get('access_token'):
         log.debug(f"No access_token found in session, redirecting to /oauth/callback, {session}")
@@ -85,7 +84,6 @@ def oauth_index():
         r = s.get(f"{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/")
 
     r.raise_for_status()
-    session['state'] = state
     log.debug(f"/oauth: {session} {request.args}")
     return redirect('/')
 
