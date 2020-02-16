@@ -168,7 +168,7 @@ class ServerCog(commands.Cog, name="Server"):
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def setsherparoles(self, ctx):
-        """Map server roles to game platforms (Manage Server only)"""
+        """Set server roles that distinguish sherpas (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
 
@@ -200,7 +200,7 @@ class ServerCog(commands.Cog, name="Server"):
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def showsherparoles(self, ctx):
-        """Map server roles to game platforms (Manage Server only)"""
+        """Show server roles that distinguish sherpas (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
 
@@ -224,9 +224,14 @@ class ServerCog(commands.Cog, name="Server"):
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def syncsherpas(self, ctx):
-        """Map server roles to game platforms (Manage Server only)"""
+        """Sync server member sherpa role state (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        if not guild_db.track_sherpas:
+            return await manager.send_message(
+                f"Sherpa tracking is not enabled on this server. "
+                f"Please run `{ctx.prefix}server sherpatracking` first.",
+                mention=False, clean=False)
 
         added, removed = await store_sherpas(self.bot, guild_db)
         embed = discord.Embed(
@@ -237,6 +242,41 @@ class ServerCog(commands.Cog, name="Server"):
         embed.add_field(name="Removed", value=removed)
 
         await manager.send_embed(embed, clean=True)
+
+    @server.command()
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def sherpatracking(self, ctx):
+        """Set server sherpa role tracking state (Manage Server only)"""
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        reactions = {
+            constants.EMOJI_CHECKMARK: 'True',
+            constants.EMOJI_CROSSMARK: 'False'
+        }
+        react = await manager.send_message_react(
+            f"Enable sherpa role tracking for {ctx.guild.name}?",
+            reactions=reactions.keys(),
+            clean=False,
+            with_cancel=True
+        )
+
+        if not react:
+            return await manager.send_and_clean("Canceling command")
+
+        track = reactions[react] == 'True'
+        query = Guild.update(track_sherpas=track).where(Guild.id == guild_db.id)
+        await self.bot.database.execute(query)
+
+        message = "Sherpa tracking has been"
+        if track:
+            message = f"{message} **Enabled**"
+        else:
+            message = f"{message} **Disabled**"
+
+        return await manager.send_message(message, mention=False, clean=False)
 
     @server.command()
     @clan_is_linked()

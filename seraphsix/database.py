@@ -39,6 +39,7 @@ class Guild(BaseModel):
     prefix = CharField(max_length=5, null=True, default='?')
     clear_spam = BooleanField(default=False)
     aggregate_clans = BooleanField(default=True)
+    track_sherpas = BooleanField(default=False)
 
 
 class Clan(BaseModel):
