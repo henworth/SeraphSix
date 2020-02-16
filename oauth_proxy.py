@@ -14,7 +14,7 @@ from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 from simplekv.memory.redisstore import RedisStore
 
 log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(fmt=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
 handler.setFormatter(formatter)
