@@ -41,36 +41,41 @@ async def store_sherpas(bot, guild):
     sherpas_added = list(discord_set - db_set)
     sherpas_removed = list(db_set - discord_set)
 
-    db_added = db_removed = 0
     base_member_query = ClanMember.select(ClanMember.id).join(Member)
     if sherpas_added:
         members = base_member_query.where(Member.discord_id << sherpas_added)
         query = ClanMember.update(is_sherpa=True).where(ClanMember.id << members)
-        db_added = await bot.database.execute(query)
+        await bot.database.execute(query)
         sherpa_list = [f"{str(sherpa)} ({sherpa.id})" async for sherpa in convert_sherpas(bot, sherpas_added)]
         log.info(f"Sherpas added in {str(discord_guild)} ({guild.guild_id}): {sherpa_list}")
 
     if sherpas_removed:
         members = base_member_query.where(Member.discord_id << sherpas_removed)
         query = ClanMember.update(is_sherpa=False).where(ClanMember.id << members)
-        db_removed = await bot.database.execute(query)
+        await bot.database.execute(query)
         sherpa_list = [f"{str(sherpa)} ({sherpa.id})" async for sherpa in convert_sherpas(bot, sherpas_removed)]
         log.info(f"Sherpas removed in {str(discord_guild)} ({guild.guild_id}): {sherpa_list}")
-
-    return (db_added, db_removed)
 
 
 async def update_sherpa(bot, before, after):
     before_role_ids = set([role.id for role in before.roles])
     after_role_ids = set([role.id for role in after.roles])
 
-    if before_role_ids != after_role_ids:
-        log.info(
-            f"Checking for sherpa role updates on user {str(after)} ({after.id}) "
-            f"in {str(after.guild)} ({after.guild.id})"
-        )
-    else:
+    if before_role_ids == after_role_ids:
         return
+
+    guild_db = await bot.database.get(Guild, guild_id=after.guild.id)
+    if not guild_db.track_sherpas:
+        log.debug(
+            f"Cannot check for sherpa role updates on user {str(after)} ({after.id}) "
+            f"because sherpa tracking is disabled in {str(after.guild)} ({after.guild.id})"
+        )
+        return
+
+    log.debug(
+        f"Checking for sherpa role updates on user {str(after)} ({after.id}) "
+        f"in {str(after.guild)} ({after.guild.id})"
+    )
 
     roles_query = Role.select(Role).join(Guild).where(
         (Guild.guild_id == after.guild.id) & (Role.is_sherpa)
@@ -82,6 +87,10 @@ async def update_sherpa(bot, before, after):
         member_query = ClanMember.select(ClanMember).join(Member).where(Member.discord_id == after.id)
         member_db = await bot.database.get(member_query)
     except DoesNotExist:
+        log.info(
+            f"Clan member for user {str(after)} ({after.id}) "
+            f"in {str(after.guild)} ({after.guild.id}) not found"
+        )
         return
 
     if not after_role_ids:
@@ -93,9 +102,9 @@ async def update_sherpa(bot, before, after):
 
     if member_is_sherpa != member_db.is_sherpa:
         log.info(
-            f"Sherpa role changed for user {str(after)} ({after.id}) "
-            f"in {str(after.guild)} ({after.guild.id})"
-            f"from {member_db.is_sherpa} to {member_is_sherpa}"
+            f"Sherpa role changed from {member_db.is_sherpa} to {member_is_sherpa} "
+            f"for user {str(after)} ({after.id}) "
+            f"in {str(after.guild)} ({after.guild.id}) "
         )
         member_db.is_sherpa = member_is_sherpa
         await bot.database.update(member_db)

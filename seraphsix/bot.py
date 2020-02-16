@@ -94,7 +94,8 @@ class SeraphSix(commands.Bot):
             return
         for guild in guilds:
             guild_id = guild.guild_id
-            log.info(f"Finding last active dates for all members of {guild_id}")
+            discord_guild = await self.fetch_guild(guild.guild_id)
+            log.info(f"Finding last active dates for all members of {str(discord_guild)} ({guild_id})")
 
             if not hasattr(self, 'redis'):
                 await self.connect_redis()
@@ -154,7 +155,7 @@ class SeraphSix(commands.Bot):
         guilds = await self.database.execute(Guild.select())
         if not guilds:
             return
-        tasks = [store_sherpas(self, guild) for guild in guilds]
+        tasks = [store_sherpas(self, guild) for guild in guilds if guild.track_sherpas]
         await asyncio.gather(*tasks)
 
     async def process_tweet(self, tweet):
