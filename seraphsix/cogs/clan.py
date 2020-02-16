@@ -112,13 +112,14 @@ class ClanCog(commands.Cog, name="Clan"):
 
             if len(player['Response']) == 1:
                 membership = player['Response'][0]
-                if membership['displayName'] == username:
+                if membership['displayName'] == username.lower():
                     membership_id = membership['membershipId']
                     platform_id = membership['membershipType']
             else:
                 for membership in player['Response']:
-                    if membership['membershipType'] == platform_id and membership['displayName'] == username:
+                    if membership['membershipType'] == platform_id and membership['displayName'] == username.lower():
                         membership_id = membership['membershipId']
+                        platform_id = membership['membershipType']
                         break
 
         return membership_id, platform_id
