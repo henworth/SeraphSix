@@ -41,20 +41,27 @@ async def store_sherpas(bot, guild):
     sherpas_added = list(discord_set - db_set)
     sherpas_removed = list(db_set - discord_set)
 
+    added = removed = []
     base_member_query = ClanMember.select(ClanMember.id).join(Member)
     if sherpas_added:
         members = base_member_query.where(Member.discord_id << sherpas_added)
         query = ClanMember.update(is_sherpa=True).where(ClanMember.id << members)
         await bot.database.execute(query)
-        sherpa_list = [f"{str(sherpa)} ({sherpa.id})" async for sherpa in convert_sherpas(bot, sherpas_added)]
-        log.info(f"Sherpas added in {str(discord_guild)} ({guild.guild_id}): {sherpa_list}")
+
+        added = [sherpa async for sherpa in convert_sherpas(bot, sherpas_added)]
+        message_added = [f"{str(sherpa)} {sherpa.id}" for sherpa in added]
+        log.info(f"Sherpas added in {str(discord_guild)} ({guild.guild_id}): {message_added}")
 
     if sherpas_removed:
         members = base_member_query.where(Member.discord_id << sherpas_removed)
         query = ClanMember.update(is_sherpa=False).where(ClanMember.id << members)
         await bot.database.execute(query)
-        sherpa_list = [f"{str(sherpa)} ({sherpa.id})" async for sherpa in convert_sherpas(bot, sherpas_removed)]
-        log.info(f"Sherpas removed in {str(discord_guild)} ({guild.guild_id}): {sherpa_list}")
+
+        removed = [sherpa async for sherpa in convert_sherpas(bot, sherpas_removed)]
+        message_removed = [f"{str(sherpa)} {sherpa.id}" for sherpa in removed]
+        log.info(f"Sherpas removed in {str(discord_guild)} ({guild.guild_id}): {message_removed}")
+
+    return (added, removed)
 
 
 async def update_sherpa(bot, before, after):

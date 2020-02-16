@@ -238,8 +238,8 @@ class ServerCog(commands.Cog, name="Server"):
             color=constants.BLUE,
             title=f"Sherpas synced for {ctx.guild.name}"
         )
-        embed.add_field(name="Added", value=added)
-        embed.add_field(name="Removed", value=removed)
+        embed.add_field(name="Added", value=', '.join([str(sherpa) for sherpa in added]) or 'None')
+        embed.add_field(name="Removed", value=', '.join([str(sherpa) for sherpa in removed]) or 'None')
 
         await manager.send_embed(embed, clean=True)
 
