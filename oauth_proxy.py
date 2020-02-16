@@ -6,7 +6,6 @@ import pickle
 # import pika
 import redis
 import requests
-import secrets
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_kvsession import KVSessionExtension
@@ -22,7 +21,7 @@ handler.setFormatter(formatter)
 log.addHandler(handler)
 
 app = Flask(__name__)
-app.secret_key = secrets.os.urandom(20)
+app.secret_key = os.environb[b'FLASK_APP_KEY'].decode('unicode-escape').encode('latin-1')
 
 red = redis.from_url(os.environ.get('REDIS_URL'))
 
