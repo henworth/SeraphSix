@@ -177,9 +177,11 @@ class ClanCog(commands.Cog, name="Clan"):
         clan_db.the100_group_id = res['id']
         await self.bot.database.update(clan_db)
 
-        return await manager.send_and_clean((
+        message = (
             f"**{clan_db.name} [{clan_db.callsign}]** "
-            f"linked to **{group_name} [{callsign}]**"))
+            f"linked to **{group_name} [{callsign}]**"
+        )
+        return await manager.send_message(message, mention=False, clean=False)
 
     @the100.command()
     @clan_is_linked()
@@ -204,12 +206,11 @@ class ClanCog(commands.Cog, name="Clan"):
         clan_db.the100_group_id = None
         await self.bot.database.update(clan_db)
 
-        return await manager.send_and_clean(
-            (
-                f"**{clan_db.name} [{clan_db.callsign}]** "
-                f"unlinked from **{group_name} [{callsign}]**"
-            )
+        message = (
+            f"**{clan_db.name} [{clan_db.callsign}]** "
+            f"unlinked from **{group_name} [{callsign}]**"
         )
+        return await manager.send_message(message, mention=False, clean=False)
 
     @clan.command()
     @clan_is_linked()
@@ -443,7 +444,7 @@ Examples:
         else:
             message = f"Approved **{username}** as a member of clan **{clan_db.name}**"
 
-        return await manager.send_message(message, clean=False)
+        return await manager.send_message(message, mention=False, clean=False)
 
     @clan.command()
     @is_clan_admin()
@@ -574,7 +575,7 @@ Examples:
         else:
             message = f"Invited **{username}** to clan **{clan_db.name}**"
 
-        return await manager.send_message(message, clean=False)
+        return await manager.send_message(message, mention=False, clean=False)
 
     @clan.command()
     @clan_is_linked()
@@ -705,7 +706,7 @@ Examples:
                 f"{'enabled' if clan_db.activity_tracking else 'disabled'} "
                 f"for **{clan_db.name}**."
             )
-            await manager.send_message(message)
+            await manager.send_message(message, mention=False, clean=False)
 
         return await manager.clean_messages()
 
