@@ -162,18 +162,18 @@ async def get_sherpa_time_played(database, member_db):
     full_list = list(constants.SUPPORTED_GAME_MODES.values())
     mode_list = list(set([mode for sublist in full_list for mode in sublist]))
 
-    games = Game.select().join(GameMember).where(
+    all_games = Game.select().join(GameMember).where(
         (GameMember.member_id == member_db.id) & (Game.mode_id << mode_list)
     )
 
-    game_sherpas = Game.select(Game.id.distinct()).join(GameMember).where(
-        (Game.id << games) & (GameMember.member_id << clan_sherpas)
+    sherpa_games = Game.select(Game.id.distinct()).join(GameMember).where(
+        (Game.id << all_games) & (GameMember.member_id << clan_sherpas)
     )
 
     query = GameMember.select(
         GameMember.member_id, GameMember.game_id, fn.MAX(GameMember.time_played).alias('sherpa_time')
     ).where(
-        (GameMember.game_id << game_sherpas) & (GameMember.member_id << clan_sherpas)
+        (GameMember.game_id << sherpa_games) & (GameMember.member_id << clan_sherpas)
     ).group_by(
         GameMember.game_id, GameMember.member_id
     ).order_by(
@@ -192,6 +192,17 @@ async def get_sherpa_time_played(database, member_db):
         unique_sherpas.add(result.member_id)
         unique_games.add(result.game_id)
         total_time += result.sherpa_time if result.sherpa_time else 0
+
+    all_game_sherpas_query = GameMember.select(Member.id.distinct()).join(Member).switch().join(Game).where(
+        (Game.id << sherpa_games) & (GameMember.member_id << clan_sherpas)
+    )
+    try:
+        all_game_sherpas_db = await database.execute(all_game_sherpas_query)
+    except DoesNotExist:
+        return (total_time, unique_sherpas)
+
+    for sherpa in all_game_sherpas_db:
+        unique_sherpas.add(sherpa)
 
     return (total_time, unique_sherpas)
 
