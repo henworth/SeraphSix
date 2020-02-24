@@ -174,7 +174,11 @@ async def get_sherpa_time_played(database, member_db):
         GameMember.member_id, GameMember.game_id, fn.MAX(GameMember.time_played).alias('sherpa_time')
     ).where(
         (GameMember.game_id << game_sherpas) & (GameMember.member_id << clan_sherpas)
-    ).group_by(GameMember.member_id, GameMember.game_id)
+    ).group_by(
+        GameMember.game_id, GameMember.member_id
+    ).order_by(
+        GameMember.game_id, fn.MAX(GameMember.time_played).desc()
+    ).distinct(GameMember.game_id)
 
     total_time = 0
     unique_sherpas = set()
