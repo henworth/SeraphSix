@@ -166,33 +166,30 @@ async def get_sherpa_time_played(database, member_db):
         (GameMember.member_id == member_db.id) & (Game.mode_id << mode_list)
     )
 
-    game_sherpas = Game.select(Game.id.distinct()).join(GameMember).join(Member).join(ClanMember).where(
-        (Game.id << games) & (Member.id << clan_sherpas)
+    game_sherpas = Game.select(Game.id.distinct()).join(GameMember).where(
+        (Game.id << games) & (GameMember.member_id << clan_sherpas)
     )
 
-    game_members = Member.select(Member.id.distinct()).join(GameMember).join(Game).where(
-        (Game.id << games) & (Member.id << clan_sherpas)
-    )
+    query = GameMember.select(
+        GameMember.member_id, GameMember.game_id, fn.MAX(GameMember.time_played).alias('sherpa_time')
+    ).where(
+        (GameMember.game_id << game_sherpas) & (GameMember.member_id << clan_sherpas)
+    ).group_by(GameMember.member_id, GameMember.game_id)
 
+    total_time = 0
+    unique_sherpas = set()
+    unique_games = set()
     try:
-        await database.execute(game_sherpas)
+        results = await database.execute(query)
     except DoesNotExist:
-        return None
+        return (total_time, unique_sherpas)
 
-    query = GameMember.select(fn.SUM(GameMember.time_played).alias('sum')).where(
-        (GameMember.member_id == member_db.id) & (GameMember.game_id << game_sherpas)
-    )
-    time_played = await database.execute(query)
+    for result in results:
+        unique_sherpas.add(result.member_id)
+        unique_games.add(result.game_id)
+        total_time += result.sherpa_time if result.sherpa_time else 0
 
-    game_members_db = await database.execute(game_members)
-    sherpa_members_db = await database.execute(clan_sherpas)
-
-    game_member_set = set([member.id for member in game_members_db])
-    clan_sherpa_set = set([sherpa.id for sherpa in sherpa_members_db])
-
-    game_sherpas_unique = list(game_member_set.intersection(clan_sherpa_set))
-
-    return (time_played[0].sum, game_sherpas_unique)
+    return (total_time, unique_sherpas)
 
 
 async def store_game_member(bot, player, game_db, member_db):
@@ -219,15 +216,13 @@ async def store_game_member(bot, player, game_db, member_db):
 
 async def store_member_history(member_dbs, bot, member_db, count):
     platform_id = member_db.clanmember.platform_id
-
     member_id, member_username = parse_platform(member_db, platform_id)
 
     try:
-        characters = await get_characters(
-            bot.destiny, bot.redis, member_id, platform_id, 'store_member_history')
+        characters = await get_characters(bot.destiny, bot.redis, member_id, platform_id, 'store_member_history')
         char_ids = characters.keys()
     except (KeyError, TypeError):
-        log.error(f"Could not get character data for {member_db.clanmember.platform_id}-{member_id}")
+        log.error(f"Could not get character data for {platform_id}-{member_id}")
         return
 
     all_activities = await get_activity_list(
