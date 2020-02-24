@@ -128,8 +128,11 @@ async def member_sync(bot, guild_id):  # noqa
             )
         )
 
+        # Kick off activity scans for each of the added members
+        # Indexing `clan_member_db` is necessary becuase the query returns a multi-row set, and
+        # normal means of limiting that output (ie. `.get()`) does not work for some reason.
         member_dbs = await bot.database.get_clan_members([clan_id])
-        asyncio.create_task(store_member_history(member_dbs, bot, clan_member_db, count=250))
+        asyncio.create_task(store_member_history(member_dbs, bot, clan_member_db[0], count=250))
 
         member_changes[clan_db.clan_id]['added'].append(member_hash)
 

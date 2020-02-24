@@ -301,14 +301,12 @@ Example: ?member sherpatime
         time_played, sherpa_ids = await get_sherpa_time_played(self.bot.database, member_db)
 
         sherpa_list = []
-        if time_played:
+        if time_played > 0:
             sherpas = await self.bot.database.execute(Member.select().where(Member.id << sherpa_ids))
             for sherpa in sherpas:
                 if sherpa.discord_id:
                     sherpa_discord = await commands.MemberConverter().convert(ctx, str(sherpa.discord_id))
                     sherpa_list.append(f"{sherpa_discord.name}#{sherpa_discord.discriminator}")
-        else:
-            time_played = 0
 
         embed = discord.Embed(
             colour=constants.BLUE,
