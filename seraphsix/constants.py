@@ -171,18 +171,16 @@ MODE_NIGHTMAREHUNT = 79
 MODE_ELIMINATION = 80
 MODE_MOMENTUM = 81
 MODE_THESUNDIAL = 83
+MODE_TRIALSOFOSIRIS = 84
 
-MODES_QUICKPLAY = [
+MODES_PVP = [
     MODE_ALLMAYHEM, MODE_SUPREMACY, MODE_DOUBLES,
     MODE_LOCKDOWN, MODE_BREAKTHROUGH, MODE_SHOWDOWN,
     MODE_IRONBANNERCONTROL, MODE_IRONBANNERCLASH,
     MODE_CLASHQUICKPLAY, MODE_CONTROLQUICKPLAY, MODE_MOMENTUM,
-    MODE_ELIMINATION
-]
-
-MODES_COMPETITIVE = [
-    MODE_SURVIVAL, MODE_COUNTDOWN, MODE_CLASHCOMPETITIVE,
-    MODE_CONTROLCOMPETITIVE, MODE_COUNTDOWN
+    MODE_ELIMINATION, MODE_SURVIVAL, MODE_COUNTDOWN,
+    MODE_CLASHCOMPETITIVE, MODE_CONTROLCOMPETITIVE, 
+    MODE_TRIALSOFOSIRIS,
 ]
 
 MODES_GAMBIT = [
@@ -228,13 +226,14 @@ MODE_MAP = {
     MODE_HEROICADVENTURE: {'title': 'heroic adventure', 'player_count': 3, 'threshold': 2},
     MODE_ELIMINATION: {'title': 'elimination', 'player_count': 3, 'threshold': 2},
     MODE_MOMENTUM: {'title': 'momentum control', 'player_count': 6, 'threshold': 3},
-    MODE_THESUNDIAL: {'title': 'the sundial', 'player_count': 6, 'threshold': 3}
+    MODE_THESUNDIAL: {'title': 'the sundial', 'player_count': 6, 'threshold': 3},
+    MODE_TRIALSOFOSIRIS: {'title': 'trials of osiris', 'player_count': 3, 'threshold': 2},
 }
 
 SUPPORTED_GAME_MODES = {
     'gambit': MODES_GAMBIT,
     'pve': MODES_PVE,
-    'pvp': MODES_COMPETITIVE + MODES_QUICKPLAY,
+    'pvp': MODES_PVP,
     'raid': [MODE_RAID]
 }
 
