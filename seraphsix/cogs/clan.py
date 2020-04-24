@@ -82,6 +82,7 @@ class ClanCog(commands.Cog, name="Clan"):
 
     async def get_bungie_details(self, username, bungie_id=None, platform_id=None):
         membership_id = None
+        username_lower = username.lower()
 
         if bungie_id:
             try:
@@ -112,12 +113,14 @@ class ClanCog(commands.Cog, name="Clan"):
 
             if len(player['Response']) == 1:
                 membership = player['Response'][0]
-                if membership['displayName'].lower() == username.lower():
+                if membership['displayName'].lower() == username_lower:
                     membership_id = membership['membershipId']
                     platform_id = membership['membershipType']
             else:
                 for membership in player['Response']:
-                    if membership['membershipType'] == platform_id and membership['displayName'].lower() == username.lower():
+                    display_name = membership['displayName'].lower()
+                    membership_type = membership['membershipType']
+                    if membership_type == platform_id and display_name == username_lower:
                         membership_id = membership['membershipId']
                         platform_id = membership['membershipType']
                         break
