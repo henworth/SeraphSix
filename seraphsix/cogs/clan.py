@@ -112,12 +112,12 @@ class ClanCog(commands.Cog, name="Clan"):
 
             if len(player['Response']) == 1:
                 membership = player['Response'][0]
-                if membership['displayName'] == username.lower():
+                if membership['displayName'].lower() == username.lower():
                     membership_id = membership['membershipId']
                     platform_id = membership['membershipType']
             else:
                 for membership in player['Response']:
-                    if membership['membershipType'] == platform_id and membership['displayName'] == username.lower():
+                    if membership['membershipType'] == platform_id and membership['displayName'].lower() == username.lower():
                         membership_id = membership['membershipId']
                         platform_id = membership['membershipType']
                         break
@@ -525,9 +525,9 @@ Examples:
         admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        if clan_db.platform:
+        if not platform_id and clan_db.platform:
             platform_id = clan_db.platform
-        elif not platform_id:
+        else:
             raise InvalidCommandError("Platform was not specified and clan default platform is not set")
 
         bungie_id = None
