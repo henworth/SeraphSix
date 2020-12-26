@@ -262,7 +262,7 @@ Example: ?member games raid
         await manager.send_embed(embed)
 
     @member.command(
-        help=f"""
+        help="""
 Show total time spent in activities with at least one sherpa member.
 
 Example: ?member sherpatime
