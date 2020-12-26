@@ -372,7 +372,7 @@ class ClanCog(commands.Cog, name="Clan"):
         await manager.send_embed(embed)
 
     @clan.command(
-        help=f"""
+        help="""
 Admin only, requires registration
 
 Approve a pending clan member based on either their Discord info or in-game username.
@@ -501,7 +501,7 @@ Examples:
         await manager.send_embed(embed)
 
     @clan.command(
-        help=f"""
+        help="""
 Admin only, requires registration
 
 Invite a user to clan based on either their Discord info or in-game username.

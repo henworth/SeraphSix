@@ -187,7 +187,7 @@ class GameCog(commands.Cog, name="Game"):
             else:
                 game_activities = activity_react
 
-        base_embed.set_field_at(1, name=f"Activity", value=game_activities_by_id[activity_id])
+        base_embed.set_field_at(1, name="Activity", value=game_activities_by_id[activity_id])
         await game_embed.edit(embed=base_embed)
 
         time = await manager.send_and_get_response(
