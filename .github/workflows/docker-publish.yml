@@ -1,0 +1,69 @@
+name: Create Bot Container
+
+on:
+  push:
+    branches: [master]
+
+env:
+  IMAGE_NAME_BOT: seraphsix_bot
+  IMAGE_NAME_PROXY: seraphsix_oauth_proxy
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Run tests
+        run: |
+          if [ -f docker-compose.test.yml ]; then
+            docker-compose --file docker-compose.test.yml build
+            docker-compose --file docker-compose.test.yml run sut
+          else
+            docker build . --file Dockerfile
+            docker build . --file Dockerfile.oauth_proxy
+          fi
+ 
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build bot image
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME_BOT
+
+      - name: Build oauth proxy image
+        run: docker build . --file Dockerfile.oauth_proxy --tag $IMAGE_NAME_PROXY
+
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+
+      - name: Push images
+        run: |
+          IMAGE_ID_BOT=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_BOT
+          IMAGE_ID_PROXY=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_PROXY
+
+          # Change all uppercase to lowercase
+          IMAGE_ID_BOT=$(echo $IMAGE_ID_BOT | tr '[A-Z]' '[a-z]')
+          IMAGE_ID_PROXY=$(echo $IMAGE_ID_PROXY | tr '[A-Z]' '[a-z]')
+
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+
+          echo IMAGE_ID_BOT=$IMAGE_ID_BOT
+          echo IMAGE_ID_PROXY=$IMAGE_ID_PROXY
+          echo VERSION=$VERSION
+
+          docker tag $IMAGE_NAME_BOT $IMAGE_ID_BOT:$VERSION
+          docker push $IMAGE_ID_BOT:$VERSION
+
+          docker tag $IMAGE_NAME_PROXY $IMAGE_ID_PROXY:$VERSION
+          docker push $IMAGE_ID_PROXY:$VERSION

@@ -9,6 +9,7 @@ import requests
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_kvsession import KVSessionExtension
+from get_docker_secret import get_docker_secret
 from requests_oauth2 import OAuth2, OAuth2BearerToken
 from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
 from simplekv.memory.redisstore import RedisStore
@@ -23,7 +24,11 @@ log.addHandler(handler)
 app = Flask(__name__)
 app.secret_key = os.environb[b'FLASK_APP_KEY'].decode('unicode-escape').encode('latin-1')
 
-red = redis.from_url(os.environ.get('REDIS_URL'))
+redis_password = get_docker_secret('seraphsix_redis_pass')
+redis_host = get_docker_secret('seraphsix_redis_host', default='localhost')
+redis_port = get_docker_secret('seraphsix_redis_port', default='6379')
+redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}"
+red = redis.from_url(redis_url)
 
 store = RedisStore(red)
 KVSessionExtension(store, app)
@@ -36,9 +41,9 @@ class BungieClient(OAuth2):
 
 
 bungie_auth = BungieClient(
-    client_id=os.environ.get('BUNGIE_CLIENT_ID'),
-    client_secret=os.environ.get('BUNGIE_CLIENT_SECRET'),
-    redirect_uri=f"https://{os.environ.get('BUNGIE_REDIRECT_HOST')}/oauth/callback"
+    client_id=get_docker_secret('bungie_client_id'),
+    client_secret=get_docker_secret('bungie_client_secret'),
+    redirect_uri=f"https://{get_docker_secret('bungie_redirect_host')}/oauth/callback"
 )
 
 
@@ -79,7 +84,7 @@ def oauth_index():
 
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
-        s.headers.update({'X-API-KEY': os.environ.get('BUNGIE_API_KEY')})
+        s.headers.update({'X-API-KEY': get_docker_secret('bungie_api_key')})
         r = s.get(f"{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/")
 
     r.raise_for_status()
