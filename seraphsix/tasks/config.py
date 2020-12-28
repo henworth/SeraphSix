@@ -3,6 +3,7 @@ import pytz
 
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from get_docker_secret import get_docker_secret
 
 
 @dataclass
@@ -13,10 +14,10 @@ class BungieConfig:
     redirect_host: str
 
     def __init__(self):
-        self.api_key = os.environ.get('BUNGIE_API_KEY')
-        self.client_id = os.environ.get('BUNGIE_CLIENT_ID')
-        self.client_secret = os.environ.get('BUNGIE_CLIENT_SECRET')
-        self.redirect_host = os.environ.get('BUNGIE_REDIRECT_HOST')
+        self.api_key = get_docker_secret('bungie_api_key')
+        self.client_id = get_docker_secret('bungie_client_id')
+        self.client_secret = get_docker_secret('bungie_client_secret')
+        self.redirect_host = get_docker_secret('bungie_redirect_host')
 
 
 @dataclass
@@ -25,8 +26,8 @@ class The100Config:
     base_url: str
 
     def __init__(self):
-        self.api_key = os.environ.get('THE100_API_KEY')
-        self.base_url = os.environ.get('THE100_API_URL')
+        self.api_key = get_docker_secret('the100_api_key')
+        self.base_url = get_docker_secret('THE100_API_URL')
 
 
 @dataclass
@@ -37,10 +38,10 @@ class TwitterConfig:
     access_token_secret: str
 
     def __init__(self):
-        self.consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
-        self.consumer_secret = os.environ.get('TWITTER_CONSUMER_SECRET')
-        self.access_token = os.environ.get('TWITTER_ACCESS_TOKEN')
-        self.access_token_secret = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET')
+        self.consumer_key = get_docker_secret('twitter_consumer_key')
+        self.consumer_secret = get_docker_secret('twitter_consumer_secret')
+        self.access_token = get_docker_secret('twitter_access_token')
+        self.access_token_secret = get_docker_secret('twitter_access_token_secret')
 
     def asdict(self):
         return asdict(self)
@@ -61,14 +62,24 @@ class Config:
     activity_cutoff: str
 
     def __init__(self):
+        database_user = get_docker_secret('seraphsix_pg_db_user', default='seraphsix')
+        database_password = get_docker_secret('seraphsix_pg_db_pass')
+        database_host = get_docker_secret('seraphsix_pg_db_host', default='localhost')
+        database_port = get_docker_secret('seraphsix_pg_db_port', default='5432')
+        database_name = get_docker_secret('seraphsix_pg_db_name', default='seraphsix')
+        self.database_url = f"postgres://{database_user}:{database_password}@{database_host}:{database_port}/{database_name}"
+
+        redis_password = get_docker_secret('seraphsix_redis_pass')
+        redis_host = get_docker_secret('seraphsix_redis_host', default='localhost')
+        redis_port = get_docker_secret('seraphsix_redis_port', default='6379')
+        self.redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}"
+
         self.bungie = BungieConfig()
         self.the100 = The100Config()
         self.twitter = TwitterConfig()
-        self.database_url = os.environ.get('DATABASE_URL')
-        self.discord_api_key = os.environ.get('DISCORD_API_KEY')
-        self.redis_url = os.environ.get('REDIS_URL')
-        self.home_server = int(os.environ.get('HOME_SERVER'))
-        self.log_channel = int(os.environ.get('HOME_SERVER_LOG_CHANNEL'))
-        self.reg_channel = int(os.environ.get('HOME_SERVER_REG_CHANNEL'))
-        self.enable_activity_tracking = os.environ.get('ENABLE_ACTIVITY_TRACKING') == 'True'
-        self.activity_cutoff = datetime.strptime(os.environ.get('ACTIVITY_CUTOFF'), '%Y-%m-%d').astimezone(tz=pytz.utc)
+        self.discord_api_key = get_docker_secret('discord_api_key')
+        self.home_server = get_docker_secret('home_server', cast_to=int)
+        self.log_channel = get_docker_secret('home_server_log_channel', cast_to=int)
+        self.reg_channel = get_docker_secret('home_server_reg_channel', cast_to=int)
+        self.enable_activity_tracking = get_docker_secret('enable_activity_tracking', cast_to=bool) == 'True'
+        self.activity_cutoff = datetime.strptime(get_docker_secret('activity_cutoff'), '%Y-%m-%d').astimezone(tz=pytz.utc)

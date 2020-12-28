@@ -24,6 +24,8 @@ from seraphsix.tasks.activity import store_all_games, store_last_active
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
 
 log = logging.getLogger(__name__)
+intents = discord.Intents.default()
+intents.members = True
 
 STARTUP_EXTENSIONS = [
     'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
@@ -51,7 +53,7 @@ class SeraphSix(commands.Bot):
 
     def __init__(self, config):
         super().__init__(
-            command_prefix=_prefix_callable, case_insensitive=True,
+            command_prefix=_prefix_callable, case_insensitive=True, intents=intents,
             help_command=commands.DefaultHelpCommand(
                 no_category="Assorted", dm_help=True, verify_checks=False)
         )
