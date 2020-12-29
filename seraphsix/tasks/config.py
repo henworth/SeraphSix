@@ -1,4 +1,3 @@
-import os
 import pytz
 
 from dataclasses import dataclass, asdict
@@ -67,7 +66,9 @@ class Config:
         database_host = get_docker_secret('seraphsix_pg_db_host', default='localhost')
         database_port = get_docker_secret('seraphsix_pg_db_port', default='5432')
         database_name = get_docker_secret('seraphsix_pg_db_name', default='seraphsix')
-        self.database_url = f"postgres://{database_user}:{database_password}@{database_host}:{database_port}/{database_name}"
+
+        database_auth = f"{database_user}:{database_password}"
+        self.database_url = f"postgres://{database_auth}@{database_host}:{database_port}/{database_name}"
 
         redis_password = get_docker_secret('seraphsix_redis_pass')
         redis_host = get_docker_secret('seraphsix_redis_host', default='localhost')
@@ -82,4 +83,6 @@ class Config:
         self.log_channel = get_docker_secret('home_server_log_channel', cast_to=int)
         self.reg_channel = get_docker_secret('home_server_reg_channel', cast_to=int)
         self.enable_activity_tracking = get_docker_secret('enable_activity_tracking', cast_to=bool) == 'True'
-        self.activity_cutoff = datetime.strptime(get_docker_secret('activity_cutoff'), '%Y-%m-%d').astimezone(tz=pytz.utc)
+
+        activity_cutoff = get_docker_secret('activity_cutoff')
+        self.activity_cutoff = datetime.strptime(activity_cutoff, '%Y-%m-%d').astimezone(tz=pytz.utc)
