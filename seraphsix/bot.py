@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 import aioredis
 import asyncio
 import discord
@@ -272,8 +272,12 @@ class SeraphSix(commands.Bot):
 
     async def on_message(self, message):
         if not message.author.bot:
-            ctx = await self.get_context(message)
-            await self.invoke(ctx)
+            try:
+                ctx = await self.get_context(message)
+                await self.invoke(ctx)
+            except AttributeError as error:
+                error_trace = traceback.format_exception(type(error), error, error.__traceback__)
+                log.error(f"Ignoring exception from message '{message}': {error_trace}")
 
     async def close(self):
         await self.log_channel.send("Seraph Six is shutting down...")

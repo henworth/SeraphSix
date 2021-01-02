@@ -1,9 +1,10 @@
-from seraphsix.bot import SeraphSix
-from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
-from seraphsix.tasks.config import Config
-
 import logging
 import warnings
+
+from seraphsix.bot import SeraphSix
+from seraphsix.constants import LOG_FORMAT_MSG, BUNGIE_DATE_FORMAT
+from seraphsix.tasks.config import Config
+from seraphsix.utils import UTCFormatter
 
 warnings.filterwarnings('ignore', category=UserWarning, module='psycopg2')
 
@@ -12,7 +13,7 @@ def main():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
-    formatter = logging.Formatter(fmt=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
+    formatter = UTCFormatter(fmt=LOG_FORMAT_MSG, datefmt=BUNGIE_DATE_FORMAT)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
@@ -22,9 +23,14 @@ def main():
     logging.getLogger('bot').setLevel(logging.DEBUG)
     logging.getLogger('seraphsix.tasks.discord').setLevel(logging.DEBUG)
 
-    config = Config()
-    bot = SeraphSix(config)
-    bot.run(config.discord_api_key)
+    log = logging.getLogger(__name__)
+
+    try:
+        config = Config()
+        bot = SeraphSix(config)
+        bot.run(config.discord_api_key)
+    except Exception:
+        log.exception("Caught exception")
 
 
 if __name__ == '__main__':
