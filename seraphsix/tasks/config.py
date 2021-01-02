@@ -82,7 +82,7 @@ class Config:
         self.home_server = get_docker_secret('home_server', cast_to=int)
         self.log_channel = get_docker_secret('home_server_log_channel', cast_to=int)
         self.reg_channel = get_docker_secret('home_server_reg_channel', cast_to=int)
-        self.enable_activity_tracking = get_docker_secret('enable_activity_tracking', cast_to=bool) == 'True'
+        self.enable_activity_tracking = get_docker_secret('enable_activity_tracking', cast_to=bool)
 
         activity_cutoff = get_docker_secret('activity_cutoff')
         self.activity_cutoff = datetime.strptime(activity_cutoff, '%Y-%m-%d').astimezone(tz=pytz.utc)

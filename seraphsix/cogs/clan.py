@@ -18,7 +18,6 @@ from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild
 from seraphsix.errors import InvalidAdminError, InvalidCommandError
-from seraphsix.models.destiny import Member as DestinyMember
 from seraphsix.tasks.activity import get_game_counts, execute_pydest
 from seraphsix.tasks.clan import info_sync, member_sync
 
