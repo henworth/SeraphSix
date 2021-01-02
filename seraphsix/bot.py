@@ -10,7 +10,7 @@ import traceback
 from discord.ext import commands, tasks
 from peewee import DoesNotExist
 from peony import PeonyClient
-from pydest import Pydest
+from pydest.pydest import Pydest
 from the100 import The100
 
 from seraphsix import constants
