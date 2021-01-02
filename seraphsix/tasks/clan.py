@@ -33,7 +33,7 @@ async def sort_members(database, member_list):
 
 
 async def get_all_members(bot, group_id):
-    group = await execute_pydest(bot.destiny.api.get_group_members(group_id), bot.redis)
+    group = await execute_pydest(bot.destiny.api.get_members_of_group(group_id), bot.redis)
     group_members = group['Response']['results']
     for member in group_members:
         yield Member(member)
