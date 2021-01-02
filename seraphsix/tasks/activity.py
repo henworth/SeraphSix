@@ -69,12 +69,23 @@ async def execute_pydest(function, redis, member_id=None, caller=None):
 
 
 async def get_activity_history(destiny, redis, platform_id, member_id, char_id, count):
-    function = destiny.api.get_activity_history(platform_id, member_id, char_id, count=count)
+    page = 0
+    activities = []
+
+    function = destiny.api.get_activity_history(platform_id, member_id, char_id, count=count, page=page, mode=0)
     data = await execute_pydest(function, redis, member_id, 'get_activity_history')
-    try:
-        activities = data['Response']['activities']
-    except (KeyError, TypeError):
-        return None
+    response = data['Response']
+
+    while 'activities' in response:
+        page += 1
+        if activities:
+            activities.extend(response['activities'])
+        else:
+            activities = response['activities']
+        function = destiny.api.get_activity_history(platform_id, member_id, char_id, count=count, page=page, mode=0)
+        data = await execute_pydest(function, redis, member_id, 'get_activity_history')
+        response = data['Response']
+
     return activities
 
 
