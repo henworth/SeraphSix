@@ -713,12 +713,6 @@ Examples:
 
         return await manager.clean_messages()
 
-    async def get_all_members(self, group_id):
-        group = await execute_pydest(self.bot.destiny.api.get_group_members(group_id), self.bot.redis)
-        group_members = group['Response']['results']
-        for member in group_members:
-            yield DestinyMember(member)
-
 
 def setup(bot):
     bot.add_cog(ClanCog(bot))
