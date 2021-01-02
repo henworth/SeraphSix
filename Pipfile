@@ -37,9 +37,6 @@ flask-kvsession = "*"
 tenacity = "*"
 get-docker-secret = "*"
 
-[requires]
-python_version = "3.8"
-
 [pipenv]
 allow_prereleases = false
 
