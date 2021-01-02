@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-# import json
 import logging
 import os
 import pickle
-# import pika
 import redis
 import requests
 
@@ -11,13 +9,14 @@ from flask import Flask, redirect, render_template, request, session, url_for
 from flask_kvsession import KVSessionExtension
 from get_docker_secret import get_docker_secret
 from requests_oauth2 import OAuth2, OAuth2BearerToken
-from seraphsix.constants import LOG_FORMAT_MSG, LOG_FORMAT_TIME
+from seraphsix.constants import LOG_FORMAT_MSG
+from seraphsix.utils import UTCFormatter
 from simplekv.memory.redisstore import RedisStore
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 handler = logging.StreamHandler()
-formatter = logging.Formatter(fmt=LOG_FORMAT_MSG, datefmt=LOG_FORMAT_TIME)
+formatter = UTCFormatter(fmt=LOG_FORMAT_MSG)
 handler.setFormatter(formatter)
 log.addHandler(handler)
 
@@ -125,22 +124,6 @@ def oauth_callback():
 def the100_webhook(guild_id):
     data = request.get_json(force=True)
     log.info(f"{guild_id} {data}")
-
-    # try:
-    #     params = pika.URLParameters(os.environ.get('CLOUDAMQP_URL'))
-    #     connection = pika.BlockingConnection(params)
-    #     channel = connection.channel()
-    #     channel.queue_declare(queue=str(guild_id))
-    #     channel.basic_publish(
-    #         '',
-    #         str(guild_id),
-    #         json.dumps(data),
-    #         pika.BasicProperties(content_type='application/json', delivery_mode=1)
-    #     )
-    #     connection.close()
-    # except Exception:
-    #     log.exception(f"/the100webhook: Failed to publish the100 info to rabbitmq: {guild_id} {data}")
-    #     return render_template('message.html', message='Something went wrong.')
     return render_template('message.html', message="Success!")
 
 

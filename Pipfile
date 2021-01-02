@@ -16,14 +16,14 @@ aiopg = ">=0.15.0"
 astroid = ">=2.0.4"
 backoff = ">=1.8.0"
 lazy-object-proxy = ">=1.3.1"
-peewee-async = ">=0.6.2a0"
+peewee-async = ">=0.7.1"
 peewee = ">=3.9.4"
 peony-twitter = ">=1.1.2"
-psycopg2 = ">=2.8.2"
+psycopg2-binary = ">=2.8.2"
 pytz = "*"
 six = ">=1.11.0"
 wrapt = ">=1.10.11"
-"discord.py" = ">=1.2.5"
+"discord.py" = ">=1.5.1"
 flask = "*"
 requests-oauth2 = "*"
 gunicorn = "*"
@@ -31,12 +31,17 @@ aioredis = "*"
 redis = "*"
 jsonpickle = "*"
 the100 = {git = "https://github.com/henworth/the100"}
-pydest = {git = "https://github.com/henworth/pydest",ref = "82e89a67c714bfd39f26339f53d05e9f5b55697c"}
+pydest = {git = "https://github.com/henworth/pydest",ref = "7b23ecf95987d064515c17cfe3818469ae10d6bc"}
 ratelimit = {git = "https://github.com/evemorgen/ratelimit.git",ref = "14c87100677fa905408d7a75b634bd4bdee0301c"}
 flask-kvsession = "*"
+tenacity = "*"
+get-docker-secret = "*"
 
 [requires]
 python_version = "3.8"
 
 [pipenv]
-allow_prereleases = true
+allow_prereleases = false
+
+[scripts]
+lint = "python -m pylama"

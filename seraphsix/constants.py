@@ -4,8 +4,8 @@ import pytz
 from datetime import datetime
 
 
-LOG_FORMAT_MSG = '%(name)s[%(process)d]: %(levelname)s %(message)s'
-LOG_FORMAT_TIME = '%b %d %H:%M:%S'
+LOG_FORMAT_MSG = '%(asctime)s %(name)s[%(process)d]: %(levelname)s %(message)s'
+DB_MAX_CONNECTIONS = 20
 
 BLUE = discord.Color(3381759)
 CLEANUP_DELAY = 4
@@ -240,6 +240,7 @@ SUPPORTED_GAME_MODES = {
 BUNGIE_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
 SHADOWKEEP_RELEASE = datetime.strptime('2019-10-01T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
+BEYOND_LIGHT_RELEASE = datetime.strptime('2020-11-10T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
 
 TWITTER_DESTINY_REDDIT = 2608131020
 TWITTER_XBOX_SUPPORT = 59804598

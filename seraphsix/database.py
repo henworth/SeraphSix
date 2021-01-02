@@ -12,6 +12,7 @@ from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
 from seraphsix import constants
+from tenacity import AsyncRetrying, RetryError, wait_exponential, before_sleep_log
 from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
@@ -19,13 +20,22 @@ log = logging.getLogger(__name__)
 database_proxy = Proxy()
 
 
-def connection_error(function):
+def reconnect(function):
     @functools.wraps(function)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(db, *args, **kwargs):
         try:
-            return await function(*args, **kwargs)
+            return await function(db, *args, **kwargs)
         except (InterfaceError, OperationalError):
-            pass
+            try:
+                async for attempt in AsyncRetrying(
+                        wait=wait_exponential(multiplier=1, min=2, max=10),
+                        before_sleep=before_sleep_log(log, logging.ERROR)):
+                    with attempt:
+                        db._objects.database._connect()
+            except RetryError:
+                pass
+            else:
+                return await function(db, *args, **kwargs)
     return wrapper
 
 
@@ -82,6 +92,17 @@ class Member(BaseModel):
         indexes = (
             (('discord_id', 'bungie_id', 'xbox_id', 'psn_id', 'blizzard_id',
               'steam_id', 'stadia_id', 'the100_id'), True),
+        )
+
+
+class MemberPlatform(BaseModel):
+    member = ForeignKeyField(Member)
+    platform_id = IntegerField()
+    username = CharField(unique=True, null=True)
+
+    class Meta:
+        indexes = (
+            (('member', 'platform_id'), True),
         )
 
 
@@ -170,7 +191,7 @@ class Database(object):
         url = urlparse(url)
         self._database = PooledPostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,
-            host=url.hostname, port=url.port, max_connections=18)
+            host=url.hostname, port=url.port, max_connections=constants.DB_MAX_CONNECTIONS)
         self._loop = asyncio.get_event_loop()
         self._objects = ConnManager(loop=self._loop)
 
@@ -187,6 +208,7 @@ class Database(object):
                 ))
 
         Member.create_table(True)
+        MemberPlatform.create_table(True)
         Clan.create_table(True)
         ClanMember.create_table(True)
         Game.create_table(True)
@@ -195,27 +217,27 @@ class Database(object):
         TwitterChannel.create_table(True)
         Role.create_table(True)
 
-    @connection_error
+    @reconnect
     async def create(self, model, **data):
         return await self._objects.create(model, **data)
 
-    @connection_error
+    @reconnect
     async def get(self, source, *args, **kwargs):
         return await self._objects.get(source, *args, **kwargs)
 
-    @connection_error
+    @reconnect
     async def update(self, db_object, only=None):
         return await self._objects.update(db_object, only)
 
-    @connection_error
+    @reconnect
     async def delete(self, db_object, recursive=False, delete_nullable=False):
         return await self._objects.delete(db_object, recursive, delete_nullable)
 
-    @connection_error
+    @reconnect
     async def execute(self, query):
         return await self._objects.execute(query)
 
-    @connection_error
+    @reconnect
     async def count(self, query, clear_limit=False):
         return await self._objects.count(query, clear_limit)
 
@@ -260,6 +282,23 @@ class Database(object):
             (fn.LOWER(Member.stadia_username) == username)
         )
         return await self.get(query)
+
+    async def create_member_by_platform(self, name, membership_id, platform_id):
+        # pylint: disable=assignment-from-no-return
+        query = Member.create()
+        if platform_id == constants.PLATFORM_BUNGIE:
+            query = Member.create(name=name, bungie_id=membership_id)
+        elif platform_id == constants.PLATFORM_PSN:
+            query = Member.create(name=name, psn_id=membership_id)
+        elif platform_id == constants.PLATFORM_XBOX:
+            query = Member.create(name=name, xbox_id=membership_id)
+        elif platform_id == constants.PLATFORM_BLIZZARD:
+            query = Member.create(name=name, blizzard_id=membership_id)
+        elif platform_id == constants.PLATFORM_STEAM:
+            query = Member.create(name=name, steam_id=membership_id)
+        elif platform_id == constants.PLATFORM_STADIA:
+            query = Member.create(name=name, stadia_id=membership_id)
+        return await self.execute(query)
 
     async def get_member_by_platform_username(self, username, platform_id):
         # pylint: disable=assignment-from-no-return
