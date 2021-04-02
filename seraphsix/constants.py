@@ -170,6 +170,7 @@ MODE_VEXOFFENSIVE = 78
 MODE_NIGHTMAREHUNT = 79
 MODE_ELIMINATION = 80
 MODE_MOMENTUM = 81
+MODE_DUNGEON = 82
 MODE_THESUNDIAL = 83
 MODE_TRIALSOFOSIRIS = 84
 
@@ -180,7 +181,8 @@ MODES_PVP = [
     MODE_CLASHQUICKPLAY, MODE_CONTROLQUICKPLAY, MODE_MOMENTUM,
     MODE_ELIMINATION, MODE_SURVIVAL, MODE_COUNTDOWN,
     MODE_CLASHCOMPETITIVE, MODE_CONTROLCOMPETITIVE,
-    MODE_TRIALSOFOSIRIS,
+    MODE_TRIALSOFOSIRIS, MODE_TRIALSCOUNTDOWN, MODE_TRIALSSURVIVAL,
+    MODE_CRIMSONDOUBLES, MODE_SCORCHEDTEAM
 ]
 
 MODES_GAMBIT = [
@@ -194,24 +196,30 @@ MODES_STRIKE = [
 MODES_PVE = [
     MODE_STRIKE, MODE_NIGHTFALL, MODE_MENAGERIE, MODE_SCOREDNIGHTFALL,
     MODE_VEXOFFENSIVE, MODE_BLACKARMORYRUN, MODE_NIGHTMAREHUNT, MODE_RAID,
-    MODE_HEROICADVENTURE, MODE_THESUNDIAL
+    MODE_HEROICADVENTURE, MODE_THESUNDIAL, MODE_PATROL, MODE_STORY,
+    MODE_DUNGEON, MODE_RECKONING, MODE_SCOREDHEROICNIGHTFALL, MODE_HEROICNIGHTFALL
 ]
 
 MODE_MAP = {
+    MODE_STORY: {'title': 'story', 'player_count': 3, 'threshold': 2},
     MODE_STRIKE: {'title': 'strike', 'player_count': 3, 'threshold': 2},
     MODE_RAID: {'title': 'raid', 'player_count': 6, 'threshold': 3},
+    MODE_PATROL: {'title': 'patrol', 'player_count': 3, 'threshold': 2},
     MODE_NIGHTFALL: {'title': 'nightfall', 'player_count': 3, 'threshold': 2},
+    MODE_HEROICNIGHTFALL: {'title': 'nightfall', 'player_count': 3, 'threshold': 2},
     MODE_SCOREDNIGHTFALL: {'title': 'nightfall', 'player_count': 3, 'threshold': 2},
+    MODE_SCOREDHEROICNIGHTFALL: {'title': 'nightfall', 'player_count': 3, 'threshold': 2},
     MODE_BLACKARMORYRUN: {'title': 'forge', 'player_count': 3, 'threshold': 2},
     MODE_ALLMAYHEM: {'title': 'mayhem', 'player_count': 6, 'threshold': 3},
     MODE_SUPREMACY: {'title': 'supremacy', 'player_count': 4, 'threshold': 2},
     MODE_SURVIVAL: {'title': 'survival', 'player_count': 3, 'threshold': 2},
     MODE_COUNTDOWN: {'title': 'countdown', 'player_count': 4, 'threshold': 2},
-    MODE_IRONBANNERCONTROL: {'title': 'ironbanner control', 'player_count': 6, 'threshold': 3},
-    MODE_IRONBANNERCLASH: {'title': 'ironbanner clash', 'player_count': 6, 'threshold': 3},
+    MODE_IRONBANNERCONTROL: {'title': 'ironbanner (control)', 'player_count': 6, 'threshold': 3},
+    MODE_IRONBANNERCLASH: {'title': 'ironbanner (clash)', 'player_count': 6, 'threshold': 3},
     MODE_DOUBLES: {'title': 'doubles', 'player_count': 2, 'threshold': 2},
+    MODE_CRIMSONDOUBLES: {'title': 'crimson doubles', 'player_count': 2, 'threshold': 2},
     MODE_LOCKDOWN: {'title': 'lockdown', 'player_count': 4, 'threshold': 2},
-    MODE_SHOWDOWN: {'title': 'lockdown', 'player_count': 4, 'threshold': 2},
+    MODE_SHOWDOWN: {'title': 'showdown', 'player_count': 4, 'threshold': 2},
     MODE_BREAKTHROUGH: {'title': 'breakthrough', 'player_count': 4, 'threshold': 2},
     MODE_CLASHQUICKPLAY: {'title': 'clash (quickplay)', 'player_count': 6, 'threshold': 3},
     MODE_CLASHCOMPETITIVE: {'title': 'clash (competitive)', 'player_count': 4, 'threshold': 2},
@@ -219,22 +227,27 @@ MODE_MAP = {
     MODE_CONTROLCOMPETITIVE: {'title': 'control (competitive)', 'player_count': 4, 'threshold': 2},
     MODE_GAMBIT: {'title': 'gambit', 'player_count': 4, 'threshold': 2},
     MODE_GAMBITPRIME: {'title': 'gambit prime', 'player_count': 4, 'threshold': 2},
+    MODE_RECKONING: {'title': 'reckoning', 'player_count': 4, 'threshold': 2},
     MODE_MENAGERIE: {'title': 'menagerie', 'player_count': 6, 'threshold': 3},
     MODE_VEXOFFENSIVE: {'title': 'menagerie', 'player_count': 6, 'threshold': 3},
-    MODE_PATROL: {'title': 'patrol', 'player_count': 3, 'threshold': 2},
     MODE_NIGHTMAREHUNT: {'title': 'nightmare hunt', 'player_count': 3, 'threshold': 2},
     MODE_HEROICADVENTURE: {'title': 'heroic adventure', 'player_count': 3, 'threshold': 2},
     MODE_ELIMINATION: {'title': 'elimination', 'player_count': 3, 'threshold': 2},
     MODE_MOMENTUM: {'title': 'momentum control', 'player_count': 6, 'threshold': 3},
     MODE_THESUNDIAL: {'title': 'the sundial', 'player_count': 6, 'threshold': 3},
     MODE_TRIALSOFOSIRIS: {'title': 'trials of osiris', 'player_count': 3, 'threshold': 2},
+    MODE_TRIALSCOUNTDOWN: {'title': 'trials of the nine', 'player_count': 3, 'threshold': 2},
+    MODE_TRIALSSURVIVAL: {'title': 'trials of the nine', 'player_count': 3, 'threshold': 2},
+    MODE_SCORCHEDTEAM: {'title': 'team scorched', 'player_count': 6, 'threshold': 3},
+    MODE_DUNGEON: {'title': 'dungeon', 'player_count': 3, 'threshold': 2},
 }
 
 SUPPORTED_GAME_MODES = {
     'gambit': MODES_GAMBIT,
     'pve': MODES_PVE,
     'pvp': MODES_PVP,
-    'raid': [MODE_RAID]
+    'raid': [MODE_RAID],
+    'all': MODES_PVP + MODES_GAMBIT + MODES_PVE
 }
 
 BUNGIE_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'

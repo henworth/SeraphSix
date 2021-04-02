@@ -86,8 +86,7 @@ class ClanCog(commands.Cog, name="Clan"):
         if bungie_id:
             try:
                 player = await execute_pydest(
-                    self.bot.destiny.api.get_membership_data_by_id(bungie_id),
-                    self.bot.redis
+                    self.bot.destiny.api.get_membership_data_by_id, bungie_id
                 )
             except pydest.PydestException as e:
                 log_message = f"Could not find Destiny player for {username}"
@@ -102,8 +101,7 @@ class ClanCog(commands.Cog, name="Clan"):
         else:
             try:
                 player = await execute_pydest(
-                    self.bot.destiny.api.search_destiny_player(platform_id, username),
-                    self.bot.redis
+                    self.bot.destiny.api.search_destiny_player, platform_id, username
                 )
             except pydest.PydestException as e:
                 log_message = f"Could not find Destiny player for {username}"
@@ -128,8 +126,7 @@ class ClanCog(commands.Cog, name="Clan"):
 
     async def refresh_admin_tokens(self, manager, admin_db):
         tokens = await execute_pydest(
-            self.bot.destiny.api.refresh_oauth_token(admin_db.bungie_refresh_token),
-            self.bot.redis
+            self.bot.destiny.api.refresh_oauth_token, admin_db.bungie_refresh_token
         )
 
         if 'error' in tokens:
@@ -234,7 +231,7 @@ class ClanCog(commands.Cog, name="Clan"):
             embeds = pickle.loads(clan_info_redis)
         else:
             for clan_db in clan_dbs:
-                res = await execute_pydest(self.bot.destiny.api.get_group(clan_db.clan_id), self.bot.redis)
+                res = await execute_pydest(self.bot.destiny.api.get_group, clan_db.clan_id)
                 group = res['Response']
                 embed = discord.Embed(
                     colour=constants.BLUE,
@@ -332,20 +329,16 @@ class ClanCog(commands.Cog, name="Clan"):
 
         try:
             members = await execute_pydest(
-                self.bot.destiny.api.get_group_pending_members(
-                    clan_db.clan_id,
-                    access_token=admin_db.bungie_access_token
-                ),
-                self.bot.redis
+                self.bot.destiny.api.get_group_pending_members,
+                clan_db.clan_id,
+                access_token=admin_db.bungie_access_token
             )
         except pydest.PydestTokenException:
             tokens = await self.refresh_admin_tokens(manager, admin_db)
             members = await execute_pydest(
-                self.bot.destiny.api.get_group_pending_members(
-                    clan_db.clan_id,
-                    access_token=tokens['access_token']
-                ),
-                self.bot.redis
+                self.bot.destiny.api.get_group_pending_members,
+                clan_db.clan_id,
+                access_token=tokens['access_token']
             )
             admin_db.bungie_access_token = tokens['access_token']
             admin_db.bungie_refresh_token = tokens['refresh_token']
@@ -412,26 +405,22 @@ Examples:
         res = None
         try:
             res = await execute_pydest(
-                self.bot.destiny.api.group_approve_pending_member(
-                    group_id=clan_db.clan_id,
-                    membership_type=platform_id,
-                    membership_id=membership_id,
-                    message=f"Welcome to {clan_db.name}!",
-                    access_token=admin_db.bungie_access_token
-                ),
-                self.bot.redis
+                self.bot.destiny.api.group_approve_pending_member,
+                group_id=clan_db.clan_id,
+                membership_type=platform_id,
+                membership_id=membership_id,
+                message=f"Welcome to {clan_db.name}!",
+                access_token=admin_db.bungie_access_token
             )
         except pydest.PydestTokenException:
             tokens = await self.refresh_admin_tokens(manager, admin_db)
             res = await execute_pydest(
-                self.bot.destiny.api.group_approve_pending_member(
-                    group_id=clan_db.clan_id,
-                    membership_type=platform_id,
-                    membership_id=membership_id,
-                    message=f"Welcome to {clan_db.name}!",
-                    access_token=tokens['access_token']
-                ),
-                self.bot.redis
+                self.bot.destiny.api.group_approve_pending_member,
+                group_id=clan_db.clan_id,
+                membership_type=platform_id,
+                membership_id=membership_id,
+                message=f"Welcome to {clan_db.name}!",
+                access_token=tokens['access_token']
             )
             admin_db.bungie_access_token = tokens['access_token']
             admin_db.bungie_refresh_token = tokens['refresh_token']
@@ -461,20 +450,16 @@ Examples:
 
         try:
             members = await execute_pydest(
-                self.bot.destiny.api.get_group_invited_members(
-                    clan_db.clan_id,
-                    access_token=admin_db.bungie_access_token
-                ),
-                self.bot.redis
+                self.bot.destiny.api.get_group_invited_members,
+                clan_db.clan_id,
+                access_token=admin_db.bungie_access_token
             )
         except pydest.PydestTokenException:
             tokens = await self.refresh_admin_tokens(manager, admin_db)
             members = await execute_pydest(
-                self.bot.destiny.api.get_group_invited_members(
-                    clan_db.clan_id,
-                    access_token=tokens['access_token']
-                ),
-                self.bot.redis
+                self.bot.destiny.api.get_group_invited_members,
+                clan_db.clan_id,
+                access_token=tokens['access_token']
             )
             admin_db.bungie_access_token = tokens['access_token']
             admin_db.bungie_refresh_token = tokens['refresh_token']
@@ -541,26 +526,22 @@ Examples:
         res = None
         try:
             res = await execute_pydest(
-                self.bot.destiny.api.group_invite_member(
-                    group_id=clan_db.clan_id,
-                    membership_type=platform_id,
-                    membership_id=membership_id,
-                    message=f"Join my clan {clan_db.name}!",
-                    access_token=admin_db.bungie_access_token
-                ),
-                self.bot.redis
+                self.bot.destiny.api.group_invite_member,
+                group_id=clan_db.clan_id,
+                membership_type=platform_id,
+                membership_id=membership_id,
+                message=f"Join my clan {clan_db.name}!",
+                access_token=admin_db.bungie_access_token
             )
         except pydest.PydestTokenException:
             tokens = await self.refresh_admin_tokens(manager, admin_db)
             res = await execute_pydest(
-                self.bot.destiny.api.group_invite_member(
-                    group_id=clan_db.clan_id,
-                    membership_type=platform_id,
-                    membership_id=membership_id,
-                    message=f"Join my clan {clan_db.name}!",
-                    access_token=tokens['access_token']
-                ),
-                self.bot.redis
+                self.bot.destiny.api.group_invite_member,
+                group_id=clan_db.clan_id,
+                membership_type=platform_id,
+                membership_id=membership_id,
+                message=f"Join my clan {clan_db.name}!",
+                access_token=tokens['access_token']
             )
             admin_db.bungie_access_token = tokens['access_token']
             admin_db.bungie_refresh_token = tokens['refresh_token']

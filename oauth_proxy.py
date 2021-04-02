@@ -1,33 +1,23 @@
 #!/usr/bin/env python3
 import logging
-import os
+import logging.config
 import pickle
 import redis
 import requests
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_kvsession import KVSessionExtension
-from get_docker_secret import get_docker_secret
 from requests_oauth2 import OAuth2, OAuth2BearerToken
-from seraphsix.constants import LOG_FORMAT_MSG
-from seraphsix.utils import UTCFormatter
+from seraphsix.tasks.config import Config, log_config
 from simplekv.memory.redisstore import RedisStore
 
+config = Config()
+logging.config.dictConfig(log_config())
 log = logging.getLogger()
-log.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-formatter = UTCFormatter(fmt=LOG_FORMAT_MSG)
-handler.setFormatter(formatter)
-log.addHandler(handler)
 
 app = Flask(__name__)
-app.secret_key = os.environb[b'FLASK_APP_KEY'].decode('unicode-escape').encode('latin-1')
-
-redis_password = get_docker_secret('seraphsix_redis_pass')
-redis_host = get_docker_secret('seraphsix_redis_host', default='localhost')
-redis_port = get_docker_secret('seraphsix_redis_port', default='6379')
-redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}"
-red = redis.from_url(redis_url)
+app.secret_key = config.flask_app_key
+red = redis.from_url(config.redis_url)
 
 store = RedisStore(red)
 KVSessionExtension(store, app)
@@ -40,9 +30,9 @@ class BungieClient(OAuth2):
 
 
 bungie_auth = BungieClient(
-    client_id=get_docker_secret('bungie_client_id'),
-    client_secret=get_docker_secret('bungie_client_secret'),
-    redirect_uri=f"https://{get_docker_secret('bungie_redirect_host')}/oauth/callback"
+    client_id=config.bungie.client_id,
+    client_secret=config.bungie.client_secret,
+    redirect_uri=f'https://{config.bungie.redirect_host}/oauth/callback'
 )
 
 
@@ -51,7 +41,7 @@ def index():
     session['code'] = request.args.get('code')
 
     if not session.get('access_token'):
-        log.debug(f"No access_token found in session, redirecting to /oauth, {session}")
+        log.debug(f'No access_token found in session, redirecting to /oauth, {session}')
         return redirect(
             url_for('oauth_index')
         )
@@ -66,9 +56,9 @@ def index():
     try:
         red.publish(session['state'], pickled_info)
     except Exception:
-        log.exception(f"/: Failed to publish state info to redis: {user_info} {session}")
-        return render_template('message.html', message="Something went wrong.")
-    return render_template('redirect.html', site=BungieClient.site, message="Success!")
+        log.exception(f'/: Failed to publish state info to redis: {user_info} {session}')
+        return render_template('message.html', message='Something went wrong.')
+    return render_template('redirect.html', site=BungieClient.site, message='Success!')
 
 
 @app.route('/oauth')
@@ -76,18 +66,18 @@ def oauth_index():
     session['state'] = request.args.get('state')
 
     if not session.get('access_token'):
-        log.debug(f"No access_token found in session, redirecting to /oauth/callback, {session}")
+        log.debug(f'No access_token found in session, redirecting to /oauth/callback, {session}')
         return redirect(
             url_for('oauth_callback')
         )
 
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
-        s.headers.update({'X-API-KEY': get_docker_secret('bungie_api_key')})
-        r = s.get(f"{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/")
+        s.headers.update({'X-API-KEY': config.bungie.api_key})
+        r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
     r.raise_for_status()
-    log.debug(f"/oauth: {session} {request.args}")
+    log.debug(f'/oauth: {session} {request.args}')
     return redirect('/')
 
 
@@ -98,10 +88,10 @@ def oauth_callback():
 
     if error:
         log.error(repr(error))
-        return render_template('message.html', message="Something went wrong.")
+        return render_template('message.html', message='Something went wrong.')
 
     if not code:
-        log.debug(f"No code found, redirecting to bungie, {session}")
+        log.debug(f'No code found, redirecting to bungie, {session}')
         return redirect(bungie_auth.authorize_url(
             response_type='code',
             state=session['state']
@@ -116,15 +106,15 @@ def oauth_callback():
     session['access_token'] = data.get('access_token')
     session['refresh_token'] = data.get('refresh_token')
     session['membership_id'] = data.get('membership_id')
-    log.debug(f"/oauth/callback: {session} {request.args}")
+    log.debug(f'/oauth/callback: {session} {request.args}')
     return redirect(url_for('index'))
 
 
 @app.route('/the100webhook/<int:guild_id>/slack', methods=['POST'])
 def the100_webhook(guild_id):
     data = request.get_json(force=True)
-    log.info(f"{guild_id} {data}")
-    return render_template('message.html', message="Success!")
+    log.info(f'{guild_id} {data}')
+    return render_template('message.html', message='Success!')
 
 
 if __name__ == '__main__':
