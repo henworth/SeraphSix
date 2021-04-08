@@ -112,47 +112,77 @@ class Member(User):
 
 
 class Player(object):
-    def __init__(self, details):
-        self.membership_id = details['player']['destinyUserInfo']['membershipId']
-        self.membership_type = details['player']['destinyUserInfo']['membershipType']
+    def __init__(self, details, api=True):
+        if not api:
+            self.membership_id = details['membership_id']
+            self.membership_type = details['membership_type']
+            self.completed = details['completed']
+            self.name = details['name']
+            self.time_played = details['time_played']
+        else:
+            self.membership_id = details['player']['destinyUserInfo']['membershipId']
+            self.membership_type = details['player']['destinyUserInfo']['membershipType']
 
-        self.completed = False
-        if details['values']['completed']['basic']['displayValue'] == 'Yes':
-            self.completed = True
+            self.completed = False
+            if details['values']['completed']['basic']['displayValue'] == 'Yes':
+                self.completed = True
 
-        try:
-            self.name = details['player']['destinyUserInfo']['displayName']
-        except KeyError:
-            self.name = None
+            try:
+                self.name = details['player']['destinyUserInfo']['displayName']
+            except KeyError:
+                self.name = None
 
-        try:
-            self.time_played = details['values']['timePlayedSeconds']['basic']['value']
-        except KeyError:
-            self.time_played = 0.0
+            try:
+                self.time_played = details['values']['timePlayedSeconds']['basic']['value']
+            except KeyError:
+                self.time_played = 0.0
+
+    def __str__(self):
+        return f"<{type(self).__name__}: {self.membership_type}-{self.membership_id}>"
 
     def __repr__(self):
-        return f"<{type(self).__name__}: {self.membership_type}-{self.membership_id}>"
+        return str(self.__dict__)
 
 
 class Game(object):
-    def __init__(self, details):
-        self.mode_id = details['activityDetails']['mode']
-        self.instance_id = int(details['activityDetails']['instanceId'])
-        self.reference_id = details['activityDetails']['referenceId']
-        self.date = bungie_date_as_utc(details['period'])
-        self.players = []
+    def __init__(self, details, api=True):
+        if not api:
+            self.mode_id = details['mode_id']
+            self.instance_id = details['instance_id']
+            self.reference_id = details['reference_id']
+            self.date = datetime.strptime(details['date'], constants.BUNGIE_DATE_FORMAT)
+            self.players = [Player(player, api=False) for player in details['players']]
+        else:
+            self.mode_id = details['activityDetails']['mode']
+            if self.mode_id == 0:
+                modes = details['activityDetails']['modes']
+                modes.sort()
+                try:
+                    self.mode_id = modes[-1]
+                except IndexError:
+                    pass
+            self.instance_id = int(details['activityDetails']['instanceId'])
+            self.reference_id = details['activityDetails']['referenceId']
+            self.date = bungie_date_as_utc(details['period'])
+            self.players = []
 
     def set_players(self, details):
         for entry in details['entries']:
             player = Player(entry)
             self.players.append(player)
 
-    def __repr__(self):
+    def __str__(self):
         return f"<{type(self).__name__}: {self.instance_id}>"
+
+    def __repr__(self):
+        retval = self.__dict__
+        retval['date'] = self.date.strftime(constants.BUNGIE_DATE_FORMAT)
+        return str(retval)
 
 
 class ClanGame(Game):
     def __init__(self, details, member_dbs):
+        self.clan_id = member_dbs[0].clanmember.clan_id
         super().__init__(details)
         self.set_players(details)
 

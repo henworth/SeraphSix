@@ -1,8 +1,40 @@
+import os
 import pytz
 
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from get_docker_secret import get_docker_secret
+from seraphsix.constants import LOG_FORMAT_MSG, BUNGIE_DATE_FORMAT
+
+
+def log_config() -> dict:
+    return {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'seraphsix': {
+                '()': 'seraphsix.utils.UTCFormatter',
+                'fmt': LOG_FORMAT_MSG,
+                'datefmt': BUNGIE_DATE_FORMAT
+            }
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'seraphsix'
+            }
+        },
+        'root': {'handlers': ['console'], 'level': 'INFO'},
+        'loggers': {
+            'aiohttp.client': {'handlers': ['console'], 'level': 'ERROR'},
+            'aioredis': {'handlers': ['console'], 'level': 'DEBUG'},
+            'arq': {'handlers': ['console'], 'level': 'INFO'},
+            'backoff': {'handlers': ['console'], 'level': 'DEBUG'},
+            'bot': {'handlers': ['console'], 'level': 'DEBUG'},
+            'peewee': {'handlers': ['console'], 'level': 'ERROR'},
+            'seraphsix.tasks.discord': {'handlers': ['console'], 'level': 'DEBUG'}
+        }
+    }
 
 
 @dataclass
@@ -26,7 +58,7 @@ class The100Config:
 
     def __init__(self):
         self.api_key = get_docker_secret('the100_api_key')
-        self.base_url = get_docker_secret('THE100_API_URL')
+        self.base_url = get_docker_secret('the100_api_url')
 
 
 @dataclass
@@ -59,6 +91,7 @@ class Config:
     reg_channel: int
     enable_activity_tracking: bool
     activity_cutoff: str
+    flask_app_key: str
 
     def __init__(self):
         database_user = get_docker_secret('seraphsix_pg_db_user', default='seraphsix')
@@ -84,5 +117,8 @@ class Config:
         self.reg_channel = get_docker_secret('home_server_reg_channel', cast_to=int)
         self.enable_activity_tracking = get_docker_secret('enable_activity_tracking', cast_to=bool)
 
-        activity_cutoff = get_docker_secret('activity_cutoff')
-        self.activity_cutoff = datetime.strptime(activity_cutoff, '%Y-%m-%d').astimezone(tz=pytz.utc)
+        self.flask_app_key = os.environb[b'FLASK_APP_KEY'].decode('unicode-escape').encode('latin-1')
+
+        self.activity_cutoff = get_docker_secret('activity_cutoff')
+        if self.activity_cutoff:
+            self.activity_cutoff = datetime.strptime(self.activity_cutoff, '%Y-%m-%d').astimezone(tz=pytz.utc)

@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import logging
+import psycopg2
 import pytz
 
 from datetime import datetime, timedelta
@@ -25,7 +26,7 @@ def reconnect(function):
     async def wrapper(db, *args, **kwargs):
         try:
             return await function(db, *args, **kwargs)
-        except (InterfaceError, OperationalError):
+        except (InterfaceError, OperationalError, psycopg2.InterfaceError):
             try:
                 async for attempt in AsyncRetrying(
                         wait=wait_exponential(multiplier=1, min=2, max=10),

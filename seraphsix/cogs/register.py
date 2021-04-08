@@ -25,7 +25,11 @@ async def register(manager, extra_message='', confirm_message=''):
     )
 
     if not isinstance(ctx.channel, discord.abc.PrivateChannel):
-        await manager.send_message(f"{extra_message} Registration instructions have been messaged to you.".strip())
+        await manager.send_message(
+            f"{extra_message} Registration instructions have been sent directly to {ctx.author}".strip(),
+            mention=False,
+            clean=False
+        )
 
     # Prompt user with link to Bungie.net OAuth authentication
     e = discord.Embed(colour=constants.BLUE)
@@ -97,8 +101,7 @@ class RegisterCog(commands.Cog, name="Register"):
         # Fetch platform specific display names and membership IDs
         try:
             res = await execute_pydest(
-                self.bot.destiny.api.get_membership_current_user(bungie_access_token),
-                self.bot.redis
+                self.bot.destiny.api.get_membership_current_user, bungie_access_token
             )
         except Exception as e:
             log.exception(e)

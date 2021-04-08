@@ -83,7 +83,7 @@ class ServerCog(commands.Cog, name="Server"):
         if not clan_id:
             return await manager.send_and_clean("Command must include the Bungie clan ID")
 
-        res = await execute_pydest(self.bot.destiny.api.get_group(clan_id), self.bot.redis)
+        res = await execute_pydest(self.bot.destiny.api.get_group, clan_id)
         clan_name = res['Response']['detail']['name']
         callsign = res['Response']['detail']['clanInfo']['clanCallsign']
 

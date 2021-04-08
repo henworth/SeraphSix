@@ -1,7 +1,7 @@
 .vscode
-.envrc
+.*envrc
 *.content
 *.log
 *.csv
-config.json
+*.json*
 __pycache__/
