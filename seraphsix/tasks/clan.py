@@ -5,7 +5,7 @@ from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.database import Member as MemberDb, ClanMember, Clan
 from seraphsix.models.destiny import Member
-from seraphsix.tasks.activity import execute_pydest, store_member_history
+from seraphsix.tasks.core import execute_pydest
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ async def get_all_members(destiny, group_id):
 async def get_bungie_members(destiny, clan_id):
     members = {}
     async for member in get_all_members(destiny, clan_id):  # pylint: disable=not-an-iterable
-        members[f"{clan_id}-{member}"] = member
+        members[f'{clan_id}-{member}'] = member
     return members
 
 
@@ -59,7 +59,7 @@ async def get_database_members(database, clan_id):
             member_id = member.steam_id
         elif member.clanmember.platform_id == constants.PLATFORM_STADIA:
             member_id = member.stadia_id
-        member_hash = f"{clan_id}-{member.clanmember.platform_id}-{member_id}"
+        member_hash = f'{clan_id}-{member.clanmember.platform_id}-{member_id}'
         members[member_hash] = member
     return members
 
@@ -129,11 +129,9 @@ async def member_sync(bot, guild_id):  # noqa
         )
 
         # Kick off activity scans for each of the added members
-        # Indexing `clan_member_db` is necessary becuase the query returns a multi-row set, and
-        # normal means of limiting that output (ie. `.get()`) does not work for some reason.
-        member_dbs = await bot.database.get_clan_members([clan_id])
-        asyncio.create_task(store_member_history(member_dbs, bot, clan_member_db[0], count=250))
-
+        await bot.ext_conns['redis_jobs'].enqueue_job(
+            'store_member_history', clan_member_db.id, guild_id, full_sync=True,
+            _job_id=f'store_member_history-{clan_member_db.id}')
         member_changes[clan_db.clan_id]['added'].append(member_hash)
 
     # Figure out if there are any members to remove
