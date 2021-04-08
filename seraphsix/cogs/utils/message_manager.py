@@ -21,7 +21,7 @@ class MessageManager:
         """Remove a message from being cleaned"""
         self.messages_to_clean.remove(message)
 
-    async def send_and_clean(self, message, mention):
+    async def send_and_clean(self, message, mention=True):
         await self.send_message(message, mention)
         await self.clean_messages()
 
