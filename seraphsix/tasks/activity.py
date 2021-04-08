@@ -143,7 +143,7 @@ async def get_last_active(destiny, member_db):
 
 
 async def store_last_active(bot, member_db):
-    last_active = await get_last_active(bot.destiny, bot.member_db)
+    last_active = await get_last_active(bot.destiny, member_db)
     member_db.clanmember.last_active = last_active
     await bot.database.update(member_db.clanmember)
 
