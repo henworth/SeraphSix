@@ -80,6 +80,8 @@ class SeraphSix(commands.Bot):
             'destiny': self.destiny,
             'twitter': self.twitter,
             'the100': self.the100,
+            'redis_cache': None,
+            'redis_jobs': None
         }
 
         for extension in STARTUP_EXTENSIONS:
@@ -229,9 +231,10 @@ class SeraphSix(commands.Bot):
     async def before_cache_clan_members(self):
         await self.wait_until_ready()
 
-    async def on_ready(self):
+    async def on_connect(self):
         await self.connect_redis()
 
+    async def on_ready(self):
         self.log_channel = self.get_channel(self.config.log_channel)
         self.reg_channel = self.get_channel(self.config.reg_channel)
 

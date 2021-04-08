@@ -216,7 +216,7 @@ class ClanCog(commands.Cog, name="Clan"):
     @commands.guild_only()
     async def info(self, ctx, *args):
         """Show information for all connected clans"""
-        redis_cache = self.ext_conns['redis_cache']
+        redis_cache = self.bot.ext_conns['redis_cache']
         manager = MessageManager(ctx)
 
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
@@ -282,17 +282,17 @@ class ClanCog(commands.Cog, name="Clan"):
             return await manager.send_and_clean("No connected clans found")
 
         members = []
-        members_redis = await self.ext_conns['redis_cache'].lrange(f"{ctx.guild.id}-clan-roster", 0, -1)
+        members_redis = await self.bot.ext_conns['redis_cache'].lrange(f"{ctx.guild.id}-clan-roster", 0, -1)
         if members_redis and '-nocache' not in args:
-            await self.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
+            await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
             for member in members_redis:
                 members.append(pickle.loads(member))
         else:
             members_db = await self.bot.database.get_clan_members(
                 [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
             for member in members_db:
-                await self.ext_conns['redis_cache'].rpush(f"{ctx.guild.id}-clan-roster", pickle.dumps(member))
-            await self.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
+                await self.bot.ext_conns['redis_cache'].rpush(f"{ctx.guild.id}-clan-roster", pickle.dumps(member))
+            await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
             members = members_db
 
         entries = []
