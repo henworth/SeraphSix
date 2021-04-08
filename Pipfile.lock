@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a85f93d0ecdc3ad22a29a1cac85a6cc439b04a916d5af815f52592f3a69b6293"
+            "sha256": "40ed39a8c8109642f6bb48437e6b94186cd2fbd2a4afce403828baf23c121255"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -74,12 +74,12 @@
             "version": "==1.3.1"
         },
         "arq": {
+            "git": "https://github.com/henworth/arq",
             "hashes": [
                 "sha256:8c11fc1335aabdb1d68be6e75ff384dbd3763a9d920bebff7f034bfa9d97c4f0",
                 "sha256:ddcaa34b146a5a829f4229ce3390a3670919e3b9b91e7f1b9a210fdb6084c0b7"
             ],
-            "index": "pypi",
-            "version": "==0.19.1"
+            "ref": "e3843b6dfec032f85cda0e864f7b033bacf10f3a"
         },
         "astroid": {
             "hashes": [
