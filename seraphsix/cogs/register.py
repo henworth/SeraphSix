@@ -43,7 +43,7 @@ async def register(manager, extra_message='', confirm_message=''):
     registration_msg = await manager.send_private_embed(e)
 
     # Wait for user info from the web server via Redis
-    res = await ctx.bot.redis.subscribe(ctx.author.id)
+    res = await ctx.ext_conns['redis_cache'].subscribe(ctx.author.id)
 
     tsk = asyncio.create_task(wait_for_msg(res[0]))
     try:
@@ -53,7 +53,7 @@ async def register(manager, extra_message='', confirm_message=''):
         await manager.send_private_message("I'm not sure where you went. We can try this again later.")
         await registration_msg.delete()
         await manager.clean_messages()
-        await ctx.bot.redis.unsubscribe(ctx.author.id)
+        await ctx.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
         return (None, None)
     await ctx.author.dm_channel.trigger_typing()
 
@@ -63,7 +63,7 @@ async def register(manager, extra_message='', confirm_message=''):
         title=confirm_message
     )
     embed = await manager.send_private_embed(e)
-    await ctx.bot.redis.unsubscribe(ctx.author.id)
+    await ctx.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
 
     return embed, user_info
 
