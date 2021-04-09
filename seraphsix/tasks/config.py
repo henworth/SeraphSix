@@ -1,6 +1,7 @@
 import os
 import pytz
 
+from arq.connections import RedisSettings
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from get_docker_secret import get_docker_secret
@@ -27,12 +28,11 @@ def log_config() -> dict:
         'root': {'handlers': ['console'], 'level': 'INFO'},
         'loggers': {
             'aiohttp.client': {'handlers': ['console'], 'level': 'ERROR'},
-            'aioredis': {'handlers': ['console'], 'level': 'DEBUG'},
+            'aioredis': {'handlers': ['console'], 'level': 'INFO'},
             'arq': {'handlers': ['console'], 'level': 'INFO'},
             'backoff': {'handlers': ['console'], 'level': 'DEBUG'},
             'bot': {'handlers': ['console'], 'level': 'DEBUG'},
             'peewee': {'handlers': ['console'], 'level': 'ERROR'},
-            'seraphsix.tasks.discord': {'handlers': ['console'], 'level': 'DEBUG'}
         }
     }
 
@@ -86,6 +86,7 @@ class Config:
     database_url: str
     discord_api_key: str
     redis_url: str
+    arq_redis: RedisSettings
     home_server: int
     log_channel: int
     reg_channel: int
@@ -107,6 +108,8 @@ class Config:
         redis_host = get_docker_secret('seraphsix_redis_host', default='localhost')
         redis_port = get_docker_secret('seraphsix_redis_port', default='6379')
         self.redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}"
+
+        self.arq_redis = RedisSettings.from_dsn(f'{self.redis_url}/1')
 
         self.bungie = BungieConfig()
         self.the100 = The100Config()

@@ -8,11 +8,12 @@ from datetime import datetime, timedelta
 from peewee import (
     Model, CharField, BigIntegerField, IntegerField, FloatField,
     ForeignKeyField, Proxy, BooleanField, Check, SQL, fn, Case,
-    InterfaceError, OperationalError, JOIN)
+    InterfaceError, OperationalError, IntegrityError, DoesNotExist, JOIN)
 from peewee_async import Manager
 from peewee_asyncext import PooledPostgresqlExtDatabase
 from playhouse.postgres_ext import DateTimeTZField
 from seraphsix import constants
+from seraphsix.tasks.parsing import member_hash
 from tenacity import AsyncRetrying, RetryError, wait_exponential, before_sleep_log
 from urllib.parse import urlparse
 
@@ -239,6 +240,10 @@ class Database(object):
         return await self._objects.execute(query)
 
     @reconnect
+    async def scalar(self, query):
+        return await self._objects.scalar(query)
+
+    @reconnect
     async def count(self, query, clear_limit=False):
         return await self._objects.count(query, clear_limit)
 
@@ -394,6 +399,51 @@ class Database(object):
             ClanMember.last_active > datetime.now(pytz.utc) - timedelta(**kwargs)
         )
         return await self.execute(query)
+
+    async def create_game(self, game):
+        try:
+            game_db = await self.create(Game, **vars(game))
+        except IntegrityError:
+            # Mitigate possible race condition when multiple parallel jobs try to
+            # do the same thing. Likely when there are multiple people in the same
+            # game instance.
+            # TODO: Figure out a better way to 'lock' things
+            return
+        log.info(f"Game {game_db.instance_id} created")
+        return game_db
+
+    async def create_clan_game(self, game_db, game, clan_id):
+        try:
+            await self.get(ClanGame, clan=clan_id, game=game_db.id)
+        except DoesNotExist:
+            await self.create(ClanGame, clan=clan_id, game=game_db.id)
+            tasks = [
+                self.create_game_member(player, game_db, clan_id)
+                for player in game.clan_players
+            ]
+            await asyncio.gather(*tasks)
+
+    async def create_game_member(self, player, game_db, clan_id, player_db=None):
+        if not player_db:
+            player_db = await self.get_clan_member_by_platform(
+                player.membership_id, player.membership_type, clan_id)
+
+        try:
+            # Create the game member
+            await self.create(
+                GameMember, member=player_db.id, game=game_db.id,
+                completed=player.completed, time_played=player.time_played)
+        except IntegrityError:
+            # If one already exists, we can assume this is due to a drop/re-join event so
+            # increment the time played and set the completion flag
+            game_member_db = await self.get(GameMember, game=game_db.id, member=player_db.id)
+            game_member_db.time_played += player.time_played
+
+            if not game_member_db.completed or game_member_db.completed != player.completed:
+                game_member_db.completed = player.completed
+            await self.update(game_member_db)
+
+        log.info(f"Player {member_hash(player)} created in game id {game_db.instance_id}")
 
     async def close(self):
         await self._objects.close()
