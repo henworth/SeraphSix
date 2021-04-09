@@ -49,16 +49,16 @@ def member_dbs_to_dict(member_dbs):
     return members
 
 
-async def get_cached_members(ctx, guild_id):
+async def get_cached_members(ctx, guild_id, guild_name):
     cache_key = f'{guild_id}-members'
     clan_members = await ctx['redis_cache'].get(cache_key)
     if not clan_members:
-        clan_members = await set_cached_members(ctx, guild_id)
+        clan_members = await set_cached_members(ctx, guild_id, guild_name)
     clan_members = msgpack.unpackb(clan_members, object_hook=decode_datetime, raw=False)
     return clan_members
 
 
-async def set_cached_members(ctx, guild_id):
+async def set_cached_members(ctx, guild_id, guild_name):
     cache_key = f'{guild_id}-members'
     redis_cache = ctx['redis_cache']
     database = ctx['database']
@@ -71,4 +71,5 @@ async def set_cached_members(ctx, guild_id):
         members.append(member_dict)
     members = msgpack.packb([member for member in members], default=encode_datetime, use_bin_type=True)
     await redis_cache.set(cache_key, members, expire=constants.TIME_HOUR_SECONDS)
+    log.info(f"Successfully cached all members of {guild_name} ({guild_id})")
     return members

@@ -3,7 +3,7 @@ import aioredis
 import logging.config
 import msgpack
 
-from arq import Worker
+from arq import Worker, func
 from arq.worker import get_kwargs
 from pydest.pydest import Pydest
 from seraphsix.constants import ARQ_JOB_TIMEOUT, ARQ_MAX_JOBS
@@ -44,13 +44,14 @@ async def shutdown(ctx):
 class WorkerSettings:
     functions = [
         set_cached_members, get_characters, process_activity,
-        store_member_history, store_last_active, store_all_games
+        store_member_history, func(store_last_active, keep_result=240),
+        store_all_games
     ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = config.arq_redis
-    job_serializer = lambda b: msgpack.packb(b, default=encode_datetime, use_bin_type=True)
-    job_deserializer = lambda b: msgpack.unpackb(b, object_hook=decode_datetime, raw=False)
+    job_serializer = lambda b: msgpack.packb(b, default=encode_datetime)
+    job_deserializer = lambda b: msgpack.unpackb(b, object_hook=decode_datetime)
     max_jobs = ARQ_MAX_JOBS
     job_timeout = ARQ_JOB_TIMEOUT
 

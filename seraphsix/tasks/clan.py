@@ -64,7 +64,7 @@ async def get_database_members(database, clan_id):
     return members
 
 
-async def member_sync(bot, guild_id):  # noqa
+async def member_sync(bot, guild_id, guild_name):  # noqa
     clan_dbs = await bot.database.get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
@@ -130,7 +130,7 @@ async def member_sync(bot, guild_id):  # noqa
 
         # Kick off activity scans for each of the added members
         await bot.ext_conns['redis_jobs'].enqueue_job(
-            'store_member_history', clan_member_db.id, guild_id, full_sync=True,
+            'store_member_history', clan_member_db.id, guild_id, guild_name, full_sync=True,
             _job_id=f'store_member_history-{clan_member_db.id}')
         member_changes[clan_db.clan_id]['added'].append(member_hash)
 

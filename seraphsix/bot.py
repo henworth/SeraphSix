@@ -224,7 +224,7 @@ class SeraphSix(commands.Bot):
             discord_guild = await self.fetch_guild(guild.guild_id)
             log.info(f"Queueing task to update cached members of {str(discord_guild)} ({guild_id})")
             redis_jobs.enqueue_job(
-                'set_cached_members', guild_id, _job_id=f'set_cached_members-{guild_id}'
+                'set_cached_members', guild_id, str(discord_guild), _job_id=f'set_cached_members-{guild_id}'
             )
 
     @cache_clan_members.before_loop

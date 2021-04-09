@@ -29,11 +29,10 @@ def log_config() -> dict:
         'loggers': {
             'aiohttp.client': {'handlers': ['console'], 'level': 'ERROR'},
             'aioredis': {'handlers': ['console'], 'level': 'INFO'},
-            'arq': {'handlers': ['console'], 'level': 'WARN'},
+            'arq': {'handlers': ['console'], 'level': 'INFO'},
             'backoff': {'handlers': ['console'], 'level': 'DEBUG'},
             'bot': {'handlers': ['console'], 'level': 'DEBUG'},
             'peewee': {'handlers': ['console'], 'level': 'ERROR'},
-            'seraphsix.tasks.discord': {'handlers': ['console'], 'level': 'DEBUG'}
         }
     }
 

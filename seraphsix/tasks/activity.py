@@ -65,8 +65,8 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
 
 
 async def get_last_active(ctx, member_db):
-    platform_id = member_db.clanmember.platform_id
-    member_id, _ = parse_platform(member_db, platform_id)
+    platform_id = member_db.platform_id
+    member_id, _ = parse_platform(member_db.member, platform_id)
 
     acct_last_active = None
     try:
@@ -86,10 +86,11 @@ async def get_last_active(ctx, member_db):
 
 async def store_last_active(ctx, guild_id, guild_name):
     database = ctx['database']
-    for member_db in await get_cached_members(ctx, guild_id):
-        last_active = get_last_active(ctx, member_db)
-        member_db.clanmember.last_active = last_active
-        await database.update(member_db.clanmember)
+    for member in await get_cached_members(ctx, guild_id, guild_name):
+        member_db = dict_to_model(ClanMember, member)
+        last_active = await get_last_active(ctx, member_db)
+        member_db.last_active = last_active
+        await database.update(member_db)
     log.info(f"Found last active dates for all members of {guild_name} ({guild_id})")
 
 
@@ -188,7 +189,7 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
             continue
 
         active_members = await database.get_clan_members_active(clan_db.id, hours=1)
-        all_members = await get_cached_members(ctx, guild_id)
+        all_members = await get_cached_members(ctx, guild_id, guild_name)
 
         if guild_db.aggregate_clans:
             active_member_dbs.extend(active_members)
@@ -247,10 +248,10 @@ async def get_characters(ctx, member_id, platform_id):
     return retval
 
 
-async def process_activity(ctx, activity, guild_id):
+async def process_activity(ctx, activity, guild_id, guild_name):
     database = ctx['database']
     game = GameApi(activity)
-    clan_members = await get_cached_members(ctx, guild_id)
+    clan_members = await get_cached_members(ctx, guild_id, guild_name)
 
     member_dbs = []
     for member in clan_members:
@@ -313,7 +314,7 @@ async def process_activity(ctx, activity, guild_id):
     log.info(f"{game_title} game id {game.instance_id} on {game.date} created")
 
 
-async def store_member_history(ctx, member_db_id, guild_id, full_sync=False, count=250, mode=0):
+async def store_member_history(ctx, member_db_id, guild_id, guild_name, full_sync=False, count=250, mode=0):
     database = ctx['database']
     redis_jobs = ctx['redis_jobs']
 
@@ -324,5 +325,5 @@ async def store_member_history(ctx, member_db_id, guild_id, full_sync=False, cou
     for activity in activities:
         activity_id = activity['activityDetails']['instanceId']
         await redis_jobs.enqueue_job(
-            'process_activity', activity, guild_id, _job_id=f'process_activity-{activity_id}'
+            'process_activity', activity, guild_id, guild_name, _job_id=f'process_activity-{activity_id}'
         )
