@@ -32,10 +32,15 @@ redis = "*"
 jsonpickle = "*"
 the100 = {git = "https://github.com/henworth/the100"}
 pydest = {git = "https://github.com/henworth/pydest",ref = "7b23ecf95987d064515c17cfe3818469ae10d6bc"}
-ratelimit = {git = "https://github.com/evemorgen/ratelimit.git",ref = "14c87100677fa905408d7a75b634bd4bdee0301c"}
 flask-kvsession = "*"
 tenacity = "*"
 get-docker-secret = "*"
+arq = {git = "https://github.com/henworth/arq",ref = "e3843b6dfec032f85cda0e864f7b033bacf10f3a"}
+msgpack = "*"
+cryptography = ">=3.3.2"
+urllib3 = ">=1.26.4"
+jinja2 = ">=2.11.3"
+aiohttp = ">=3.7.4"
 
 [pipenv]
 allow_prereleases = false

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import aioredis
 import asyncio
+import arq
 import discord
 import io
 import logging
@@ -20,7 +21,6 @@ from seraphsix.database import Database, Guild, TwitterChannel
 from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError, MissingTimezoneError, MaintenanceError)
-from seraphsix.tasks.activity import store_all_games, store_last_active
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
 
 log = logging.getLogger(__name__)
@@ -75,6 +75,15 @@ class SeraphSix(commands.Bot):
                 config.twitter.access_token and config.twitter.access_token_secret):
             self.twitter = PeonyClient(**config.twitter.asdict())
 
+        self.ext_conns = {
+            'database': self.database,
+            'destiny': self.destiny,
+            'twitter': self.twitter,
+            'the100': self.the100,
+            'redis_cache': None,
+            'redis_jobs': None
+        }
+
         for extension in STARTUP_EXTENSIONS:
             try:
                 self.load_extension(extension)
@@ -88,6 +97,8 @@ class SeraphSix(commands.Bot):
             self.update_last_active.start()
             self.update_member_games.start()
 
+        self.cache_clan_members.start()
+
     @tasks.loop(minutes=5.0)
     async def update_last_active(self):
         tasks = []
@@ -97,15 +108,12 @@ class SeraphSix(commands.Bot):
         for guild in guilds:
             guild_id = guild.guild_id
             discord_guild = await self.fetch_guild(guild.guild_id)
-            log.info(f"Finding last active dates for all members of {str(discord_guild)} ({guild_id})")
-
-            if not hasattr(self, 'redis'):
-                await self.connect_redis()
+            log.info(f"Queueing task to find last active dates for all members of {str(discord_guild)} ({guild_id})")
 
             try:
                 tasks.extend([
-                    store_last_active(self, member)
-                    for member in await self.database.get_clan_members_by_guild_id(guild_id)
+                    self.ext_conns['redis_jobs'].enqueue_job(
+                        'store_last_active', guild_id, str(discord_guild), _job_id=f'store_last_active-{guild_id}')
                 ])
             except AttributeError:
                 log.exception("Redis connection not found")
@@ -123,8 +131,6 @@ class SeraphSix(commands.Bot):
                 self.bungie_maintenance = False
                 log.info("Bungie maintenance has ended")
 
-        log.info("Found last active dates in all guilds")
-
     @update_last_active.before_loop
     async def before_update_last_active(self):
         await self.wait_until_ready()
@@ -137,7 +143,17 @@ class SeraphSix(commands.Bot):
         if not guilds:
             return
 
-        tasks = [store_all_games(self, guild.guild_id) for guild in guilds]
+        tasks = []
+        for guild in guilds:
+            guild_id = guild.guild_id
+            discord_guild = await self.fetch_guild(guild_id)
+            tasks.append(
+                self.ext_conns['redis_jobs'].enqueue_job(
+                    'store_all_games', guild_id, str(discord_guild),
+                    _job_id=f'store_all_games-{guild_id}'
+                )
+            )
+
         try:
             await asyncio.gather(*tasks)
         except MaintenanceError as e:
@@ -191,10 +207,34 @@ class SeraphSix(commands.Bot):
 
     async def connect_redis(self):
         self.redis = await aioredis.create_redis_pool(self.config.redis_url)
+        self.ext_conns['redis_cache'] = self.redis
+        self.ext_conns['redis_jobs'] = await arq.create_pool(self.config.arq_redis)
 
-    async def on_ready(self):
+    @tasks.loop(hours=1.0)
+    async def cache_clan_members(self):
+        database = self.ext_conns['database']
+        redis_jobs = self.ext_conns['redis_jobs']
+
+        guilds = await database.execute(Guild.select())
+        if not guilds:
+            return
+
+        for guild in guilds:
+            guild_id = guild.guild_id
+            discord_guild = await self.fetch_guild(guild.guild_id)
+            log.info(f"Queueing task to update cached members of {str(discord_guild)} ({guild_id})")
+            redis_jobs.enqueue_job(
+                'set_cached_members', guild_id, str(discord_guild), _job_id=f'set_cached_members-{guild_id}'
+            )
+
+    @cache_clan_members.before_loop
+    async def before_cache_clan_members(self):
+        await self.wait_until_ready()
+
+    async def on_connect(self):
         await self.connect_redis()
 
+    async def on_ready(self):
         self.log_channel = self.get_channel(self.config.log_channel)
         self.reg_channel = self.get_channel(self.config.reg_channel)
 
@@ -281,9 +321,17 @@ class SeraphSix(commands.Bot):
 
     async def close(self):
         await self.log_channel.send("Seraph Six is shutting down...")
-        await self.destiny.close()
-        await self.database.close()
-        await self.the100.close()
+        await self.ext_conns['destiny'].close()
+        await self.ext_conns['database'].close()
+        await self.ext_conns['the100'].close()
+
         if self.twitter:
-            await self.twitter.close()
+            await self.ext_conns['twitter'].close()
+
+        self.ext_conns['redis_jobs'].close()
+        await self.ext_conns['redis_jobs'].wait_closed()
+
+        self.ext_conns['redis_cache'].close()
+        await self.ext_conns['redis_cache'].wait_closed()
+
         await super().close()
