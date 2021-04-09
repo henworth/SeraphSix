@@ -1,3 +1,4 @@
+import arq
 import asyncio
 import backoff
 import logging
@@ -12,6 +13,14 @@ from seraphsix.tasks.parsing import decode_datetime, encode_datetime
 log = logging.getLogger(__name__)
 
 
+async def create_redis_jobs_pool(config):
+    return await arq.create_pool(
+        config,
+        job_serializer=lambda b: msgpack.packb(b, default=encode_datetime),
+        job_deserializer=lambda b: msgpack.unpackb(b, object_hook=decode_datetime)
+    )
+
+
 def backoff_handler(details):
     if details['wait'] > 30 or details['tries'] > 10:
         log.debug(
@@ -24,7 +33,6 @@ def backoff_handler(details):
     backoff.expo,
     (PydestPrivateHistoryException, PydestMaintenanceException),
     max_tries=1, logger=None)
-# @backoff.on_exception(backoff.expo, asyncio.TimeoutError, max_tries=1, logger=None)
 @backoff.on_exception(backoff.expo, (PydestException, asyncio.TimeoutError), logger=None, on_backoff=backoff_handler)
 async def execute_pydest(function, *args, **kwargs):
     retval = None
