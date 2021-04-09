@@ -108,12 +108,13 @@ class SeraphSix(commands.Bot):
         for guild in guilds:
             guild_id = guild.guild_id
             discord_guild = await self.fetch_guild(guild.guild_id)
-            log.info(f"Queueing task to find last active dates for all members of {str(discord_guild)} ({guild_id})")
+            guild_name = str(discord_guild)
+            log.info(f"Queueing task to find last active dates for all members of {guild_name} ({guild_id})")
 
             try:
                 tasks.extend([
                     self.ext_conns['redis_jobs'].enqueue_job(
-                        'store_last_active', guild_id, str(discord_guild), _job_id=f'store_last_active-{guild_id}')
+                        'store_last_active', guild_id, guild_name, _job_id=f'store_last_active-{guild_id}')
                 ])
             except AttributeError:
                 log.exception("Redis connection not found")
@@ -222,9 +223,10 @@ class SeraphSix(commands.Bot):
         for guild in guilds:
             guild_id = guild.guild_id
             discord_guild = await self.fetch_guild(guild.guild_id)
-            log.info(f"Queueing task to update cached members of {str(discord_guild)} ({guild_id})")
-            redis_jobs.enqueue_job(
-                'set_cached_members', guild_id, str(discord_guild), _job_id=f'set_cached_members-{guild_id}'
+            guild_name = str(discord_guild)
+            log.info(f"Queueing task to update cached members of {guild_name} ({guild_id})")
+            await redis_jobs.enqueue_job(
+                'set_cached_members', guild_id, guild_name, _job_id=f'set_cached_members-{guild_id}'
             )
 
     @cache_clan_members.before_loop
