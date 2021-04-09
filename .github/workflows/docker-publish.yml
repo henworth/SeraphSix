@@ -1,4 +1,4 @@
-name: Create Bot Container
+name: Create Containers
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 env:
   IMAGE_NAME_BOT: seraphsix_bot
   IMAGE_NAME_PROXY: seraphsix_oauth_proxy
+  IMAGE_NAME_WORKER: seraphsix_arq_worker
 
 jobs:
   test:
@@ -39,6 +40,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Create a GitHub release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -53,32 +55,34 @@ jobs:
       - name: Build oauth proxy image
         run: docker build . --file Dockerfile.oauth_proxy --tag $IMAGE_NAME_PROXY
 
+      - name: Build arq worker image
+        run: docker build . --file Dockerfile.arq_worker --tag $IMAGE_NAME_WORKER
+
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
 
       - name: Push images
         run: |
-          IMAGE_ID_BOT=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_BOT
-          IMAGE_ID_PROXY=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_PROXY
+          VERSION=$(echo "${{ steps.tag_version.outputs.new_tag }}" | sed -e 's/^v//')
 
-          # Change all uppercase to lowercase and append version tag
-          IMAGE_ID_BOT=$(echo $IMAGE_ID_BOT | tr '[A-Z]' '[a-z]'):${{ steps.tag_version.outputs.new_tag }}
-          IMAGE_ID_PROXY=$(echo $IMAGE_ID_PROXY | tr '[A-Z]' '[a-z]'):${{ steps.tag_version.outputs.new_tag }}
+          IMAGE_ID_BOT=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_BOT:$VERSION
+          IMAGE_ID_PROXY=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_PROXY:$VERSION
+          IMAGE_ID_WORKER=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME_WORKER:$VERSION
 
-          # Strip git ref prefix from version
-          #VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-
-          # Strip "v" prefix from tag name
-          #[[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-
-          # Use Docker `latest` tag convention
-          #[ "$VERSION" == "master" ] && VERSION=latest
+          # Change all uppercase to lowercase
+          IMAGE_ID_BOT=$(echo $IMAGE_ID_BOT | tr '[A-Z]' '[a-z]')
+          IMAGE_ID_PROXY=$(echo $IMAGE_ID_PROXY | tr '[A-Z]' '[a-z]')
+          IMAGE_ID_WORKER=$(echo $IMAGE_ID_WORKER | tr '[A-Z]' '[a-z]')
 
           echo IMAGE_ID_BOT=$IMAGE_ID_BOT
           echo IMAGE_ID_PROXY=$IMAGE_ID_PROXY
+          echo IMAGE_ID_WORKER=$IMAGE_ID_WORKER
 
           docker tag $IMAGE_NAME_BOT $IMAGE_ID_BOT
           docker push $IMAGE_ID_BOT
 
           docker tag $IMAGE_NAME_PROXY $IMAGE_ID_PROXY
           docker push $IMAGE_ID_PROXY
+
+          docker tag $IMAGE_NAME_WORKER $IMAGE_ID_WORKER
+          docker push $IMAGE_ID_WORKER

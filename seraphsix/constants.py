@@ -4,14 +4,17 @@ import pytz
 from datetime import datetime
 
 
+TIME_HOUR_SECONDS = 3600
+TIME_MIN_SECONDS = 60
+
 LOG_FORMAT_MSG = '%(asctime)s %(name)s[%(process)d]: %(levelname)s %(message)s'
 DB_MAX_CONNECTIONS = 20
 
+ARQ_MAX_JOBS = 100
+ARQ_JOB_TIMEOUT = TIME_HOUR_SECONDS
+
 BLUE = discord.Color(3381759)
 CLEANUP_DELAY = 4
-
-TIME_HOUR_SECONDS = 3600
-TIME_MIN_SECONDS = 60
 
 EMOJI_PC = 586933311994200074
 EMOJI_PSN = 590019204623761438
