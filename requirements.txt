@@ -6,44 +6,50 @@
 #
 
 -i https://pypi.org/simple
-aiohttp==3.6.3; python_full_version >= '3.5.3'
-aiopg==1.1.0
+aiohttp==3.7.4.post0
+aiopg==1.2.1
 aioredis==1.3.1
-astroid==2.4.2
+astroid==2.5.2
 async-timeout==3.0.1; python_full_version >= '3.5.3'
 attrs==20.3.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
 backoff==1.10.0
 certifi==2020.12.5
-chardet==3.0.4
+cffi==1.14.5
+chardet==4.0.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
 click==7.1.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
-discord.py==1.5.1
+cryptography==3.4.7
+discord.py==1.7.1
 flask-kvsession==0.6.2
 flask==1.1.2
 get-docker-secret==1.0.1
-git+https://github.com/evemorgen/ratelimit.git@14c87100677fa905408d7a75b634bd4bdee0301c#egg=ratelimit
+git+https://github.com/henworth/arq@e3843b6dfec032f85cda0e864f7b033bacf10f3a#egg=arq
 git+https://github.com/henworth/pydest@7b23ecf95987d064515c17cfe3818469ae10d6bc#egg=pydest
 git+https://github.com/henworth/the100@f6f39915323e9b3869cf13e269ba72a4596d3352#egg=the100
-gunicorn==20.0.4
-hiredis==1.1.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
+gunicorn==20.1.0
+hiredis==2.0.0; python_version >= '3.6'
 idna==2.10; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
 itsdangerous==1.1.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
-jinja2==2.11.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
-jsonpickle==1.4.2
-lazy-object-proxy==1.4.3
+jinja2==2.11.3
+jsonpickle==2.0.0
+lazy-object-proxy==1.6.0
 markupsafe==1.1.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
-multidict==4.7.6; python_version >= '3.5'
+msgpack==1.0.2
+multidict==5.1.0; python_version >= '3.6'
 peewee-async==0.7.1
-peewee==3.14.0
+peewee==3.14.4
 peony-twitter==1.1.7
 psycopg2-binary==2.8.6
-pytz==2020.5
+pycparser==2.20; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
+pydantic==1.8.1; python_full_version >= '3.6.1'
+pytz==2021.1
 redis==3.5.3
 requests-oauth2==0.3.0
 requests==2.25.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
 simplekv==0.14.1
 six==1.15.0
-tenacity==6.3.1
-urllib3==1.26.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4' and python_version < '4'
+tenacity==7.0.0
+typing-extensions==3.7.4.3
+urllib3==1.26.4
 werkzeug==1.0.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
 wrapt==1.12.1
-yarl==1.5.1; python_version >= '3.5'
+yarl==1.6.3; python_version >= '3.6'
