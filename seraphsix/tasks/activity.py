@@ -218,7 +218,7 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
     for activity in unique_activities:
         activity_id = activity['activityDetails']['instanceId']
         await redis_jobs.enqueue_job(
-            'process_activity', activity, guild_id, _job_id=f'process_activity-{activity_id}'
+            'process_activity', activity, guild_id, guild_name, _job_id=f'process_activity-{activity_id}'
         )
 
     log.info(
