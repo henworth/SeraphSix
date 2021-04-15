@@ -45,5 +45,9 @@ class InvalidCommandError(CommandError):
 
 class MaintenanceError(CommandError):
     def __init__(self, *args):
-        message = "Bungie systems are currently undergoing maintenance, please try again later"
+        message = "Destiny systems are currently undergoing maintenance, please try again later"
         super().__init__(message, *args)
+
+
+class PrivateHistoryError(Exception):
+    pass
