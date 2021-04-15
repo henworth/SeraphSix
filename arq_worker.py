@@ -50,10 +50,14 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = config.arq_redis
-    def job_serializer(b): return msgpack.packb(b, default=encode_datetime)
-    def job_deserializer(b): return msgpack.unpackb(b, object_hook=decode_datetime)
     max_jobs = ARQ_MAX_JOBS
     job_timeout = ARQ_JOB_TIMEOUT
+
+    def job_serializer(b):
+        return msgpack.packb(b, default=encode_datetime)
+
+    def job_deserializer(b):
+        return msgpack.unpackb(b, object_hook=decode_datetime)
 
 
 if __name__ == '__main__':

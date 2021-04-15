@@ -110,9 +110,21 @@ class ClanCog(commands.Cog, name="Clan"):
 
             if len(player.response) == 1:
                 membership = player.response[0]
-                if membership['displayName'].lower() == username_lower:
+                if membership['displayName'].lower() == username_lower and membership['membershipType'] == platform_id:
                     membership_id = membership['membershipId']
                     platform_id = membership['membershipType']
+                else:
+                    membership_orig = membership
+                    profile = await execute_pydest(
+                        self.bot.destiny.api.get_membership_data_by_id, membership['membershipId']
+                    )
+                    for membership in profile.response['destinyMemberships']:
+                        if membership['displayName'].lower() == username_lower:
+                            user_matches = True
+                            break
+                    if user_matches:
+                        membership_id = membership_orig['membershipId']
+                        platform_id = membership_orig['membershipType']
             else:
                 for membership in player.response:
                     display_name = membership['displayName'].lower()
@@ -121,7 +133,6 @@ class ClanCog(commands.Cog, name="Clan"):
                         membership_id = membership['membershipId']
                         platform_id = membership['membershipType']
                         break
-
         return membership_id, platform_id
 
     async def refresh_admin_tokens(self, manager, admin_db):
@@ -553,7 +564,7 @@ Examples:
 
         if res.error_status == 'ClanTargetDisallowsInvites':
             message = f"User **{username}** has disabled clan invites"
-        elif res['ErrorStatus'] != 'Success':
+        elif res.error_status != 'Success':
             message = f"Could not invite **{username}**"
             log.info(f"Could not invite '{username}': {res}")
         else:
