@@ -2,7 +2,7 @@ import pytz
 
 from collections import OrderedDict
 from datetime import datetime
-from seraphsix.constants import BUNGIE_DATE_FORMAT
+from seraphsix.constants import DESTINY_DATE_FORMAT, DESTINY_DATE_FORMAT_MS, DATE_FORMAT, DATE_FORMAT_TZ
 
 
 def merge_dicts(a, b, path=None):
@@ -32,8 +32,23 @@ def sort_dict(d):
     return res
 
 
-def bungie_date_as_utc(date):
-    return datetime.strptime(date, BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
+def date_as_string(date, with_tz=False):
+    if with_tz:
+        date_format = DATE_FORMAT_TZ
+    else:
+        date_format = DATE_FORMAT
+    return date.strftime(date_format)
+
+
+def string_to_date(date, date_format=DATE_FORMAT):
+    return datetime.strptime(date, date_format).astimezone(tz=pytz.utc)
+
+
+def destiny_date_as_utc(date):
+    try:
+        return string_to_date(date, DESTINY_DATE_FORMAT_MS)
+    except ValueError:
+        return string_to_date(date, DESTINY_DATE_FORMAT)
 
 
 def get_timezone_name(timezone, country_code):
