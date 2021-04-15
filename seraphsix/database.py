@@ -189,7 +189,7 @@ class ConnManager(Manager):
 
 class Database(object):
 
-    def __init__(self, url, max_connections):
+    def __init__(self, url, max_connections=constants.DB_MAX_CONNECTIONS):
         url = urlparse(url)
         self._database = PooledPostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,

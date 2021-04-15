@@ -25,7 +25,7 @@ async def startup(ctx):
         client_secret=config.destiny.client_secret,
     )
 
-    database = Database(config.database_url)
+    database = Database(config.database_url, config.database_conns)
     database.initialize()
     ctx['database'] = database
     ctx['redis_cache'] = await aioredis.create_redis_pool(config.redis_url)
@@ -50,8 +50,8 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = config.arq_redis
-    job_serializer = lambda b: msgpack.packb(b, default=encode_datetime)
-    job_deserializer = lambda b: msgpack.unpackb(b, object_hook=decode_datetime)
+    def job_serializer(b): return msgpack.packb(b, default=encode_datetime)
+    def job_deserializer(b): return msgpack.unpackb(b, object_hook=decode_datetime)
     max_jobs = ARQ_MAX_JOBS
     job_timeout = ARQ_JOB_TIMEOUT
 
