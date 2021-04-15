@@ -23,16 +23,16 @@ store = RedisStore(red)
 KVSessionExtension(store, app)
 
 
-class BungieClient(OAuth2):
+class DestinyClient(OAuth2):
     site = 'https://www.bungie.net'
     authorization_url = '/en/oauth/authorize/'
     token_url = '/platform/app/oauth/token/'
 
 
-bungie_auth = BungieClient(
-    client_id=config.bungie.client_id,
-    client_secret=config.bungie.client_secret,
-    redirect_uri=f'https://{config.bungie.redirect_host}/oauth/callback'
+destiny_auth = DestinyClient(
+    client_id=config.destiny.client_id,
+    client_secret=config.destiny.client_secret,
+    redirect_uri=f'https://{config.destiny.redirect_host}/oauth/callback'
 )
 
 
@@ -58,7 +58,7 @@ def index():
     except Exception:
         log.exception(f'/: Failed to publish state info to redis: {user_info} {session}')
         return render_template('message.html', message='Something went wrong.')
-    return render_template('redirect.html', site=BungieClient.site, message='Success!')
+    return render_template('redirect.html', site=DestinyClient.site, message='Success!')
 
 
 @app.route('/oauth')
@@ -73,8 +73,8 @@ def oauth_index():
 
     with requests.Session() as s:
         s.auth = OAuth2BearerToken(session['access_token'])
-        s.headers.update({'X-API-KEY': config.bungie.api_key})
-        r = s.get(f'{BungieClient.site}/platform/User/GetMembershipsForCurrentUser/')
+        s.headers.update({'X-API-KEY': config.destiny.api_key})
+        r = s.get(f'{DestinyClient.site}/platform/User/GetMembershipsForCurrentUser/')
 
     r.raise_for_status()
     log.debug(f'/oauth: {session} {request.args}')
@@ -92,12 +92,12 @@ def oauth_callback():
 
     if not code:
         log.debug(f'No code found, redirecting to bungie, {session}')
-        return redirect(bungie_auth.authorize_url(
+        return redirect(destiny_auth.authorize_url(
             response_type='code',
             state=session['state']
         ))
 
-    data = bungie_auth.get_token(
+    data = destiny_auth.get_token(
         code=code,
         grant_type='authorization_code',
     )

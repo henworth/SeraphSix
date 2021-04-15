@@ -5,7 +5,7 @@ import logging
 from peewee import DoesNotExist, fn
 from playhouse.shortcuts import dict_to_model
 from seraphsix import constants
-from seraphsix.cogs.utils.helpers import bungie_date_as_utc
+from seraphsix.cogs.utils.helpers import destiny_date_as_utc
 from seraphsix.database import ClanMember, Game, GameMember, Guild, Member
 from seraphsix.models.destiny import Game as GameApi, ClanGame
 from seraphsix.tasks.core import execute_pydest, get_cached_members
@@ -22,19 +22,19 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 
     data = await execute_pydest(
         destiny.api.get_activity_history, platform_id, member_id, char_id, count=count, page=page, mode=mode)
-    if data:
+    if data.response:
         if full_sync:
-            while 'activities' in data:
+            while 'activities' in data.response:
                 page += 1
                 if activities:
-                    activities.extend(data['activities'])
+                    activities.extend(data.response['activities'])
                 else:
-                    activities = data['activities']
+                    activities = data.response['activities']
                 data = await execute_pydest(
                     destiny.api.get_activity_history,
                     platform_id, member_id, char_id, count=count, page=page, mode=mode)
         else:
-            activities = data['activities']
+            activities = data.response['activities']
             if len(activities) == count:
                 log.debug(
                     f'Activity count for {platform_id}-{member_id} ({char_id}) '
@@ -45,7 +45,9 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 
 async def get_pgcr(ctx, activity_id):
     destiny = ctx['destiny']
-    return await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id)
+    data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id)
+    if data.response:
+        return data.response
 
 
 async def decode_activity(ctx, reference_id):
@@ -77,7 +79,7 @@ async def get_last_active(ctx, member_db):
         return acct_last_active
 
     for _, character in characters:
-        char_last_active = bungie_date_as_utc(character['dateLastPlayed'])
+        char_last_active = destiny_date_as_utc(character['dateLastPlayed'])
         if not acct_last_active or char_last_active > acct_last_active:
             acct_last_active = char_last_active
             log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
@@ -243,8 +245,8 @@ async def get_characters(ctx, member_id, platform_id):
     retval = None
     data = await execute_pydest(
         destiny.api.get_profile, platform_id, member_id, [constants.COMPONENT_CHARACTERS])
-    if data:
-        retval = data['characters']['data']
+    if data.response:
+        retval = data.response['characters']['data']
     return retval
 
 

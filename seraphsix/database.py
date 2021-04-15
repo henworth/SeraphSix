@@ -27,7 +27,7 @@ def reconnect(function):
     async def wrapper(db, *args, **kwargs):
         try:
             return await function(db, *args, **kwargs)
-        except (InterfaceError, OperationalError, psycopg2.InterfaceError):
+        except (InterfaceError, OperationalError, psycopg2.InterfaceError, psycopg2.OperationalError):
             try:
                 async for attempt in AsyncRetrying(
                         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -189,11 +189,11 @@ class ConnManager(Manager):
 
 class Database(object):
 
-    def __init__(self, url):
+    def __init__(self, url, max_connections):
         url = urlparse(url)
         self._database = PooledPostgresqlExtDatabase(
             database=url.path[1:], user=url.username, password=url.password,
-            host=url.hostname, port=url.port, max_connections=constants.DB_MAX_CONNECTIONS)
+            host=url.hostname, port=url.port, max_connections=max_connections)
         self._loop = asyncio.get_event_loop()
         self._objects = ConnManager(loop=self._loop)
 

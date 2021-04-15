@@ -59,13 +59,13 @@ class SeraphSix(commands.Bot):
         )
 
         self.config = config
-        self.database = Database(config.database_url)
+        self.database = Database(config.database_url, config.database_conns)
         self.database.initialize()
 
         self.destiny = Pydest(
-            api_key=config.bungie.api_key,
-            client_id=config.bungie.client_id,
-            client_secret=config.bungie.client_secret,
+            api_key=config.destiny.api_key,
+            client_id=config.destiny.client_id,
+            client_secret=config.destiny.client_secret,
         )
 
         self.the100 = The100(config.the100.api_key, config.the100.base_url)
@@ -91,34 +91,13 @@ class SeraphSix(commands.Bot):
                 exc = traceback.format_exception(type(e), e, e.__traceback__)
                 log.error(f"Failed to load extension {extension}: {exc}")
 
-        self.bungie_maintenance = False
-
         if config.enable_activity_tracking:
-            self.update_last_active.start()
-            self.update_member_games.start()
+            self.update_members.start()
 
         self.cache_clan_members.start()
 
     @tasks.loop(minutes=5.0)
-    async def update_last_active(self):
-        guilds = await self.ext_conns['database'].execute(Guild.select())
-        if not guilds:
-            return
-        for guild in guilds:
-            guild_id = guild.guild_id
-            discord_guild = await self.fetch_guild(guild.guild_id)
-            guild_name = str(discord_guild)
-            log.info(f"Queueing task to find last active dates for all members of {guild_name} ({guild_id})")
-            await self.ext_conns['redis_jobs'].enqueue_job(
-                'store_last_active', guild_id, guild_name, _job_id=f'store_last_active-{guild_id}'
-            )
-
-    @update_last_active.before_loop
-    async def before_update_last_active(self):
-        await self.wait_until_ready()
-
-    @tasks.loop(hours=1.0)
-    async def update_member_games(self):
+    async def update_members(self):
         guilds = await self.ext_conns['database'].execute(Guild.select())
         if not guilds:
             return
@@ -126,12 +105,19 @@ class SeraphSix(commands.Bot):
             guild_id = guild.guild_id
             discord_guild = await self.fetch_guild(guild_id)
             guild_name = str(discord_guild)
+
+            log.info(f"Queueing task to find last active date for all members of {guild_name} ({guild_id})")
+            await self.ext_conns['redis_jobs'].enqueue_job(
+                'store_last_active', guild_id, guild_name, _job_id=f'store_last_active-{guild_id}'
+            )
+
+            log.info(f"Queueing task to find recent games for all members {guild_name} ({guild_id})")
             await self.ext_conns['redis_jobs'].enqueue_job(
                 'store_all_games', guild_id, guild_name, _job_id=f'store_all_games-{guild_id}'
             )
 
-    @update_member_games.before_loop
-    async def before_update_member_games(self):
+    @update_members.before_loop
+    async def before_update_members(self):
         await self.wait_until_ready()
 
     async def update_sherpa_roles(self):
@@ -180,7 +166,6 @@ class SeraphSix(commands.Bot):
         guilds = await self.ext_conns['database'].execute(Guild.select())
         if not guilds:
             return
-
         for guild in guilds:
             guild_id = guild.guild_id
             discord_guild = await self.fetch_guild(guild.guild_id)

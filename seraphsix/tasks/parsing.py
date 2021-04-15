@@ -36,11 +36,11 @@ def parse_platform(member_db, platform_id):
 
 def encode_datetime(obj):
     if isinstance(obj, datetime.datetime):
-        return {'__datetime__': True, 'as_str': obj.strftime(constants.BUNGIE_DATE_FORMAT)}
+        return {'__datetime__': True, 'as_str': obj.strftime(constants.DESTINY_DATE_FORMAT)}
     return obj
 
 
 def decode_datetime(obj):
     if '__datetime__' in obj:
-        obj = datetime.datetime.strptime(obj['as_str'], constants.BUNGIE_DATE_FORMAT)
+        obj = datetime.datetime.strptime(obj['as_str'], constants.DESTINY_DATE_FORMAT)
     return obj

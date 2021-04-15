@@ -20,9 +20,9 @@ config = Config()
 
 async def startup(ctx):
     ctx['destiny'] = Pydest(
-        api_key=config.bungie.api_key,
-        client_id=config.bungie.client_id,
-        client_secret=config.bungie.client_secret,
+        api_key=config.destiny.api_key,
+        client_id=config.destiny.client_id,
+        client_secret=config.destiny.client_secret,
     )
 
     database = Database(config.database_url)

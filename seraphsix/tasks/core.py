@@ -5,9 +5,10 @@ import logging
 import msgpack
 
 from playhouse.shortcuts import model_to_dict
-from pydest.pydest import PydestException, PydestPrivateHistoryException, PydestMaintenanceException
+from pydest.pydest import PydestException
 from seraphsix import constants
-from seraphsix.errors import MaintenanceError
+from seraphsix.errors import MaintenanceError, PrivateHistoryError
+from seraphsix.models.destiny import DestinyResponse, DestinyTokenResponse, DestinyTokenErrorResponse
 from seraphsix.tasks.parsing import decode_datetime, encode_datetime
 
 log = logging.getLogger(__name__)
@@ -29,22 +30,31 @@ def backoff_handler(details):
         )
 
 
-@backoff.on_exception(
-    backoff.expo,
-    (PydestPrivateHistoryException, PydestMaintenanceException),
-    max_tries=1, logger=None)
+@backoff.on_exception(backoff.expo, (PrivateHistoryError, MaintenanceError), max_tries=0, logger=None)
 @backoff.on_exception(backoff.expo, (PydestException, asyncio.TimeoutError), logger=None, on_backoff=backoff_handler)
 async def execute_pydest(function, *args, **kwargs):
     retval = None
+    log.debug(f"{function} {args} {kwargs}")
+    data = await function(*args, **kwargs)
+    log.debug(f"{function} {args} {kwargs} - {data}")
+
     try:
-        data = await function(*args, **kwargs)
-    except PydestMaintenanceException:
-        raise MaintenanceError
-    except PydestPrivateHistoryException:
-        return retval
+        res = DestinyResponse.from_dict(data)
+    except KeyError:
+        try:
+            res = DestinyTokenResponse.from_dict(data)
+        except KeyError:
+            res = DestinyTokenErrorResponse.from_dict(data)
     else:
-        if 'Response' in data:
-            retval = data['Response']
+        res = DestinyResponse.from_dict(data)
+        if res.error_code != 1:
+            log.error(f"Error running {function} {args} {kwargs} - {res}")
+            if res.error_code == 5:
+                raise MaintenanceError
+            elif res.error_code == 1665:
+                raise PrivateHistoryError
+    retval = res
+    log.debug(f"{function} {args} {kwargs} - {res}")
     return retval
 
 

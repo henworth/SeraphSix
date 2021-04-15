@@ -1,7 +1,6 @@
 import asyncio
 import discord
 import logging
-import pydest
 import pytz
 
 from datetime import datetime
@@ -12,9 +11,9 @@ from urllib.parse import quote
 
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
-from seraphsix.cogs.utils.helpers import get_timezone_name
+from seraphsix.cogs.utils.helpers import get_timezone_name, date_as_string
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.models.destiny import User as BungieUser
+from seraphsix.models.destiny import User as DestinyUser
 from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, execute_pydest
 
 from seraphsix.database import Member, ClanMember, Clan, Guild
@@ -79,14 +78,13 @@ class MemberCog(commands.Cog, name="Member"):
 
         bungie_link = None
         if member_db.bungie_id:
-            try:
-                bungie_info = await execute_pydest(
-                    self.bot.destiny.api.get_membership_data_by_id, member_db.bungie_id
-                )
-            except pydest.PydestException:
+            bungie_info = await execute_pydest(
+                self.bot.destiny.api.get_membership_data_by_id, member_db.bungie_id
+            )
+            if not bungie_info.response:
                 bungie_link = member_db.bungie_username
             else:
-                bungie_member_data = BungieUser(bungie_info["Response"])
+                bungie_member_data = DestinyUser(bungie_info.response)
                 bungie_member_id = bungie_member_data.memberships.bungie.id
                 bungie_member_type = constants.PLATFORM_BUNGIE
                 bungie_member_name = bungie_member_data.memberships.bungie.username
@@ -120,13 +118,13 @@ class MemberCog(commands.Cog, name="Member"):
         )
         embed.add_field(
             name="Join Date",
-            value=member_db.clanmember.join_date.strftime('%Y-%m-%d %H:%M:%S')
+            value=date_as_string(member_db.clanmember.join_date)
         )
 
         if requestor_is_admin:
             embed.add_field(
                 name="Last Active Date",
-                value=member_db.clanmember.last_active.strftime('%Y-%m-%d %H:%M:%S')
+                value=date_as_string(member_db.clanmember.last_active)
             )
 
         embed.add_field(name="Time Zone", value=timezone)
@@ -135,7 +133,7 @@ class MemberCog(commands.Cog, name="Member"):
         embed.add_field(name="Steam Username", value=member_db.steam_username)
         embed.add_field(name="Stadia Username", value=member_db.stadia_username)
         embed.add_field(name="Discord Username", value=discord_username)
-        embed.add_field(name="Bungie Username", value=bungie_link)
+        embed.add_field(name="Destiny Username", value=bungie_link)
         embed.add_field(name="The100 Username", value=the100_link)
         embed.add_field(
             name="Is Sherpa",
@@ -145,6 +143,7 @@ class MemberCog(commands.Cog, name="Member"):
             name="Is Admin",
             value=constants.EMOJI_CHECKMARK if member_is_admin else constants.EMOJI_CROSSMARK
         )
+        embed.set_footer(text="All times shown in UTC")
         await manager.send_embed(embed)
 
     @member.command(help="Link member to discord account")

@@ -7,7 +7,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import TwitterChannel, Clan, Guild, Role
-from seraphsix.tasks.activity import execute_pydest
+from seraphsix.tasks.core import execute_pydest
 from seraphsix.tasks.discord import store_sherpas
 
 log = logging.getLogger(__name__)
@@ -77,15 +77,15 @@ class ServerCog(commands.Cog, name="Server"):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanlink(self, ctx, clan_id=None):
-        """Link this server to a Bungie clan (Admin only)"""
+        """Link this server to a Destiny clan (Admin only)"""
         manager = MessageManager(ctx)
 
         if not clan_id:
-            return await manager.send_and_clean("Command must include the Bungie clan ID")
+            return await manager.send_and_clean("Command must include the Destiny clan ID")
 
-        res = await execute_pydest(self.bot.destiny.api.get_group, clan_id)
-        clan_name = res['Response']['detail']['name']
-        callsign = res['Response']['detail']['clanInfo']['clanCallsign']
+        group = await execute_pydest(self.bot.destiny.api.get_group, clan_id)
+        clan_name = group.response['detail']['name']
+        callsign = group.response['detail']['clanInfo']['clanCallsign']
 
         try:
             clan_db = await self.bot.database.get(Clan, clan_id=clan_id)
@@ -111,7 +111,7 @@ class ServerCog(commands.Cog, name="Server"):
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
     async def clanunlink(self, ctx):
-        """Unlink this server from a linked Bungie clan (Admin only)"""
+        """Unlink this server from a linked Destiny clan (Admin only)"""
         manager = MessageManager(ctx)
 
         try:

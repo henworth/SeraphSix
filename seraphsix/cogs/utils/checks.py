@@ -71,7 +71,7 @@ async def check_clan_linked(ctx):
     except DoesNotExist:
         raise ConfigurationError((
             f"Server **{ctx.message.guild.name}** has not been linked to "
-            f"a Bungie clan, please run `{ctx.prefix}server clanlink` first"))
+            f"a Destiny clan, please run `{ctx.prefix}server clanlink` first"))
     return True
 
 

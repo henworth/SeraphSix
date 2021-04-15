@@ -1,7 +1,40 @@
 from datetime import datetime
+from dataclasses import dataclass, field
+from dataclasses_json import dataclass_json, config
+from typing import Optional
 from seraphsix import constants
-from seraphsix.cogs.utils.helpers import bungie_date_as_utc
+from seraphsix.cogs.utils.helpers import destiny_date_as_utc
 from seraphsix.tasks.parsing import member_hash, member_hash_db
+
+
+@dataclass_json
+@dataclass
+class DestinyResponse:
+    error_code: int = field(metadata=config(field_name='ErrorCode'))
+    error_status: str = field(metadata=config(field_name='ErrorStatus'))
+    message: str = field(metadata=config(field_name='Message'))
+    message_data: object = field(metadata=config(field_name='MessageData'))
+    throttle_seconds: int = field(metadata=config(field_name='ThrottleSeconds'))
+    response: Optional[object] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json
+@dataclass
+class DestinyTokenResponse:
+    access_token: str
+    expires_in: int
+    membership_id: str
+    refresh_token: str
+    refresh_expires_in: int
+    token_type: str
+    error: Optional[str] = None
+
+
+@dataclass_json
+@dataclass
+class DestinyTokenErrorResponse:
+    error: str
+    error_description: str
 
 
 class UserMembership(object):
@@ -83,7 +116,7 @@ class Member(User):
 
     def __init__(self, details):
         super().__init__(details)
-        self.join_date = bungie_date_as_utc(details['joinDate'])
+        self.join_date = destiny_date_as_utc(details['joinDate'])
         self.is_online = details['isOnline']
         self.last_online_status_change = datetime.utcfromtimestamp(int(details['lastOnlineStatusChange']))
         self.group_id = int(details['groupId'])
@@ -151,7 +184,7 @@ class Game(object):
             self.mode_id = details['mode_id']
             self.instance_id = details['instance_id']
             self.reference_id = details['reference_id']
-            self.date = datetime.strptime(details['date'], constants.BUNGIE_DATE_FORMAT)
+            self.date = datetime.strptime(details['date'], constants.DESTINY_DATE_FORMAT)
             self.players = [Player(player, api=False) for player in details['players']]
         else:
             self.mode_id = details['activityDetails']['mode']
@@ -164,7 +197,7 @@ class Game(object):
                     pass
             self.instance_id = int(details['activityDetails']['instanceId'])
             self.reference_id = details['activityDetails']['referenceId']
-            self.date = bungie_date_as_utc(details['period'])
+            self.date = destiny_date_as_utc(details['period'])
             self.players = []
 
     def set_players(self, details):
@@ -177,7 +210,7 @@ class Game(object):
 
     def __repr__(self):
         retval = self.__dict__
-        retval['date'] = self.date.strftime(constants.BUNGIE_DATE_FORMAT)
+        retval['date'] = self.date.strftime(constants.DESTINY_DATE_FORMAT)
         return str(retval)
 
 

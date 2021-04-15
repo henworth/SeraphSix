@@ -5,7 +5,7 @@ from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.database import Member as MemberDb, ClanMember, Clan
 from seraphsix.models.destiny import Member
-from seraphsix.tasks.core import execute_pydest
+from seraphsix.tasks.core import execute_pydest, set_cached_members
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def sort_members(database, member_list):
 
 async def get_all_members(destiny, group_id):
     group = await execute_pydest(destiny.api.get_members_of_group, group_id)
-    group_members = group['Response']['results']
+    group_members = group.response['results']
     for member in group_members:
         yield Member(member)
 
@@ -64,7 +64,7 @@ async def get_database_members(database, clan_id):
     return members
 
 
-async def member_sync(bot, guild_id, guild_name):  # noqa
+async def member_sync(bot, guild_id, guild_name):
     clan_dbs = await bot.database.get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
@@ -122,16 +122,14 @@ async def member_sync(bot, guild_id, guild_name):  # noqa
         await bot.database.create(
             ClanMember, clan=clan_db, member=member_db, **member_details)
 
-        clan_member_db = await bot.database.execute(
-            MemberDb.select(MemberDb, ClanMember).join(ClanMember).join(Clan).where(
-                MemberDb.id == member_db.id
-            )
-        )
+        # Ensure we bust the member cache before queueing jobs
+        await set_cached_members(bot.ext_conns, guild_id, guild_name)
 
         # Kick off activity scans for each of the added members
         await bot.ext_conns['redis_jobs'].enqueue_job(
-            'store_member_history', clan_member_db.id, guild_id, guild_name, full_sync=True,
-            _job_id=f'store_member_history-{clan_member_db.id}')
+            'store_member_history', member_db.id, guild_id, guild_name, full_sync=True,
+            _job_id=f'store_member_history-{member_db.id}')
+
         member_changes[clan_db.clan_id]['added'].append(member_hash)
 
     # Figure out if there are any members to remove
@@ -163,10 +161,9 @@ async def info_sync(bot, guild_id):
 
     clan_changes = {}
     for clan_db in clan_dbs:
-        res = await execute_pydest(bot.destiny.api.get_group, clan_db.clan_id)
-        group = res['Response']
-        bungie_name = group['detail']['name']
-        bungie_callsign = group['detail']['clanInfo']['clanCallsign']
+        group = await execute_pydest(bot.destiny.api.get_group, clan_db.clan_id)
+        bungie_name = group.response['detail']['name']
+        bungie_callsign = group.response['detail']['clanInfo']['clanCallsign']
         original_name = clan_db.name
         original_callsign = clan_db.callsign
 

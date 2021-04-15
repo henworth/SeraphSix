@@ -21,7 +21,7 @@ async def register(manager, extra_message='', confirm_message=''):
         confirm_message = "Registration Complete"
 
     auth_url = (
-        f"https://{ctx.bot.config.bungie.redirect_host}/oauth?state={ctx.author.id}"
+        f"https://{ctx.bot.config.destiny.redirect_host}/oauth?state={ctx.author.id}"
     )
 
     if not isinstance(ctx.channel, discord.abc.PrivateChannel):
@@ -43,7 +43,7 @@ async def register(manager, extra_message='', confirm_message=''):
     registration_msg = await manager.send_private_embed(e)
 
     # Wait for user info from the web server via Redis
-    res = await ctx.ext_conns['redis_cache'].subscribe(ctx.author.id)
+    res = await ctx.bot.ext_conns['redis_cache'].subscribe(ctx.author.id)
 
     tsk = asyncio.create_task(wait_for_msg(res[0]))
     try:
@@ -53,7 +53,7 @@ async def register(manager, extra_message='', confirm_message=''):
         await manager.send_private_message("I'm not sure where you went. We can try this again later.")
         await registration_msg.delete()
         await manager.clean_messages()
-        await ctx.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
+        await ctx.bot.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
         return (None, None)
     await ctx.author.dm_channel.trigger_typing()
 
@@ -63,7 +63,7 @@ async def register(manager, extra_message='', confirm_message=''):
         title=confirm_message
     )
     embed = await manager.send_private_embed(e)
-    await ctx.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
+    await ctx.bot.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
 
     return embed, user_info
 
@@ -82,7 +82,7 @@ class RegisterCog(commands.Cog, name="Register"):
 
     @commands.command()
     @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
-    async def register(self, ctx):  # noqa TODO
+    async def register(self, ctx):
         """Register your Destiny 2 account with Seraph Six
 
         This command will let Seraph Six know which Destiny 2 profile to associate
@@ -100,7 +100,7 @@ class RegisterCog(commands.Cog, name="Register"):
 
         # Fetch platform specific display names and membership IDs
         try:
-            res = await execute_pydest(
+            user = await execute_pydest(
                 self.bot.destiny.api.get_membership_current_user, bungie_access_token
             )
         except Exception as e:
@@ -108,16 +108,16 @@ class RegisterCog(commands.Cog, name="Register"):
             await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")
             return await manager.clean_messages()
 
-        if res['ErrorCode'] != 1:
+        if not user.response:
             await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
             return await manager.clean_messages()
 
-        if not self.user_has_connected_accounts(res):
+        if not self.user_has_connected_accounts(user.response):
             await manager.send_private_message(
                 "Oops, you don't have any public accounts attached to your Bungie.net profile.")
             return await manager.clean_messages()
 
-        bungie_user = User(res['Response'])
+        bungie_user = User(user.response)
 
         member_ids = [
             (bungie_user.memberships.xbox.id, constants.PLATFORM_XBOX),
@@ -200,9 +200,9 @@ class RegisterCog(commands.Cog, name="Register"):
 
         return await manager.clean_messages()
 
-    def user_has_connected_accounts(self, json):
+    def user_has_connected_accounts(self, user):
         """Return true if user has connected destiny accounts"""
-        if len(json['Response']['destinyMemberships']):
+        if len(user['destinyMemberships']):
             return True
 
 

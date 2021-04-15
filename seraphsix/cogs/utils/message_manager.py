@@ -90,7 +90,7 @@ class MessageManager:
         """Send a private message to the user"""
         return await self.ctx.author.send(message_text)
 
-    async def send_message_react(self, message_text, reactions=[], embed=None, clean=True, with_cancel=False):  # noqa
+    async def send_message_react(self, message_text, reactions=[], embed=None, clean=True, with_cancel=False):
         reactions = list(reactions)
         self.reaction_emojis = []
         if embed:
