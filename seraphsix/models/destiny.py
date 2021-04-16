@@ -1,6 +1,40 @@
 from datetime import datetime
+from dataclasses import dataclass, field
+from dataclasses_json import dataclass_json, config
+from typing import Optional
 from seraphsix import constants
-from seraphsix.cogs.utils.helpers import bungie_date_as_utc
+from seraphsix.cogs.utils.helpers import destiny_date_as_utc
+from seraphsix.tasks.parsing import member_hash, member_hash_db
+
+
+@dataclass_json
+@dataclass
+class DestinyResponse:
+    error_code: int = field(metadata=config(field_name='ErrorCode'))
+    error_status: str = field(metadata=config(field_name='ErrorStatus'))
+    message: str = field(metadata=config(field_name='Message'))
+    message_data: object = field(metadata=config(field_name='MessageData'))
+    throttle_seconds: int = field(metadata=config(field_name='ThrottleSeconds'))
+    response: Optional[object] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json
+@dataclass
+class DestinyTokenResponse:
+    access_token: str
+    expires_in: int
+    membership_id: str
+    refresh_token: str
+    refresh_expires_in: int
+    token_type: str
+    error: Optional[str] = None
+
+
+@dataclass_json
+@dataclass
+class DestinyTokenErrorResponse:
+    error: str
+    error_description: str
 
 
 class UserMembership(object):
@@ -80,9 +114,9 @@ class User(object):
 
 class Member(User):
 
-    def __init__(self, details):
-        super().__init__(details)
-        self.join_date = bungie_date_as_utc(details['joinDate'])
+    def __init__(self, details, user_details):
+        super().__init__(user_details)
+        self.join_date = destiny_date_as_utc(details['joinDate'])
         self.is_online = details['isOnline']
         self.last_online_status_change = datetime.utcfromtimestamp(int(details['lastOnlineStatusChange']))
         self.group_id = int(details['groupId'])
@@ -150,7 +184,7 @@ class Game(object):
             self.mode_id = details['mode_id']
             self.instance_id = details['instance_id']
             self.reference_id = details['reference_id']
-            self.date = datetime.strptime(details['date'], constants.BUNGIE_DATE_FORMAT)
+            self.date = datetime.strptime(details['date'], constants.DESTINY_DATE_FORMAT)
             self.players = [Player(player, api=False) for player in details['players']]
         else:
             self.mode_id = details['activityDetails']['mode']
@@ -163,7 +197,7 @@ class Game(object):
                     pass
             self.instance_id = int(details['activityDetails']['instanceId'])
             self.reference_id = details['activityDetails']['referenceId']
-            self.date = bungie_date_as_utc(details['period'])
+            self.date = destiny_date_as_utc(details['period'])
             self.players = []
 
     def set_players(self, details):
@@ -176,38 +210,44 @@ class Game(object):
 
     def __repr__(self):
         retval = self.__dict__
-        retval['date'] = self.date.strftime(constants.BUNGIE_DATE_FORMAT)
+        retval['date'] = self.date.strftime(constants.DESTINY_DATE_FORMAT)
         return str(retval)
 
 
 class ClanGame(Game):
     def __init__(self, details, member_dbs):
-        self.clan_id = member_dbs[0].clanmember.clan_id
+        self.clan_id = member_dbs[0].clan_id
         super().__init__(details)
         self.set_players(details)
 
         members = {}
         for member_db in member_dbs:
-            if member_db.psn_id:
+            member = member_db.member
+            if member.psn_id:
                 members.update(
-                    {f'{constants.PLATFORM_PSN}-{member_db.psn_id}': member_db})
-            if member_db.xbox_id:
+                    {member_hash_db(member, constants.PLATFORM_PSN): member_db}
+                )
+            if member.xbox_id:
                 members.update(
-                    {f'{constants.PLATFORM_XBOX}-{member_db.xbox_id}': member_db})
-            if member_db.blizzard_id:
+                    {member_hash_db(member, constants.PLATFORM_XBOX): member_db}
+                )
+            if member.blizzard_id:
                 members.update(
-                    {f'{constants.PLATFORM_BLIZZARD}-{member_db.blizzard_id}': member_db})
-            if member_db.steam_id:
+                    {member_hash_db(member, constants.PLATFORM_BLIZZARD): member_db}
+                )
+            if member.steam_id:
                 members.update(
-                    {f'{constants.PLATFORM_STEAM}-{member_db.steam_id}': member_db})
-            if member_db.stadia_id:
+                    {member_hash_db(member, constants.PLATFORM_STEAM): member_db}
+                )
+            if member.stadia_id:
                 members.update(
-                    {f'{constants.PLATFORM_STADIA}-{member_db.stadia_id}': member_db})
+                    {member_hash_db(member, constants.PLATFORM_STADIA): member_db}
+                )
 
         # Loop through all players to find clan members in the game session.
         # Also check if the member joined before the game time.
         self.clan_players = []
         for player in self.players:
-            player_hash = f"{player.membership_type}-{player.membership_id}"
-            if player_hash in members.keys() and self.date > members[player_hash].clanmember.join_date:
+            player_hash = member_hash(player)
+            if player_hash in members.keys() and self.date > members[player_hash].join_date:
                 self.clan_players.append(player)

@@ -1,13 +1,14 @@
 import os
 import pytz
 
+from arq.connections import RedisSettings
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from get_docker_secret import get_docker_secret
-from seraphsix.constants import LOG_FORMAT_MSG, BUNGIE_DATE_FORMAT
+from seraphsix.constants import LOG_FORMAT_MSG, DESTINY_DATE_FORMAT, DB_MAX_CONNECTIONS, ROOT_LOG_LEVEL
 
 
-def log_config() -> dict:
+def log_config(root_log_level: str = ROOT_LOG_LEVEL) -> dict:
     return {
         'version': 1,
         'disable_existing_loggers': False,
@@ -15,7 +16,7 @@ def log_config() -> dict:
             'seraphsix': {
                 '()': 'seraphsix.utils.UTCFormatter',
                 'fmt': LOG_FORMAT_MSG,
-                'datefmt': BUNGIE_DATE_FORMAT
+                'datefmt': DESTINY_DATE_FORMAT
             }
         },
         'handlers': {
@@ -24,21 +25,21 @@ def log_config() -> dict:
                 'formatter': 'seraphsix'
             }
         },
-        'root': {'handlers': ['console'], 'level': 'INFO'},
+        'root': {'handlers': ['console'], 'level': root_log_level},
         'loggers': {
             'aiohttp.client': {'handlers': ['console'], 'level': 'ERROR'},
-            'aioredis': {'handlers': ['console'], 'level': 'DEBUG'},
+            'aioredis': {'handlers': ['console'], 'level': 'INFO'},
             'arq': {'handlers': ['console'], 'level': 'INFO'},
             'backoff': {'handlers': ['console'], 'level': 'DEBUG'},
             'bot': {'handlers': ['console'], 'level': 'DEBUG'},
             'peewee': {'handlers': ['console'], 'level': 'ERROR'},
-            'seraphsix.tasks.discord': {'handlers': ['console'], 'level': 'DEBUG'}
+            'discord': {'handlers': ['console'], 'level': 'INFO'}
         }
     }
 
 
 @dataclass
-class BungieConfig:
+class DestinyConfig:
     api_key: str
     client_id: str
     client_secret: str
@@ -80,18 +81,21 @@ class TwitterConfig:
 
 @dataclass
 class Config:
-    bungie: BungieConfig
+    destiny: DestinyConfig
     the100: The100Config
     twitter: TwitterConfig
     database_url: str
+    database_conns: int
     discord_api_key: str
     redis_url: str
+    arq_redis: RedisSettings
     home_server: int
     log_channel: int
     reg_channel: int
     enable_activity_tracking: bool
     activity_cutoff: str
     flask_app_key: str
+    root_log_level: str
 
     def __init__(self):
         database_user = get_docker_secret('seraphsix_pg_db_user', default='seraphsix')
@@ -99,6 +103,7 @@ class Config:
         database_host = get_docker_secret('seraphsix_pg_db_host', default='localhost')
         database_port = get_docker_secret('seraphsix_pg_db_port', default='5432')
         database_name = get_docker_secret('seraphsix_pg_db_name', default='seraphsix')
+        self.database_conns = get_docker_secret('seraphsix_pg_db_conns', default=DB_MAX_CONNECTIONS, cast_to=int)
 
         database_auth = f"{database_user}:{database_password}"
         self.database_url = f"postgres://{database_auth}@{database_host}:{database_port}/{database_name}"
@@ -108,7 +113,9 @@ class Config:
         redis_port = get_docker_secret('seraphsix_redis_port', default='6379')
         self.redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}"
 
-        self.bungie = BungieConfig()
+        self.arq_redis = RedisSettings.from_dsn(f'{self.redis_url}/1')
+
+        self.destiny = DestinyConfig()
         self.the100 = The100Config()
         self.twitter = TwitterConfig()
         self.discord_api_key = get_docker_secret('discord_api_key')
@@ -122,3 +129,5 @@ class Config:
         self.activity_cutoff = get_docker_secret('activity_cutoff')
         if self.activity_cutoff:
             self.activity_cutoff = datetime.strptime(self.activity_cutoff, '%Y-%m-%d').astimezone(tz=pytz.utc)
+
+        self.root_log_level = get_docker_secret('root_log_level', default=ROOT_LOG_LEVEL, cast_to=str)
