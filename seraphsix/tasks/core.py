@@ -46,12 +46,14 @@ async def execute_pydest(function, *args, **kwargs):
         except KeyError:
             res = DestinyTokenErrorResponse.from_dict(data)
     else:
-        res = DestinyResponse.from_dict(data)
-        if res.error_code != 1:
+        if res.error_status != 'Success':
             log.error(f"Error running {function} {args} {kwargs} - {res}")
-            if res.error_code == 5:
+            # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
+            if res.error_status == 'SystemDisabled':
                 raise MaintenanceError
-            elif res.error_code == 1665:
+            elif res.error_status == 'PerEndpointRequestThrottleExceeded':
+                raise PydestException
+            elif res.error_status == 'DestinyPrivacyRestriction':
                 raise PrivateHistoryError
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")

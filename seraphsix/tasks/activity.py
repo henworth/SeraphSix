@@ -71,18 +71,15 @@ async def get_last_active(ctx, member_db):
     member_id, _ = parse_platform(member_db.member, platform_id)
 
     acct_last_active = None
-    try:
-        characters = await get_characters(ctx, member_id, platform_id)
-        characters = characters.items()
-    except AttributeError:
+    profile = await execute_pydest(
+        ctx['destiny'].api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES])
+
+    if not profile.response:
         log.error(f"Could not get character data for {platform_id}-{member_id}")
         return acct_last_active
-
-    for _, character in characters:
-        char_last_active = destiny_date_as_utc(character['dateLastPlayed'])
-        if not acct_last_active or char_last_active > acct_last_active:
-            acct_last_active = char_last_active
-            log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
+    else:
+        acct_last_active = destiny_date_as_utc(profile.response['profile']['data']['dateLastPlayed'])
+        log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
     return acct_last_active
 
 

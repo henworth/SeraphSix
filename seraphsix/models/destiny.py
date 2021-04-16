@@ -114,8 +114,8 @@ class User(object):
 
 class Member(User):
 
-    def __init__(self, details):
-        super().__init__(details)
+    def __init__(self, details, user_details):
+        super().__init__(user_details)
         self.join_date = destiny_date_as_utc(details['joinDate'])
         self.is_online = details['isOnline']
         self.last_online_status_change = datetime.utcfromtimestamp(int(details['lastOnlineStatusChange']))

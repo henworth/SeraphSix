@@ -99,6 +99,8 @@ CLAN_MEMBER_ADMIN = 3
 CLAN_MEMBER_ACTING_FOUNDER = 4
 CLAN_MEMBER_FOUNDER = 5
 
+# https://bungie-net.github.io/#/components/schemas/Destiny.DestinyComponentType
+COMPONENT_PROFILES = 100
 COMPONENT_CHARACTERS = 200
 
 MODE_NONE = 0

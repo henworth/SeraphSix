@@ -36,7 +36,10 @@ async def get_all_members(destiny, group_id):
     group = await execute_pydest(destiny.api.get_members_of_group, group_id)
     group_members = group.response['results']
     for member in group_members:
-        yield Member(member)
+        profile = await execute_pydest(
+            destiny.api.get_membership_data_by_id, member['destinyUserInfo']['membershipId']
+        )
+        yield Member(member, profile.response)
 
 
 async def get_bungie_members(destiny, clan_id):
