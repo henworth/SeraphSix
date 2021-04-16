@@ -3,15 +3,20 @@ import pytz
 
 from datetime import datetime
 
+DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+DATE_FORMAT_TZ = f'{DATE_FORMAT} %Z'
+TIME_HOUR_SECONDS = 3600
+TIME_MIN_SECONDS = 60
+ROOT_LOG_LEVEL = 'INFO'
 
 LOG_FORMAT_MSG = '%(asctime)s %(name)s[%(process)d]: %(levelname)s %(message)s'
 DB_MAX_CONNECTIONS = 20
 
+ARQ_MAX_JOBS = 100
+ARQ_JOB_TIMEOUT = TIME_HOUR_SECONDS
+
 BLUE = discord.Color(3381759)
 CLEANUP_DELAY = 4
-
-TIME_HOUR_SECONDS = 3600
-TIME_MIN_SECONDS = 60
 
 EMOJI_PC = 586933311994200074
 EMOJI_PSN = 590019204623761438
@@ -94,6 +99,8 @@ CLAN_MEMBER_ADMIN = 3
 CLAN_MEMBER_ACTING_FOUNDER = 4
 CLAN_MEMBER_FOUNDER = 5
 
+# https://bungie-net.github.io/#/components/schemas/Destiny.DestinyComponentType
+COMPONENT_PROFILES = 100
 COMPONENT_CHARACTERS = 200
 
 MODE_NONE = 0
@@ -250,10 +257,11 @@ SUPPORTED_GAME_MODES = {
     'all': MODES_PVP + MODES_GAMBIT + MODES_PVE
 }
 
-BUNGIE_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
-FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
-SHADOWKEEP_RELEASE = datetime.strptime('2019-10-01T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
-BEYOND_LIGHT_RELEASE = datetime.strptime('2020-11-10T18:00:00Z', BUNGIE_DATE_FORMAT).astimezone(tz=pytz.utc)
+DESTINY_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
+DESTINY_DATE_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%f%z'
+FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', DESTINY_DATE_FORMAT).astimezone(tz=pytz.utc)
+SHADOWKEEP_RELEASE = datetime.strptime('2019-10-01T18:00:00Z', DESTINY_DATE_FORMAT).astimezone(tz=pytz.utc)
+BEYOND_LIGHT_RELEASE = datetime.strptime('2020-11-10T18:00:00Z', DESTINY_DATE_FORMAT).astimezone(tz=pytz.utc)
 
 TWITTER_DESTINY_REDDIT = 2608131020
 TWITTER_XBOX_SUPPORT = 59804598
