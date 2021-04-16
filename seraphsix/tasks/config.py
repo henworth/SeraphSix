@@ -5,6 +5,8 @@ from arq.connections import RedisSettings
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from get_docker_secret import get_docker_secret
+from pyrate_limiter import Duration, RequestRate, Limiter, RedisBucket
+from redis import ConnectionPool
 from seraphsix.constants import LOG_FORMAT_MSG, DESTINY_DATE_FORMAT, DB_MAX_CONNECTIONS, ROOT_LOG_LEVEL
 
 
@@ -79,8 +81,24 @@ class TwitterConfig:
         return asdict(self)
 
 
+class Borg:
+    _shared_state = {}
+
+    def __init__(self):
+        self.__dict__ = self._shared_state
+
+    def __hash__(self):
+        return 1
+
+    def __eq__(self, other):
+        try:
+            return self.__dict__ is other.__dict__
+        except Exception:
+            return 0
+
+
 @dataclass
-class Config:
+class Config(Borg):
     destiny: DestinyConfig
     the100: The100Config
     twitter: TwitterConfig
@@ -98,6 +116,8 @@ class Config:
     root_log_level: str
 
     def __init__(self):
+        Borg.__init__(self)
+
         database_user = get_docker_secret('seraphsix_pg_db_user', default='seraphsix')
         database_password = get_docker_secret('seraphsix_pg_db_pass')
         database_host = get_docker_secret('seraphsix_pg_db_host', default='localhost')
@@ -131,3 +151,10 @@ class Config:
             self.activity_cutoff = datetime.strptime(self.activity_cutoff, '%Y-%m-%d').astimezone(tz=pytz.utc)
 
         self.root_log_level = get_docker_secret('root_log_level', default=ROOT_LOG_LEVEL, cast_to=str)
+
+        bucket_kwargs = {
+            "redis_pool": ConnectionPool.from_url(self.redis_url),
+            "bucket_name": "ratelimit"
+        }
+        destiny_api_rate = RequestRate(20, Duration.SECOND)
+        self.destiny_api_limiter = Limiter(destiny_api_rate, bucket_class=RedisBucket, bucket_kwargs=bucket_kwargs)
