@@ -104,6 +104,7 @@ async def member_sync(bot, guild_id, guild_name):
     )
 
     # Figure out if there are any members to add
+    member_added_dbs = []
     members_added = bungie_member_set - db_member_set
     for member_hash in members_added:
         member_info = bungie_members[member_hash]
@@ -125,14 +126,7 @@ async def member_sync(bot, guild_id, guild_name):
         await bot.database.create(
             ClanMember, clan=clan_db, member=member_db, **member_details)
 
-        # Ensure we bust the member cache before queueing jobs
-        await set_cached_members(bot.ext_conns, guild_id, guild_name)
-
-        # Kick off activity scans for each of the added members
-        await bot.ext_conns['redis_jobs'].enqueue_job(
-            'store_member_history', member_db.id, guild_id, guild_name, full_sync=True,
-            _job_id=f'store_member_history-{member_db.id}')
-
+        member_added_dbs.append(member_db)
         member_changes[clan_db.clan_id]['added'].append(member_hash)
 
     # Figure out if there are any members to remove
@@ -148,8 +142,17 @@ async def member_sync(bot, guild_id, guild_name):
         await bot.database.delete(clanmember_db)
         member_changes[clan_db.clan_id]['removed'].append(member_hash)
 
+    # Ensure we bust the member cache before queueing jobs
+    await set_cached_members(bot.ext_conns, guild_id, guild_name)
+
     for clan, changes in member_changes.items():
         if len(changes['added']):
+            # Kick off activity scans for each of the added members
+            for member_db in member_added_dbs.append(member_db):
+                await bot.ext_conns['redis_jobs'].enqueue_job(
+                    'store_member_history', member_db.id, guild_id, guild_name, full_sync=True,
+                    _job_id=f'store_member_history-{member_db.id}')
+
             changes['added'] = await sort_members(bot.database, changes['added'])
             log.info(f"Added members {changes['added']}")
         if len(changes['removed']):

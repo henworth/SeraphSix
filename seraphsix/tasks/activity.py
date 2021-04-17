@@ -67,16 +67,14 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
 
 
 async def get_last_active(ctx, member_db):
+    acct_last_active = None
     platform_id = member_db.platform_id
     member_id, _ = parse_platform(member_db.member, platform_id)
 
-    acct_last_active = None
     profile = await execute_pydest(
         ctx['destiny'].api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES])
-
     if not profile.response:
-        log.error(f"Could not get character data for {platform_id}-{member_id}")
-        return acct_last_active
+        log.error(f"Could not get character data for {platform_id}-{member_id}: {profile.message}")
     else:
         acct_last_active = destiny_date_as_utc(profile.response['profile']['data']['dateLastPlayed'])
         log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
