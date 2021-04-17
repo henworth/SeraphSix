@@ -33,7 +33,7 @@ def backoff_handler(details):
         )
 
 
-@backoff.on_exception(backoff.expo, (PrivateHistoryError, MaintenanceError), max_tries=0, logger=None)
+@backoff.on_exception(backoff.constant, (PrivateHistoryError, MaintenanceError), max_tries=1, logger=None)
 @backoff.on_exception(
     backoff.expo, (PydestException, asyncio.TimeoutError, BucketFullException), logger=None, on_backoff=backoff_handler)
 async def execute_pydest(function, *args, **kwargs):
@@ -56,7 +56,6 @@ async def execute_pydest(function, *args, **kwargs):
             raise RuntimeError(f"Cannot parse Destiny API response {data}")
     else:
         if res.error_status != 'Success':
-            log.error(f"Error running {function} {args} {kwargs} - {res}")
             # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
             if res.error_status == 'SystemDisabled':
                 raise MaintenanceError
@@ -65,7 +64,9 @@ async def execute_pydest(function, *args, **kwargs):
             elif res.error_status == 'DestinyPrivacyRestriction':
                 raise PrivateHistoryError
             else:
-                raise PydestException
+                log.error(f"Error running {function} {args} {kwargs} - {res}")
+                if res.error_status in ['DestinyAccountNotFound']:
+                    raise PydestException
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")
     return retval
