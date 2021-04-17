@@ -6,12 +6,15 @@ import msgpack
 
 from playhouse.shortcuts import model_to_dict
 from pydest.pydest import PydestException
+from pyrate_limiter import BucketFullException
 from seraphsix import constants
+from seraphsix.tasks.config import Config
 from seraphsix.errors import MaintenanceError, PrivateHistoryError
 from seraphsix.models.destiny import DestinyResponse, DestinyTokenResponse, DestinyTokenErrorResponse
 from seraphsix.tasks.parsing import decode_datetime, encode_datetime
 
 log = logging.getLogger(__name__)
+config = Config()
 
 
 async def create_redis_jobs_pool(config):
@@ -30,12 +33,16 @@ def backoff_handler(details):
         )
 
 
-@backoff.on_exception(backoff.expo, (PrivateHistoryError, MaintenanceError), max_tries=0, logger=None)
-@backoff.on_exception(backoff.expo, (PydestException, asyncio.TimeoutError), logger=None, on_backoff=backoff_handler)
+@backoff.on_exception(backoff.constant, (PrivateHistoryError, MaintenanceError), max_tries=1, logger=None)
+@backoff.on_exception(
+    backoff.expo, (PydestException, asyncio.TimeoutError, BucketFullException), logger=None, on_backoff=backoff_handler)
 async def execute_pydest(function, *args, **kwargs):
     retval = None
     log.debug(f"{function} {args} {kwargs}")
-    data = await function(*args, **kwargs)
+
+    async with config.destiny_api_limiter.ratelimit('destiny_api', delay=True):
+        data = await function(*args, **kwargs)
+
     log.debug(f"{function} {args} {kwargs} - {data}")
 
     try:
@@ -45,16 +52,21 @@ async def execute_pydest(function, *args, **kwargs):
             res = DestinyTokenResponse.from_dict(data)
         except KeyError:
             res = DestinyTokenErrorResponse.from_dict(data)
+        except Exception:
+            raise RuntimeError(f"Cannot parse Destiny API response {data}")
     else:
         if res.error_status != 'Success':
-            log.error(f"Error running {function} {args} {kwargs} - {res}")
             # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
             if res.error_status == 'SystemDisabled':
                 raise MaintenanceError
-            elif res.error_status == 'PerEndpointRequestThrottleExceeded':
+            elif res.error_status in ['PerEndpointRequestThrottleExceeded', 'DestinyDirectBabelClientTimeout']:
                 raise PydestException
             elif res.error_status == 'DestinyPrivacyRestriction':
                 raise PrivateHistoryError
+            else:
+                log.error(f"Error running {function} {args} {kwargs} - {res}")
+                if res.error_status in ['DestinyAccountNotFound']:
+                    raise PydestException
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")
     return retval
