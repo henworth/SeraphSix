@@ -1,6 +1,8 @@
+import re
+
 from functools import reduce
 from seraphsix.cogs.utils.helpers import merge_dicts, sort_dict
-from seraphsix.constants import THE100_GAME_SORT_RULES
+from seraphsix.constants import THE100_TOP_LEVEL_ACTIVITIES
 
 
 def collate_the100_activities(activities, game_name):
@@ -12,13 +14,11 @@ def collate_the100_activities(activities, game_name):
         val = activity['id']
         game_activities_by_id[val] = key
 
-        # Sanitize the game names to ensure merging works correctly, raids require 'Fresh' to be appended,
-        # other things require 'Normal', and one requires 'Anything'
-        if key in THE100_GAME_SORT_RULES[game_name]['fresh']:
+        # Sanitize the game names to ensure merging works correctly.
+        # Raids require 'Fresh' to be appended and Quests requires 'Anything'
+        if re.match(r'^Raid - [\w\ ]+$', key):
             key = f"{key} - Fresh"
-        elif key in THE100_GAME_SORT_RULES[game_name]['normal']:
-            key = f"{key} - Normal"
-        elif key in THE100_GAME_SORT_RULES[game_name]['anything']:
+        elif key == 'Quest':
             key = f"{key} - Anything"
         game_activities.append({key: val})
 
@@ -40,7 +40,7 @@ def collate_the100_activities(activities, game_name):
 
     # Sort the contents of the above into a new dict
     game_activities_merged = {}
-    for key in ['Raid', 'Crucible', 'Gambit', 'Strike', 'Quest']:
+    for key in THE100_TOP_LEVEL_ACTIVITIES:
         unsorted = game_activities_dict.pop(key)
         try:
             game_activities_merged[key] = sort_dict(unsorted)

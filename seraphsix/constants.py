@@ -271,25 +271,20 @@ TWITTER_FOLLOW_USERS = [TWITTER_DESTINY_REDDIT, TWITTER_XBOX_SUPPORT]
 THE100_GAME_SORT_RULES = {
     'Destiny 2': {
         'fresh': [
-            'Raid - Garden of Salvation'
-            'Raid - Crown of Sorrow',
-            'Raid - Leviathan - Prestige',
-            'Raid - Scourge of the Past',
-            'Raid - Leviathan - Normal',
-            'Raid - Last Wish'
-        ],
-        'normal': [
-            'Blind Well',
-            'Escalation Protocol',
-            'Quest - Outbreak Perfected',
-            'Strike - Nightfall'
+            'Raid - Garden of Salvation',
+            'Raid - Last Wish',
+            'Raid - Deep Stone Crypt',
+            'Raid - Vault of Glass'
         ],
         'anything': [
             'Quest'
         ]
     }
 }
-
+THE100_TOP_LEVEL_ACTIVITIES = [
+    'Raid', 'Crucible', 'Gambit', 'Strike', 'Quest', 'Dungeon',
+    'Hunt', 'Lost Sectors', 'Story Missions'
+]
 THE100_DATE_DISPLAY = '%m-%d %a %I:%M %p %Z'
 THE100_DATE_CREATE = '%m/%d %I:%M%p'
 THE100_LOGO_URL = ('https://www.the100.io/assets/the-100-logo-'
