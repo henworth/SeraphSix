@@ -164,6 +164,27 @@ class ServerCog(commands.Cog, name="Server"):
         return await manager.send_and_clean(message)
 
     @server.command()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def setchanneladmin(self, ctx, channel_id: int):
+        """Set the channel for admin notifications (Manage Server only)"""
+        manager = MessageManager(ctx)
+
+        if not channel_id:
+            message = "Channel ID must be provided"
+        else:
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                message = f"Channel ID {channel_id} not found"
+            else:
+                guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+                guild_db.admin_channel = channel_id
+                await self.bot.database.update(guild_db)
+                message = f"Channel for Admin Notifications set to {str(channel)} ({channel_id})"
+
+        return await manager.send_and_clean(message)
+
+    @server.command()
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)

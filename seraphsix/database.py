@@ -52,6 +52,7 @@ class Guild(BaseModel):
     clear_spam = BooleanField(default=False)
     aggregate_clans = BooleanField(default=True)
     track_sherpas = BooleanField(default=False)
+    admin_channel = BigIntegerField(unique=True, null=True)
 
 
 class Clan(BaseModel):
@@ -89,6 +90,8 @@ class Member(BaseModel):
     timezone = CharField(null=True)
     bungie_access_token = CharField(max_length=360, unique=True, null=True)
     bungie_refresh_token = CharField(max_length=360, unique=True, null=True)
+    is_cross_save = BooleanField(default=False)
+    primary_membership_id = BigIntegerField(unique=True, null=True)
 
     class Meta:
         indexes = (
@@ -124,6 +127,13 @@ class ClanMember(BaseModel):
             f"{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})"
         )]
     )
+
+
+class ClanMemberApplication(BaseModel):
+    guild = ForeignKeyField(Guild)
+    member = ForeignKeyField(Member)
+    approved = BooleanField(default=False)
+    approved_by = ForeignKeyField(Member, null=True)
 
 
 class Game(BaseModel):
@@ -218,6 +228,7 @@ class Database(object):
         GameMember.create_table(True)
         TwitterChannel.create_table(True)
         Role.create_table(True)
+        ClanMemberApplication.create_table(True)
 
     @reconnect
     async def create(self, model, **data):

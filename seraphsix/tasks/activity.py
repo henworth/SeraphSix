@@ -66,10 +66,11 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
     return all_activities
 
 
-async def get_last_active(ctx, member_db):
+async def get_last_active(ctx, member_db=None, platform_id=None, member_id=None):
     acct_last_active = None
-    platform_id = member_db.platform_id
-    member_id, _ = parse_platform(member_db.member, platform_id)
+    if member_db and not platform_id and not member_id:
+        platform_id = member_db.platform_id
+        member_id, _ = parse_platform(member_db.member, platform_id)
 
     profile = await execute_pydest(
         ctx['destiny'].api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES])

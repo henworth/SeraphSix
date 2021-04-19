@@ -148,7 +148,7 @@ class SeraphSix(commands.Bot):
     async def track_tweets(self):
         stream = self.twitter.stream.statuses.filter.post(follow=constants.TWITTER_FOLLOW_USERS)
         async for tweet in stream:
-            if peony.events.tweet(tweet):
+            if peony.events.tweet(tweet) and not peony.events.retweet(tweet):
                 if tweet.in_reply_to_status_id:
                     continue
                 # For some reason non-followed users sometimes sneak into the stream
