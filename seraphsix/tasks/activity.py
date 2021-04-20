@@ -46,8 +46,7 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 async def get_pgcr(ctx, activity_id):
     destiny = ctx['destiny']
     data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id)
-    if data.response:
-        return data.response
+    return data.response
 
 
 async def decode_activity(ctx, reference_id):

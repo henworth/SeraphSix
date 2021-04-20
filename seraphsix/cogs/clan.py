@@ -94,7 +94,7 @@ class ClanCog(commands.Cog, name="Clan"):
                 log.error(f"{log_message}\n\n{e}\n\n{player}")
                 raise InvalidCommandError(log_message)
 
-            for membership in player['destinyMemberships']:
+            for membership in player.response['destinyMemberships']:
                 if membership['membershipType'] != constants.PLATFORM_BUNGIE:
                     membership_id = membership['membershipId']
                     platform_id = membership['membershipType']
@@ -245,8 +245,15 @@ class ClanCog(commands.Cog, name="Clan"):
         else:
             for clan_db in clan_dbs:
                 group = await execute_pydest(self.bot.destiny.api.get_group, clan_db.clan_id)
-                if group.response:
+                if not group.response:
+                    log.error(
+                        f"Could not get details for clan {clan_db.name} ({clan_db.clan_id}) - "
+                        f"{group.error_status} {group.error_description}"
+                    )
+                    return await manager.send_and_clean(f"Clan {clan_db.name} not found", mention=False)
+                else:
                     group = group.response
+
                 embed = discord.Embed(
                     colour=constants.BLUE,
                     title=group['detail']['motto'],
