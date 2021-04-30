@@ -21,11 +21,13 @@ from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError,
     NotRegisteredError, ConfigurationError, MissingTimezoneError, MaintenanceError)
 from seraphsix.tasks.core import create_redis_jobs_pool
+from seraphsix.tasks.clan import ack_clan_application
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
 
 log = logging.getLogger(__name__)
 intents = discord.Intents.default()
 intents.members = True
+intents.reactions = True
 
 STARTUP_EXTENSIONS = [
     'seraphsix.cogs.clan', 'seraphsix.cogs.game', 'seraphsix.cogs.member',
@@ -148,7 +150,7 @@ class SeraphSix(commands.Bot):
     async def track_tweets(self):
         stream = self.twitter.stream.statuses.filter.post(follow=constants.TWITTER_FOLLOW_USERS)
         async for tweet in stream:
-            if peony.events.tweet(tweet):
+            if peony.events.tweet(tweet) and not peony.events.retweet(tweet):
                 if tweet.in_reply_to_status_id:
                     continue
                 # For some reason non-followed users sometimes sneak into the stream
@@ -159,7 +161,7 @@ class SeraphSix(commands.Bot):
     async def connect_redis(self):
         self.redis = await aioredis.create_redis_pool(self.config.redis_url)
         self.ext_conns['redis_cache'] = self.redis
-        self.ext_conns['redis_jobs'] = await create_redis_jobs_pool(self.config.arq_redis)
+        self.ext_conns['redis_jobs'] = await create_redis_jobs_pool()
 
     @tasks.loop(hours=1.0)
     async def cache_clan_members(self):
@@ -183,6 +185,13 @@ class SeraphSix(commands.Bot):
         await self.connect_redis()
 
     async def on_ready(self):
+        guilds = await self.ext_conns['database'].execute(Guild.select())
+        if not guilds:
+            return
+        self.guild_map = {}
+        for guild in guilds:
+            self.guild_map[guild.guild_id] = guild
+
         self.log_channel = self.get_channel(self.config.log_channel)
         self.reg_channel = self.get_channel(self.config.reg_channel)
 
@@ -202,6 +211,11 @@ class SeraphSix(commands.Bot):
     async def on_member_update(self, before, after):
         if not before.bot:
             await update_sherpa(self, before, after)
+
+    async def on_raw_reaction_add(self, payload):
+        if payload.channel_id == self.guild_map[payload.guild_id].admin_channel and \
+                payload.emoji.name in [constants.EMOJI_CHECKMARK, constants.EMOJI_CROSSMARK]:
+            await ack_clan_application(self, payload)
 
     async def on_guild_join(self, guild):
         await self.log_channel.send(f"Seraph Six joined {guild.name} (id:{guild.id})!")

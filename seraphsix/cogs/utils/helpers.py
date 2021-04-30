@@ -1,8 +1,11 @@
+import asyncio
 import pytz
 
 from collections import OrderedDict
 from datetime import datetime
+from peewee import DoesNotExist
 from seraphsix.constants import DESTINY_DATE_FORMAT, DESTINY_DATE_FORMAT_MS, DATE_FORMAT, DATE_FORMAT_TZ
+from seraphsix.database import Member, ClanMember, Clan, Guild
 
 
 def merge_dicts(a, b, path=None):
@@ -86,3 +89,19 @@ def get_timezone_name(timezone, country_code):
                 set_zones.add(name)
 
     return set_zones
+
+
+async def get_requestor(ctx):
+    requestor_query = ctx.bot.database.get(
+        Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
+            Guild.guild_id == ctx.guild.id,
+            Member.discord_id == ctx.author.id
+        )
+    )
+
+    try:
+        requestor_db = await asyncio.create_task(requestor_query)
+    except DoesNotExist:
+        requestor_db = None
+
+    return requestor_db

@@ -51,27 +51,36 @@ class MessageManager:
             return message.author.dm_channel == self.ctx.author.dm_channel
         return await self.ctx.bot.wait_for('message', check=is_private_message, timeout=120)
 
-    async def send_embed(self, embed, content=None, clean=False):
+    async def send_embed(self, embed, content=None, clean=False, channel_id=None):
         """Send an embed message to the user on ctx.channel"""
         if is_private_channel(self.ctx.channel):
-            msg = await self.send_private_embed(embed, content)
+            return await self.send_private_embed(embed, content)
+        elif channel_id:
+            channel = self.ctx.bot.get_channel(channel_id)
         else:
-            msg = await self.ctx.channel.send(embed=embed, content=content)
-            if clean:
-                self.messages_to_clean.append(msg)
+            channel = self.ctx.channel
+
+        msg = await channel.send(embed=embed, content=content)
+        if clean:
+            self.messages_to_clean.append(msg)
         return msg
 
-    async def send_message(self, message_text, mention=True, clean=True):
+    async def send_message(self, message_text, mention=True, clean=True, channel_id=None):
         """Send a message to the user on ctx.channel"""
         if is_private_channel(self.ctx.channel):
-            msg = await self.send_private_message(message_text)
+            return await self.send_private_message(message_text)
+        elif channel_id:
+            channel = self.ctx.bot.get_channel(channel_id)
         else:
-            if mention:
-                msg = await self.ctx.channel.send(f"{self.ctx.author.mention}: {message_text}")
-            else:
-                msg = await self.ctx.channel.send(message_text)
-            if clean:
-                self.messages_to_clean.append(msg)
+            channel = self.ctx.channel
+
+        if mention:
+            msg = await channel.send(f"{self.ctx.author.mention}: {message_text}")
+        else:
+            msg = await channel.send(message_text)
+
+        if clean:
+            self.messages_to_clean.append(msg)
         return msg
 
     async def send_and_get_response(self, message_text, clean=True):
