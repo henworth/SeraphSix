@@ -6,6 +6,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Member as MemberDb, ClanMember, Clan, ClanMemberApplication
 from seraphsix.errors import InvalidAdminError
+from seraphsix.models.destiny import Member
 from seraphsix.tasks.core import execute_pydest, execute_pydest_auth, set_cached_members, get_primary_membership
 
 log = logging.getLogger(__name__)
@@ -168,9 +169,9 @@ async def info_sync(ctx, guild_id):
 
     clan_changes = {}
     for clan_db in clan_dbs:
-        group = await execute_pydest(ctx['destiny'].api.get_group, clan_db.clan_id, return_type=DestinyGroupResponse)
-        bungie_name = group.response.detail.name
-        bungie_callsign = group.response.detail.clan_info.clan_callsign
+        group = await execute_pydest(bot.destiny.api.get_group, clan_db.clan_id)
+        bungie_name = group.response['detail']['name']
+        bungie_callsign = group.response['detail']['clanInfo']['clanCallsign']
         original_name = clan_db.name
         original_callsign = clan_db.callsign
 

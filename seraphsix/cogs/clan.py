@@ -145,14 +145,13 @@ class ClanCog(commands.Cog, name="Clan"):
         group_id = None
         group_name = None
         groups_info = await execute_pydest(
-            self.bot.destiny.api.get_groups_for_member, platform_id, membership_id,
-            return_type=DestinyMemberGroupResponse
+            self.bot.destiny.api.get_groups_for_member, platform_id, membership_id
         )
-        if len(groups_info.response.results) > 0:
-            for group in groups_info.response.results:
-                if group.member.destiny_user_info.membership_id == membership_id:
-                    group_id = group.group.group_id
-                    group_name = group.group.name
+        if len(groups_info.response['results']) > 0:
+            for group in groups_info.response['results']:
+                if group['member']['destinyUserInfo']['membershipId'] == membership_id:
+                    group_id = group['group']['groupId']
+                    group_name = group['group']['name']
 
         if group_id and group_name:
             group_url = f'https://www.bungie.net/en/ClanV2/Index?groupId={group_id}'
