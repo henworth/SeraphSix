@@ -1,7 +1,5 @@
-import asyncio
 import discord
 import logging
-import pickle
 
 from discord.ext import commands
 from peewee import DoesNotExist
@@ -9,70 +7,9 @@ from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Member, Role, Guild
 from seraphsix.models.destiny import User
-from seraphsix.tasks.activity import execute_pydest
+from seraphsix.tasks.core import execute_pydest, register
 
 log = logging.getLogger(__name__)
-
-
-async def register(manager, extra_message='', confirm_message=''):
-    ctx = manager.ctx
-
-    if not confirm_message:
-        confirm_message = "Registration Complete"
-
-    auth_url = (
-        f"https://{ctx.bot.config.destiny.redirect_host}/oauth?state={ctx.author.id}"
-    )
-
-    if not isinstance(ctx.channel, discord.abc.PrivateChannel):
-        await manager.send_message(
-            f"{extra_message} Registration instructions have been sent directly to {ctx.author}".strip(),
-            mention=False,
-            clean=False
-        )
-
-    # Prompt user with link to Bungie.net OAuth authentication
-    e = discord.Embed(colour=constants.BLUE)
-    e.title = "Click Here to Register"
-    e.url = auth_url
-    e.description = (
-        "Click the above link to register your Bungie.net account with Seraph Six. "
-        "Registering will allow Seraph Six to access your connected Destiny 2"
-        "accounts. At no point will Seraph Six have access to your password."
-    )
-    registration_msg = await manager.send_private_embed(e)
-
-    # Wait for user info from the web server via Redis
-    res = await ctx.bot.ext_conns['redis_cache'].subscribe(ctx.author.id)
-
-    tsk = asyncio.create_task(wait_for_msg(res[0]))
-    try:
-        user_info = await asyncio.wait_for(tsk, timeout=constants.TIME_MIN_SECONDS)
-    except asyncio.TimeoutError:
-        log.debug(f"Timed out waiting for {str(ctx.author)} ({ctx.author.id}) to register")
-        await manager.send_private_message("I'm not sure where you went. We can try this again later.")
-        await registration_msg.delete()
-        await manager.clean_messages()
-        await ctx.bot.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
-        return (None, None)
-    await ctx.author.dm_channel.trigger_typing()
-
-    # Send confirmation of successful registration
-    e = discord.Embed(
-        colour=constants.BLUE,
-        title=confirm_message
-    )
-    embed = await manager.send_private_embed(e)
-    await ctx.bot.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
-
-    return embed, user_info
-
-
-async def wait_for_msg(ch):
-    """Wait for a message on the specified Redis channel"""
-    while (await ch.wait_message()):
-        pickled_msg = await ch.get()
-        return pickle.loads(pickled_msg)
 
 
 class RegisterCog(commands.Cog, name="Register"):

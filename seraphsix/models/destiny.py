@@ -65,6 +65,8 @@ class User(object):
     def __init__(self, details):
         self.memberships = self.Memberships()
         self.primary_membership_id = details.get('primaryMembershipId')
+        self.is_cross_save = self.primary_membership_id is not None
+        # self.avatar = details.get('profilePicturePath')  # TODO
 
         if details.get('destinyUserInfo'):
             self._process_membership(details['destinyUserInfo'])
@@ -108,7 +110,9 @@ class User(object):
             steam_id=self.memberships.steam.id,
             steam_username=self.memberships.steam.username,
             stadia_id=self.memberships.stadia.id,
-            stadia_username=self.memberships.stadia.username
+            stadia_username=self.memberships.stadia.username,
+            primary_membership_id=self.primary_membership_id,
+            is_cross_save=self.is_cross_save
         )
 
 

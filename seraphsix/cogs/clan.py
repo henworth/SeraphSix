@@ -11,15 +11,14 @@ from discord.ext.commands.errors import BadArgument
 from peewee import DoesNotExist
 
 from seraphsix import constants
-from seraphsix.cogs.register import register
-from seraphsix.cogs.utils.checks import is_clan_admin, is_valid_game_mode, clan_is_linked
-from seraphsix.cogs.utils.helpers import destiny_date_as_utc, date_as_string
+from seraphsix.cogs.utils.checks import is_clan_admin, is_valid_game_mode, is_registered, clan_is_linked
+from seraphsix.cogs.utils.helpers import destiny_date_as_utc, date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
-from seraphsix.database import Member, ClanMember, Clan, Guild
+from seraphsix.database import Member, ClanMember, Clan, Guild, ClanMemberApplication
 from seraphsix.errors import InvalidAdminError, InvalidCommandError
-from seraphsix.tasks.activity import get_game_counts
-from seraphsix.tasks.core import execute_pydest
+from seraphsix.tasks.activity import get_game_counts, get_last_active
+from seraphsix.tasks.core import execute_pydest, get_primary_membership, execute_pydest_auth
 from seraphsix.tasks.clan import info_sync, member_sync
 
 log = logging.getLogger(__name__)
@@ -94,7 +93,7 @@ class ClanCog(commands.Cog, name="Clan"):
                 log.error(f"{log_message}\n\n{e}\n\n{player}")
                 raise InvalidCommandError(log_message)
 
-            for membership in player['destinyMemberships']:
+            for membership in player.response['destinyMemberships']:
                 if membership['membershipType'] != constants.PLATFORM_BUNGIE:
                     membership_id = membership['membershipId']
                     platform_id = membership['membershipType']
@@ -135,19 +134,60 @@ class ClanCog(commands.Cog, name="Clan"):
                         break
         return membership_id, platform_id
 
-    async def refresh_admin_tokens(self, manager, admin_db):
-        tokens = await execute_pydest(
-            self.bot.destiny.api.refresh_oauth_token, admin_db.bungie_refresh_token
+    async def create_application_embed(self, ctx, requestor_db, guild_db):
+        redis_cache = self.bot.ext_conns['redis_cache']
+
+        if requestor_db.bungie_username:
+            membership_name = requestor_db.bungie_username
+
+        platform_id, membership_id, _ = get_primary_membership(requestor_db)
+
+        group_id = None
+        group_name = None
+        groups_info = await execute_pydest(
+            self.bot.destiny.api.get_groups_for_member, platform_id, membership_id
+        )
+        if len(groups_info.response['results']) > 0:
+            for group in groups_info.response['results']:
+                if group['member']['destinyUserInfo']['membershipId'] == membership_id:
+                    group_id = group['group']['groupId']
+                    group_name = group['group']['name']
+
+        if group_id and group_name:
+            group_url = f'https://www.bungie.net/en/ClanV2/Index?groupId={group_id}'
+            group_link = f'[{group_name}]({group_url})'
+        else:
+            group_link = 'None'
+
+        last_active = await get_last_active(self.bot.ext_conns, platform_id=platform_id, member_id=membership_id)
+
+        embed = discord.Embed(
+            colour=constants.BLUE,
+            title=f"Clan Application for {ctx.author.nick}"
         )
 
-        if tokens.error:
-            log.warning(f"{tokens.error_description} Registration is needed")
-            user_info = await register(manager, "Your registration token has expired and re-registration is needed.")
-            if not user_info:
-                raise InvalidCommandError("I'm not sure where you went. We can try this again later.")
-            tokens = {token: user_info.get(token) for token in [tokens.access_token, tokens.refresh_token]}
+        bungie_url = f"https://www.bungie.net/en/Profile/{platform_id}/{membership_id}"
+        bungie_link = f"[{membership_name}]({bungie_url})"
 
-        return tokens
+        if requestor_db.discord_id:
+            member_discord = await commands.MemberConverter().convert(ctx, str(requestor_db.discord_id))
+            discord_username = str(member_discord)
+
+        embed.add_field(name="Last Active Date", value=date_as_string(last_active))
+        embed.add_field(name="Bungie Username", value=bungie_link)
+        embed.add_field(name="Current Clan", value=group_link)
+        embed.add_field(name="Xbox Gamertag", value=requestor_db.xbox_username)
+        embed.add_field(name="PSN Username", value=requestor_db.psn_username)
+        embed.add_field(name="Steam Username", value=requestor_db.steam_username)
+        embed.add_field(name="Stadia Username", value=requestor_db.stadia_username)
+        embed.add_field(name="Discord Username", value=discord_username)
+        embed.set_footer(text="All times shown in UTC")
+        embed.set_thumbnail(url=str(ctx.author.avatar_url))
+
+        # application = msgpack.packb(embed, default=encode_datetime)
+        await redis_cache.set(
+            f'{ctx.guild.id}-clan-application-{requestor_db.id}', pickle.dumps(embed))
+        return embed
 
     @commands.group()
     async def clan(self, ctx):
@@ -245,8 +285,15 @@ class ClanCog(commands.Cog, name="Clan"):
         else:
             for clan_db in clan_dbs:
                 group = await execute_pydest(self.bot.destiny.api.get_group, clan_db.clan_id)
-                if group.response:
+                if not group.response:
+                    log.error(
+                        f"Could not get details for clan {clan_db.name} ({clan_db.clan_id}) - "
+                        f"{group.error_status} {group.error_description}"
+                    )
+                    return await manager.send_and_clean(f"Clan {clan_db.name} not found", mention=False)
+                else:
                     group = group.response
+
                 embed = discord.Embed(
                     colour=constants.BLUE,
                     title=group['detail']['motto'],
@@ -339,22 +386,14 @@ class ClanCog(commands.Cog, name="Clan"):
         admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        try:
-            members = await execute_pydest(
-                self.bot.destiny.api.get_group_pending_members,
-                clan_db.clan_id,
-                access_token=admin_db.bungie_access_token
-            )
-        except pydest.PydestTokenException:
-            tokens = await self.refresh_admin_tokens(manager, admin_db)
-            members = await execute_pydest(
-                self.bot.destiny.api.get_group_pending_members,
-                clan_db.clan_id,
-                access_token=tokens.access_token
-            )
-            admin_db.bungie_access_token = tokens.access_token
-            admin_db.bungie_refresh_token = tokens.refresh_token
-            await self.bot.database.update(admin_db)
+        members = await execute_pydest_auth(
+            self.bot.ext_conns,
+            self.bot.destiny.api.get_group_pending_members,
+            admin_db,
+            manager,
+            group_id=clan_db.clan_id,
+            access_token=admin_db.bungie_access_token
+        )
 
         embed = discord.Embed(
             colour=constants.BLUE,
@@ -414,32 +453,17 @@ Examples:
 
         membership_id, platform_id = await self.get_bungie_details(username, bungie_id, platform_id)
 
-        res = None
-        try:
-            res = await execute_pydest(
-                self.bot.destiny.api.group_approve_pending_member,
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Welcome to {clan_db.name}!",
-                access_token=admin_db.bungie_access_token
-            )
-        except pydest.PydestTokenException:
-            tokens = await self.refresh_admin_tokens(manager, admin_db)
-            res = await execute_pydest(
-                self.bot.destiny.api.group_approve_pending_member,
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Welcome to {clan_db.name}!",
-                access_token=tokens.access_token
-            )
-            admin_db.bungie_access_token = tokens.access_token
-            admin_db.bungie_refresh_token = tokens.refresh_token
-            await self.bot.database.update(admin_db)
-
-        if not res:
-            raise RuntimeError("Unexpected empty response from the Destiny API")
+        res = await execute_pydest_auth(
+            self.bot.ext_conns,
+            self.bot.destiny.api.group_approve_pending_member,
+            admin_db,
+            manager,
+            group_id=clan_db.clan_id,
+            membership_type=platform_id,
+            membership_id=membership_id,
+            message=f"Welcome to {clan_db.name}!",
+            access_token=admin_db.bungie_access_token
+        )
 
         if res.error_status != 'Success':
             message = f"Could not approve **{username}**"
@@ -460,22 +484,14 @@ Examples:
         admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
         clan_db = await self.get_admin_group(ctx)
 
-        try:
-            members = await execute_pydest(
-                self.bot.destiny.api.get_group_invited_members,
-                clan_db.clan_id,
-                access_token=admin_db.bungie_access_token
-            )
-        except pydest.PydestTokenException:
-            tokens = await self.refresh_admin_tokens(manager, admin_db)
-            members = await execute_pydest(
-                self.bot.destiny.api.get_group_invited_members,
-                clan_db.clan_id,
-                access_token=tokens.access_token
-            )
-            admin_db.bungie_access_token = tokens.access_token
-            admin_db.bungie_refresh_token = tokens.refresh_token
-            await self.bot.database.update(admin_db)
+        members = await execute_pydest_auth(
+            self.bot.ext_conns,
+            self.bot.destiny.api.get_group_invited_members,
+            admin_db,
+            manager,
+            group_id=clan_db.clan_id,
+            access_token=admin_db.bungie_access_token
+        )
 
         embed = discord.Embed(
             colour=constants.BLUE,
@@ -535,32 +551,17 @@ Examples:
 
         membership_id, platform_id = await self.get_bungie_details(username, bungie_id, platform_id)
 
-        res = None
-        try:
-            res = await execute_pydest(
-                self.bot.destiny.api.group_invite_member,
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Join my clan {clan_db.name}!",
-                access_token=admin_db.bungie_access_token
-            )
-        except pydest.PydestTokenException:
-            tokens = await self.refresh_admin_tokens(manager, admin_db)
-            res = await execute_pydest(
-                self.bot.destiny.api.group_invite_member,
-                group_id=clan_db.clan_id,
-                membership_type=platform_id,
-                membership_id=membership_id,
-                message=f"Join my clan {clan_db.name}!",
-                access_token=tokens.access_token
-            )
-            admin_db.bungie_access_token = tokens.access_token
-            admin_db.bungie_refresh_token = tokens.refresh_token
-            await self.bot.database.update(admin_db)
-
-        if not res:
-            raise RuntimeError("Unexpected empty response from the Destiny API")
+        res = await execute_pydest_auth(
+            self.bot.ext_conns,
+            self.bot.destiny.api.group_invite_member,
+            admin_db,
+            manager,
+            group_id=clan_db.clan_id,
+            membership_type=platform_id,
+            membership_id=membership_id,
+            message=f"Join my clan {clan_db.name}!",
+            access_token=admin_db.bungie_access_token
+        )
 
         if res.error_status == 'ClanTargetDisallowsInvites':
             message = f"User **{username}** has disabled clan invites"
@@ -580,8 +581,8 @@ Examples:
         """Sync member list with Destiny (Admin only)"""
         manager = MessageManager(ctx)
 
-        member_changes = await member_sync(self.bot, ctx.guild.id, str(ctx.guild))
-        clan_info_changes = await info_sync(self.bot, ctx.guild.id)
+        member_changes = await member_sync(self.bot.ext_conns, ctx.guild.id, str(ctx.guild))
+        clan_info_changes = await info_sync(self.bot.ext_conns, ctx.guild.id)
 
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
         embeds = []
@@ -651,6 +652,73 @@ Examples:
             await paginator.paginate()
         else:
             return await manager.send_embed(embeds[0])
+
+    @clan.command()
+    @is_registered()
+    @clan_is_linked()
+    @commands.guild_only()
+    async def apply(self, ctx):
+        """Apply to be a member of the linked clan"""
+        manager = MessageManager(ctx)
+        requestor_db = await get_requestor(ctx)
+        guild_db = await self.bot.ext_conns['database'].get(Guild, guild_id=ctx.guild.id)
+
+        try:
+            clan_app_db = await self.bot.ext_conns['database'].get(
+                ClanMemberApplication, guild_id=guild_db.id, member_id=requestor_db.id
+            )
+        except DoesNotExist:
+            embed = await self.create_application_embed(ctx, requestor_db, guild_db)
+            application_embed = await manager.send_embed(embed, channel_id=guild_db.admin_channel)
+
+            data = {
+                'guild': guild_db.id,
+                'member': requestor_db.id,
+                'message_id': application_embed.id,
+                'approved': False
+            }
+            await self.bot.ext_conns['database'].create(ClanMemberApplication, **data)
+
+            await manager.send_and_clean("Your application has been submitted for admin approval.")
+        else:
+            if not clan_app_db.approved:
+                message = "Your application is still pending for admin approval."
+            else:
+                message = "Your application has been approved!"
+            return await manager.send_and_clean(message)
+
+    @clan.command()
+    @is_clan_admin()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def applied(self, ctx):
+        redis_cache = self.bot.ext_conns['redis_cache']
+        manager = MessageManager(ctx)
+
+        admin_channel = self.bot.get_channel(self.bot.guild_map[ctx.guild.id].admin_channel)
+
+        cursor = b'0'
+        while cursor:
+            cursor, keys = await redis_cache.scan(cursor, match=f'{ctx.guild.id}-clan-application-*')
+
+        if len(keys) > 0:
+            for key in keys:
+                embed_packed = await redis_cache.get(key)
+                member_db_id = key.decode('utf-8').split('-')[-1]
+                query = ClanMemberApplication.select().join(Member).where(
+                    Member.id == member_db_id
+                )
+                application_db = await self.bot.ext_conns['database'].get(query)
+                previous_message_id = application_db.message_id
+
+                previous_message = await admin_channel.fetch_message(previous_message_id)
+                await previous_message.delete()
+
+                new_message = await manager.send_embed(pickle.loads(embed_packed))
+                application_db.message_id = new_message.id
+                await self.bot.ext_conns['database'].update(application_db)
+        else:
+            await manager.send_and_clean("No applications found.")
 
     @clan.command(
         usage=f"<{', '.join(constants.SUPPORTED_GAME_MODES.keys())}>"
