@@ -250,6 +250,9 @@ async def process_activity(ctx, activity, guild_id, guild_name):
     game = GameApi(activity)
     clan_members = await get_cached_members(ctx, guild_id, guild_name)
 
+    clan_dbs = await database.get_clans_by_guild(guild_id)
+    clan_ids = [clan.id for clan in clan_dbs]
+
     member_dbs = []
     for member in clan_members:
         member_dbs.append(dict_to_model(ClanMember, member))
@@ -262,7 +265,7 @@ async def process_activity(ctx, activity, guild_id, guild_name):
         pgcr = await get_pgcr(ctx, game.instance_id)
         clan_game = ClanGame(pgcr, member_dbs)
         api_players_db = [
-            await database.get_clan_member_by_platform(player.membership_id, player.membership_type, 1)
+            await database.get_clan_member_by_platform(player.membership_id, player.membership_type, clan_ids)
             for player in clan_game.clan_players
         ]
 

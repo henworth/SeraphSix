@@ -134,6 +134,7 @@ class ClanMemberApplication(BaseModel):
     member = ForeignKeyField(Member)
     approved = BooleanField(default=False)
     approved_by = ForeignKeyField(Member, null=True)
+    message_id = BigIntegerField(unique=True)
 
 
 class Game(BaseModel):
@@ -368,30 +369,30 @@ class Database(object):
             )
         return await self.execute(query)
 
-    async def get_clan_member_by_platform(self, member_id, platform_id, clan_id):
+    async def get_clan_member_by_platform(self, member_id, platform_id, clan_ids):
         if platform_id == constants.PLATFORM_PSN:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.psn_id == member_id
             )
         elif platform_id == constants.PLATFORM_XBOX:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.xbox_id == member_id
             )
         elif platform_id == constants.PLATFORM_BLIZZARD:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.blizzard_id == member_id
             )
         elif platform_id == constants.PLATFORM_STEAM:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.steam_id == member_id
             )
         elif platform_id == constants.PLATFORM_STADIA:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.stadia_id == member_id
             )
         return await self.get(query)
