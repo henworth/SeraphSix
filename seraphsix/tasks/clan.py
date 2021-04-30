@@ -169,7 +169,7 @@ async def info_sync(ctx, guild_id):
 
     clan_changes = {}
     for clan_db in clan_dbs:
-        group = await execute_pydest(bot.destiny.api.get_group, clan_db.clan_id)
+        group = await execute_pydest(ctx['destiny'].api.get_group, clan_db.clan_id)
         bungie_name = group.response['detail']['name']
         bungie_callsign = group.response['detail']['clanInfo']['clanCallsign']
         original_name = clan_db.name
