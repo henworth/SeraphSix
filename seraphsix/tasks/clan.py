@@ -208,11 +208,11 @@ async def ack_clan_application(ctx, payload):
         raise InvalidAdminError
 
     try:
-    # pylama:ignore=E712
-    query = ClanMemberApplication.select().join(MemberDb).where(
-        (ClanMemberApplication.message_id == message_id) & (ClanMemberApplication.approved == False)
-    )
-    application_db = await ctx.ext_conns['database'].get(query)
+        # pylama:ignore=E712
+        query = ClanMemberApplication.select().join(MemberDb).where(
+            (ClanMemberApplication.message_id == message_id) & (ClanMemberApplication.approved == False)
+        )
+        application_db = await ctx.ext_conns['database'].get(query)
     except DoesNotExist:
         return
 
@@ -233,30 +233,30 @@ async def ack_clan_application(ctx, payload):
         f"Your application to join {approver_db.clanmember.clan.name} has been {ack_message}.")
 
     if is_approved:
-    admin_context = await ctx.get_context(admin_message)
-    manager = MessageManager(admin_context)
+        admin_context = await ctx.get_context(admin_message)
+        manager = MessageManager(admin_context)
 
-    platform_id, membership_id, username = get_primary_membership(application_db.member)
+        platform_id, membership_id, username = get_primary_membership(application_db.member)
 
-    res = await execute_pydest_auth(
-        ctx.ext_conns,
-        ctx.ext_conns['destiny'].api.group_approve_pending_member,
-        approver_db,
-        manager,
-        group_id=approver_db.clanmember.clan.clan_id,
-        membership_type=platform_id,
-        membership_id=membership_id,
-        message=f"Join my clan {approver_db.clanmember.clan.name}!",
-        access_token=approver_db.bungie_access_token
-    )
+        res = await execute_pydest_auth(
+            ctx.ext_conns,
+            ctx.ext_conns['destiny'].api.group_approve_pending_member,
+            approver_db,
+            manager,
+            group_id=approver_db.clanmember.clan.clan_id,
+            membership_type=platform_id,
+            membership_id=membership_id,
+            message=f"Join my clan {approver_db.clanmember.clan.name}!",
+            access_token=approver_db.bungie_access_token
+        )
 
-    if res.error_status == 'ClanTargetDisallowsInvites':
-        message = f"User **{applicant_user.nick}** ({username}) has disabled clan invites"
-    elif res.error_status != 'Success':
-        message = f"Could not invite **{applicant_user.nick}** ({username})"
-        log.info(f"Could not invite '{applicant_user.nick}' ({username}): {res}")
-    else:
-        message = f"Invited **{applicant_user.nick}** ({username}) to clan **{approver_db.clanmember.clan.name}**"
+        if res.error_status == 'ClanTargetDisallowsInvites':
+            message = f"User **{applicant_user.nick}** ({username}) has disabled clan invites"
+        elif res.error_status != 'Success':
+            message = f"Could not invite **{applicant_user.nick}** ({username})"
+            log.info(f"Could not invite '{applicant_user.nick}' ({username}): {res}")
+        else:
+            message = f"Invited **{applicant_user.nick}** ({username}) to clan **{approver_db.clanmember.clan.name}**"
 
         await manager.send_message(message, mention=False, clean=False)
 
