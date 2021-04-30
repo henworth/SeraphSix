@@ -259,6 +259,7 @@ SUPPORTED_GAME_MODES = {
 
 DESTINY_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 DESTINY_DATE_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%f%z'
+DESTINY_DATE_FORMAT_API = '%Y-%m-%dT%H:%M:%SZ'
 FORSAKEN_RELEASE = datetime.strptime('2018-09-04T18:00:00Z', DESTINY_DATE_FORMAT).astimezone(tz=pytz.utc)
 SHADOWKEEP_RELEASE = datetime.strptime('2019-10-01T18:00:00Z', DESTINY_DATE_FORMAT).astimezone(tz=pytz.utc)
 BEYOND_LIGHT_RELEASE = datetime.strptime('2020-11-10T18:00:00Z', DESTINY_DATE_FORMAT).astimezone(tz=pytz.utc)

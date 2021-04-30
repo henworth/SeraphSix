@@ -5,11 +5,12 @@ import logging
 from peewee import DoesNotExist, fn
 from playhouse.shortcuts import dict_to_model
 from seraphsix import constants
-from seraphsix.cogs.utils.helpers import destiny_date_as_utc
 from seraphsix.database import ClanMember, Game, GameMember, Guild, Member
-from seraphsix.models.destiny import Game as GameApi, ClanGame
-from seraphsix.tasks.core import execute_pydest, get_cached_members
-from seraphsix.tasks.parsing import member_hash, member_hash_db, parse_platform
+from seraphsix.models.destiny import (
+    Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCR
+)
+from seraphsix.tasks.core import execute_pydest, get_cached_members, get_primary_membership
+from seraphsix.tasks.parsing import member_hash, member_hash_db
 
 log = logging.getLogger(__name__)
 
@@ -21,20 +22,25 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
     activities = []
 
     data = await execute_pydest(
-        destiny.api.get_activity_history, platform_id, member_id, char_id, count=count, page=page, mode=mode)
+        destiny.api.get_activity_history,
+        platform_id, member_id, char_id, count=count, page=page, mode=mode,
+        return_type=DestinyActivityResponse
+    )
     if data.response:
         if full_sync:
-            while 'activities' in data.response:
+            while data.response:
                 page += 1
                 if activities:
-                    activities.extend(data.response['activities'])
+                    activities.extend(data.response.activities)
                 else:
-                    activities = data.response['activities']
+                    activities = data.response.activities
                 data = await execute_pydest(
                     destiny.api.get_activity_history,
-                    platform_id, member_id, char_id, count=count, page=page, mode=mode)
+                    platform_id, member_id, char_id, count=count, page=page, mode=mode,
+                    return_type=DestinyActivityResponse
+                )
         else:
-            activities = data.response['activities']
+            activities = data.response.activities
             if len(activities) == count:
                 log.debug(
                     f'Activity count for {platform_id}-{member_id} ({char_id}) '
@@ -45,7 +51,7 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 
 async def get_pgcr(ctx, activity_id):
     destiny = ctx['destiny']
-    data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id)
+    data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id, return_type=DestinyPGCR)
     return data.response
 
 
@@ -58,7 +64,7 @@ async def decode_activity(ctx, reference_id):
 async def get_activity_list(ctx, platform_id, member_id, characters, count, full_sync=False, mode=0):
     tasks = [
         get_activity_history(ctx, platform_id, member_id, character, count, full_sync, mode)
-        for character in list(characters.keys())
+        for character in characters
     ]
     activities = await asyncio.gather(*tasks)
     all_activities = list(itertools.chain.from_iterable(activities))
@@ -68,15 +74,16 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
 async def get_last_active(ctx, member_db=None, platform_id=None, member_id=None):
     acct_last_active = None
     if member_db and not platform_id and not member_id:
-        platform_id = member_db.platform_id
-        member_id, _ = parse_platform(member_db.member, platform_id)
+        platform_id, member_id, _ = get_primary_membership(member_db)
 
     profile = await execute_pydest(
-        ctx['destiny'].api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES])
+        ctx['destiny'].api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES],
+        return_type=DestinyProfileResponse
+    )
     if not profile.response:
         log.error(f"Could not get character data for {platform_id}-{member_id}: {profile.message}")
     else:
-        acct_last_active = destiny_date_as_utc(profile.response['profile']['data']['dateLastPlayed'])
+        acct_last_active = profile.response.profile.data.date_last_played
         log.debug(f"Found last active date for {platform_id}-{member_id}: {acct_last_active}")
     return acct_last_active
 
@@ -224,13 +231,10 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
 
 
 async def get_member_activity(ctx, member_db, count=250, full_sync=False, mode=0):
-    platform_id = member_db.clanmember.platform_id
-    member_id, member_username = parse_platform(member_db, platform_id)
-
-    try:
-        characters = await get_characters(ctx, member_id, platform_id)
-    except (KeyError, TypeError):
-        log.error(f"Could not get character data for {platform_id}-{member_id}")
+    platform_id, member_id, _ = get_primary_membership(member_db)
+    characters = await get_characters(ctx, member_id, platform_id)
+    if not characters:
+        log.error(f"Could not get character data for {platform_id}-{member_id} - {characters}")
     else:
         return await get_activity_list(ctx, platform_id, member_id, characters, count, full_sync, mode)
 
@@ -238,10 +242,12 @@ async def get_member_activity(ctx, member_db, count=250, full_sync=False, mode=0
 async def get_characters(ctx, member_id, platform_id):
     destiny = ctx['destiny']
     retval = None
-    data = await execute_pydest(
-        destiny.api.get_profile, platform_id, member_id, [constants.COMPONENT_CHARACTERS])
-    if data.response:
-        retval = data.response['characters']['data']
+    profile = await execute_pydest(
+        destiny.api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES],
+        return_type=DestinyProfileResponse
+    )
+    if profile.response:
+        retval = profile.response.profile.data.character_ids
     return retval
 
 
@@ -323,7 +329,7 @@ async def store_member_history(ctx, member_db_id, guild_id, guild_name, full_syn
     activities = await get_member_activity(ctx, member_db, count, full_sync, mode)
 
     for activity in activities:
-        activity_id = activity['activityDetails']['instanceId']
+        activity_id = activity.activity_details.instance_id
         await redis_jobs.enqueue_job(
             'process_activity', activity, guild_id, guild_name, _job_id=f'process_activity-{activity_id}'
         )
