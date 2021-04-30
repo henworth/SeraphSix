@@ -12,11 +12,14 @@ from peewee import DoesNotExist
 
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_clan_admin, is_valid_game_mode, is_registered, clan_is_linked
-from seraphsix.cogs.utils.helpers import destiny_date_as_utc, date_as_string, get_requestor
+from seraphsix.cogs.utils.helpers import date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
 from seraphsix.database import Member, ClanMember, Clan, Guild, ClanMemberApplication
 from seraphsix.errors import InvalidAdminError, InvalidCommandError
+from seraphsix.models.destiny import (
+    DestinyMembershipResponse, DestinyMemberGroupResponse, DestinyGroupResponse, DestinyGroupPendingMembersResponse
+)
 from seraphsix.tasks.activity import get_game_counts, get_last_active
 from seraphsix.tasks.core import execute_pydest, get_primary_membership, execute_pydest_auth
 from seraphsix.tasks.clan import info_sync, member_sync
@@ -86,17 +89,18 @@ class ClanCog(commands.Cog, name="Clan"):
         if bungie_id:
             try:
                 player = await execute_pydest(
-                    self.bot.destiny.api.get_membership_data_by_id, bungie_id
+                    self.bot.destiny.api.get_membership_data_by_id, bungie_id,
+                    return_type=DestinyMembershipResponse
                 )
             except pydest.PydestException as e:
                 log_message = f"Could not find Destiny player for {username}"
                 log.error(f"{log_message}\n\n{e}\n\n{player}")
                 raise InvalidCommandError(log_message)
 
-            for membership in player.response['destinyMemberships']:
-                if membership['membershipType'] != constants.PLATFORM_BUNGIE:
-                    membership_id = membership['membershipId']
-                    platform_id = membership['membershipType']
+            for membership in player.response.destiny_memberships:
+                if membership.membership_type != constants.PLATFORM_BUNGIE:
+                    membership_id = membership.membership_id
+                    platform_id = membership.membership_type
                     break
         else:
             player = await execute_pydest(
@@ -109,28 +113,29 @@ class ClanCog(commands.Cog, name="Clan"):
 
             if len(player.response) == 1:
                 membership = player.response[0]
-                if membership['displayName'].lower() == username_lower and membership['membershipType'] == platform_id:
-                    membership_id = membership['membershipId']
-                    platform_id = membership['membershipType']
+                if membership.display_name.lower() == username_lower and membership.membership_type == platform_id:
+                    membership_id = membership.membership_id
+                    platform_id = membership.membership_type
                 else:
                     membership_orig = membership
                     profile = await execute_pydest(
-                        self.bot.destiny.api.get_membership_data_by_id, membership['membershipId']
+                        self.bot.destiny.api.get_membership_data_by_id, membership.membership_id,
+                        return_type=DestinyMembershipResponse
                     )
-                    for membership in profile.response['destinyMemberships']:
-                        if membership['displayName'].lower() == username_lower:
+                    for membership in profile.response.destiny_memberships:
+                        if membership.display_name.lower() == username_lower:
                             user_matches = True
                             break
                     if user_matches:
-                        membership_id = membership_orig['membershipId']
-                        platform_id = membership_orig['membershipType']
+                        membership_id = membership_orig.membership_id
+                        platform_id = membership_orig.membership_type
             else:
                 for membership in player.response:
-                    display_name = membership['displayName'].lower()
-                    membership_type = membership['membershipType']
+                    display_name = membership.display_name.lower()
+                    membership_type = membership.membership_type
                     if membership_type == platform_id and display_name == username_lower:
-                        membership_id = membership['membershipId']
-                        platform_id = membership['membershipType']
+                        membership_id = membership.membership_id
+                        platform_id = membership.membership_type
                         break
         return membership_id, platform_id
 
@@ -145,13 +150,14 @@ class ClanCog(commands.Cog, name="Clan"):
         group_id = None
         group_name = None
         groups_info = await execute_pydest(
-            self.bot.destiny.api.get_groups_for_member, platform_id, membership_id
+            self.bot.destiny.api.get_groups_for_member, platform_id, membership_id,
+            return_type=DestinyMemberGroupResponse
         )
-        if len(groups_info.response['results']) > 0:
-            for group in groups_info.response['results']:
-                if group['member']['destinyUserInfo']['membershipId'] == membership_id:
-                    group_id = group['group']['groupId']
-                    group_name = group['group']['name']
+        if len(groups_info.response.results) > 0:
+            for group in groups_info.response.results:
+                if group.member.destiny_user_info.membership_id == membership_id:
+                    group_id = group.group.group_id
+                    group_name = group.group.name
 
         if group_id and group_name:
             group_url = f'https://www.bungie.net/en/ClanV2/Index?groupId={group_id}'
@@ -284,7 +290,8 @@ class ClanCog(commands.Cog, name="Clan"):
             embeds = pickle.loads(clan_info_redis)
         else:
             for clan_db in clan_dbs:
-                group = await execute_pydest(self.bot.destiny.api.get_group, clan_db.clan_id)
+                group = await execute_pydest(
+                    self.bot.destiny.api.get_group, clan_db.clan_id, return_type=DestinyGroupResponse)
                 if not group.response:
                     log.error(
                         f"Could not get details for clan {clan_db.name} ({clan_db.clan_id}) - "
@@ -296,26 +303,26 @@ class ClanCog(commands.Cog, name="Clan"):
 
                 embed = discord.Embed(
                     colour=constants.BLUE,
-                    title=group['detail']['motto'],
-                    description=group['detail']['about']
+                    title=group.detail.motto,
+                    description=group.detail.about
                 )
                 embed.set_author(
-                    name=f"{group['detail']['name']} [{group['detail']['clanInfo']['clanCallsign']}]",
+                    name=f"{group.detail.name} [{group.detail.clan_info.clan_callsign}]",
                     url=f"https://www.bungie.net/en/ClanV2?groupid={clan_db.clan_id}"
                 )
                 embed.add_field(
                     name="Members",
-                    value=group['detail']['memberCount'],
+                    value=group.detail.member_count,
                     inline=True
                 )
                 embed.add_field(
                     name="Founder",
-                    value=group['founder']['bungieNetUserInfo']['displayName'],
+                    value=group.founder.bungie_net_user_info.display_name,
                     inline=True
                 )
                 embed.add_field(
                     name="Founded",
-                    value=date_as_string(destiny_date_as_utc(group['detail']['creationDate']), with_tz=True),
+                    value=date_as_string(group.detail.creation_date),
                     inline=True
                 )
                 embeds.append(embed)
@@ -392,7 +399,8 @@ class ClanCog(commands.Cog, name="Clan"):
             admin_db,
             manager,
             group_id=clan_db.clan_id,
-            access_token=admin_db.bungie_access_token
+            access_token=admin_db.bungie_access_token,
+            return_type=DestinyGroupPendingMembersResponse
         )
 
         embed = discord.Embed(
@@ -400,14 +408,14 @@ class ClanCog(commands.Cog, name="Clan"):
             title=f"Pending Clan Members in {clan_db.name}"
         )
 
-        if len(members.response['results']) == 0:
+        if len(members.response.results) == 0:
             embed.description = "None"
         else:
-            for member in members.response['results']:
-                bungie_name = member['destinyUserInfo']['displayName']
-                bungie_member_id = member['destinyUserInfo']['membershipId']
-                bungie_member_type = member['destinyUserInfo']['membershipType']
-                date_applied = date_as_string(destiny_date_as_utc(member['creationDate']), with_tz=True)
+            for member in members.response.results:
+                bungie_name = member.destiny_user_info.display_name
+                bungie_member_id = member.destiny_user_info.membership_id
+                bungie_member_type = member.destiny_user_info.membership_type
+                date_applied = date_as_string(member.creation_date, with_tz=True)
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
                 member_info = f"Date Applied: {date_applied}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
@@ -490,7 +498,8 @@ Examples:
             admin_db,
             manager,
             group_id=clan_db.clan_id,
-            access_token=admin_db.bungie_access_token
+            access_token=admin_db.bungie_access_token,
+            return_type=DestinyGroupPendingMembersResponse
         )
 
         embed = discord.Embed(
@@ -498,16 +507,16 @@ Examples:
             title=f"Invited Clan Members in {clan_db.name}"
         )
 
-        if len(members.response['results']) == 0:
+        if len(members.response.results) == 0:
             embed.description = "None"
         else:
-            for member in members.response['results']:
-                bungie_name = member['destinyUserInfo']['displayName']
-                bungie_member_id = member['destinyUserInfo']['membershipId']
-                bungie_member_type = member['destinyUserInfo']['membershipType']
-                date_applied = date_as_string(destiny_date_as_utc(member['creationDate']), with_tz=True)
+            for member in members.response.results:
+                bungie_name = member.destiny_user_info.display_name
+                bungie_member_id = member.destiny_user_info.membership_id
+                bungie_member_type = member.destiny_user_info.membership_type
+                date_invited = date_as_string(member.creation_date, with_tz=True)
                 bungie_url = f"https://www.bungie.net/en/Profile/{bungie_member_type}/{bungie_member_id}"
-                member_info = f"Date Invited: {date_applied}\nProfile: {bungie_url}"
+                member_info = f"Date Invited: {date_invited}\nProfile: {bungie_url}"
                 embed.add_field(name=bungie_name, value=member_info)
 
         await manager.send_embed(embed)
