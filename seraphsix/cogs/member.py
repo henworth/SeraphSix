@@ -11,12 +11,11 @@ from urllib.parse import quote
 
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
-from seraphsix.cogs.utils.helpers import get_timezone_name, date_as_string
+from seraphsix.cogs.utils.helpers import get_timezone_name, date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
+from seraphsix.database import Member
 from seraphsix.models.destiny import User as DestinyUser
 from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, execute_pydest
-
-from seraphsix.database import Member, ClanMember, Clan, Guild
 
 log = logging.getLogger(__name__)
 
@@ -35,22 +34,11 @@ class MemberCog(commands.Cog, name="Member"):
     @member.command(help="Get member information")
     @clan_is_linked()
     @commands.guild_only()
-    async def info(self, ctx, *args):  # noqa TODO
+    async def info(self, ctx, *args):
         """Show member information"""
         manager = MessageManager(ctx)
         member_name = ' '.join(args)
-
-        requestor_query = self.bot.database.get(
-            Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan).join(Guild).where(
-                Guild.guild_id == ctx.guild.id,
-                Member.discord_id == ctx.author.id
-            )
-        )
-
-        try:
-            requestor_db = await asyncio.create_task(requestor_query)
-        except DoesNotExist:
-            requestor_db = None
+        requestor_db = await get_requestor(ctx)
 
         if not member_name:
             member_db = requestor_db

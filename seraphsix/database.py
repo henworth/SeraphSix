@@ -52,6 +52,7 @@ class Guild(BaseModel):
     clear_spam = BooleanField(default=False)
     aggregate_clans = BooleanField(default=True)
     track_sherpas = BooleanField(default=False)
+    admin_channel = BigIntegerField(unique=True, null=True)
 
 
 class Clan(BaseModel):
@@ -89,6 +90,8 @@ class Member(BaseModel):
     timezone = CharField(null=True)
     bungie_access_token = CharField(max_length=360, unique=True, null=True)
     bungie_refresh_token = CharField(max_length=360, unique=True, null=True)
+    is_cross_save = BooleanField(default=False)
+    primary_membership_id = BigIntegerField(unique=True, null=True)
 
     class Meta:
         indexes = (
@@ -124,6 +127,14 @@ class ClanMember(BaseModel):
             f"{constants.CLAN_MEMBER_ACTING_FOUNDER}, {constants.CLAN_MEMBER_FOUNDER})"
         )]
     )
+
+
+class ClanMemberApplication(BaseModel):
+    guild = ForeignKeyField(Guild)
+    member = ForeignKeyField(Member)
+    approved = BooleanField(default=False)
+    approved_by = ForeignKeyField(Member, null=True)
+    message_id = BigIntegerField(unique=True)
 
 
 class Game(BaseModel):
@@ -218,6 +229,7 @@ class Database(object):
         GameMember.create_table(True)
         TwitterChannel.create_table(True)
         Role.create_table(True)
+        ClanMemberApplication.create_table(True)
 
     @reconnect
     async def create(self, model, **data):
@@ -357,30 +369,30 @@ class Database(object):
             )
         return await self.execute(query)
 
-    async def get_clan_member_by_platform(self, member_id, platform_id, clan_id):
+    async def get_clan_member_by_platform(self, member_id, platform_id, clan_ids):
         if platform_id == constants.PLATFORM_PSN:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.psn_id == member_id
             )
         elif platform_id == constants.PLATFORM_XBOX:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.xbox_id == member_id
             )
         elif platform_id == constants.PLATFORM_BLIZZARD:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.blizzard_id == member_id
             )
         elif platform_id == constants.PLATFORM_STEAM:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.steam_id == member_id
             )
         elif platform_id == constants.PLATFORM_STADIA:
             query = Member.select(Member, ClanMember).join(ClanMember).where(
-                ClanMember.clan_id == clan_id,
+                ClanMember.clan_id << clan_ids,
                 Member.stadia_id == member_id
             )
         return await self.get(query)

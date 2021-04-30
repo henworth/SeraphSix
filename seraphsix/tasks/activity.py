@@ -46,8 +46,7 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 async def get_pgcr(ctx, activity_id):
     destiny = ctx['destiny']
     data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id)
-    if data.response:
-        return data.response
+    return data.response
 
 
 async def decode_activity(ctx, reference_id):
@@ -66,10 +65,11 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
     return all_activities
 
 
-async def get_last_active(ctx, member_db):
+async def get_last_active(ctx, member_db=None, platform_id=None, member_id=None):
     acct_last_active = None
-    platform_id = member_db.platform_id
-    member_id, _ = parse_platform(member_db.member, platform_id)
+    if member_db and not platform_id and not member_id:
+        platform_id = member_db.platform_id
+        member_id, _ = parse_platform(member_db.member, platform_id)
 
     profile = await execute_pydest(
         ctx['destiny'].api.get_profile, platform_id, member_id, [constants.COMPONENT_PROFILES])
@@ -250,6 +250,9 @@ async def process_activity(ctx, activity, guild_id, guild_name):
     game = GameApi(activity)
     clan_members = await get_cached_members(ctx, guild_id, guild_name)
 
+    clan_dbs = await database.get_clans_by_guild(guild_id)
+    clan_ids = [clan.id for clan in clan_dbs]
+
     member_dbs = []
     for member in clan_members:
         member_dbs.append(dict_to_model(ClanMember, member))
@@ -262,7 +265,7 @@ async def process_activity(ctx, activity, guild_id, guild_name):
         pgcr = await get_pgcr(ctx, game.instance_id)
         clan_game = ClanGame(pgcr, member_dbs)
         api_players_db = [
-            await database.get_clan_member_by_platform(player.membership_id, player.membership_type, 1)
+            await database.get_clan_member_by_platform(player.membership_id, player.membership_type, clan_ids)
             for player in clan_game.clan_players
         ]
 
