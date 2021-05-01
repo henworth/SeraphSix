@@ -28,6 +28,11 @@ async def create_redis_jobs_pool():
     )
 
 
+async def queue_redis_job(ctx, message, *args, **kwargs):
+    log.info(f"Queueing task to {message}")
+    await ctx['redis_jobs'].enqueue_job(*args, **kwargs)
+
+
 def backoff_handler(details):
     if details['wait'] > 30 or details['tries'] > 10:
         log.debug(
@@ -41,6 +46,12 @@ def backoff_handler(details):
     backoff.expo, (PydestException, asyncio.TimeoutError, BucketFullException), logger=None, on_backoff=backoff_handler)
 async def execute_pydest(function, *args, **kwargs):
     retval = None
+
+    if 'return_type' in kwargs:
+        return_type = kwargs.pop('return_type')
+    else:
+        return_type = DestinyResponse
+
     log.debug(f"{function} {args} {kwargs}")
 
     async with config.destiny_api_limiter.ratelimit('destiny_api', delay=True):
@@ -58,6 +69,8 @@ async def execute_pydest(function, *args, **kwargs):
         except Exception:
             raise RuntimeError(f"Cannot parse Destiny API response {data}")
     else:
+        if not res:
+            raise RuntimeError("Unexpected empty response from the Destiny API")
         if res.error_status != 'Success':
             # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
             if res.error_status == 'SystemDisabled':
@@ -68,8 +81,10 @@ async def execute_pydest(function, *args, **kwargs):
                 raise PrivateHistoryError
             else:
                 log.error(f"Error running {function} {args} {kwargs} - {res}")
-                if res.error_status in ['DestinyAccountNotFound']:
+                if res.error_status not in ['DestinyAccountNotFound']:
                     raise PydestException
+        if return_type != DestinyResponse and res.response:
+            res.response = return_type.from_dict(res.response)
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")
     return retval
@@ -167,8 +182,8 @@ async def wait_for_msg(channel):
 def member_dbs_to_dict(member_dbs):
     members = []
     for member_db in member_dbs:
-        member_dict = model_to_dict(member_db.clanmember, recurse=False)
-        member_dict['member'] = model_to_dict(member_db, recurse=False)
+        member_dict = model_to_dict(member_db, recurse=False)
+        member_dict['clanmember'] = model_to_dict(member_db.clanmember, recurse=False)
         members.append(member_dict)
     return members
 
@@ -199,7 +214,7 @@ async def set_cached_members(ctx, guild_id, guild_name):
     return members
 
 
-def get_primary_membership(member_db):
+def get_primary_membership(member_db, restrict_platform_id=None):
     memberships = [
         [constants.PLATFORM_XBOX, member_db.xbox_id, member_db.xbox_username],
         [constants.PLATFORM_PSN, member_db.psn_id, member_db.psn_username],
@@ -213,7 +228,8 @@ def get_primary_membership(member_db):
             platform_id = membership[0]
             username = membership[2]
             break
-        elif not membership_id and membership[1]:
+        elif (restrict_platform_id and restrict_platform_id == membership[0]) or \
+                (not membership_id and membership[1]):
             platform_id, membership_id, username = membership
             break
 

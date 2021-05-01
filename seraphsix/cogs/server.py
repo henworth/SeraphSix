@@ -7,6 +7,7 @@ from seraphsix import constants
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import TwitterChannel, Clan, Guild, Role
+from seraphsix.models.destiny import DestinyGroupResponse
 from seraphsix.tasks.core import execute_pydest
 from seraphsix.tasks.discord import store_sherpas
 
@@ -83,9 +84,9 @@ class ServerCog(commands.Cog, name="Server"):
         if not clan_id:
             return await manager.send_and_clean("Command must include the Destiny clan ID")
 
-        group = await execute_pydest(self.bot.destiny.api.get_group, clan_id)
-        clan_name = group.response['detail']['name']
-        callsign = group.response['detail']['clanInfo']['clanCallsign']
+        group = await execute_pydest(self.bot.destiny.api.get_group, clan_id, return_type=DestinyGroupResponse)
+        clan_name = group.response.detail.name
+        callsign = group.response.detail.clan_info.clan_callsign
 
         try:
             clan_db = await self.bot.database.get(Clan, clan_id=clan_id)
