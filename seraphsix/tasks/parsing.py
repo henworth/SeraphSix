@@ -1,5 +1,3 @@
-import datetime
-
 from seraphsix import constants
 
 
@@ -32,15 +30,3 @@ def parse_platform(member_db, platform_id):
         member_id = member_db.stadia_id
         member_username = member_db.stadia_username
     return member_id, member_username
-
-
-def encode_datetime(obj):
-    if isinstance(obj, datetime.datetime):
-        return {'__datetime__': True, 'as_str': obj.strftime(constants.DESTINY_DATE_FORMAT)}
-    return obj
-
-
-def decode_datetime(obj):
-    if '__datetime__' in obj:
-        obj = datetime.datetime.strptime(obj['as_str'], constants.DESTINY_DATE_FORMAT)
-    return obj

@@ -1,19 +1,18 @@
 # pylama:ignore=E731
 import aioredis
 import logging.config
-import msgpack
 
 from arq import Worker, func
 from arq.worker import get_kwargs
 from pydest.pydest import Pydest
 from seraphsix.constants import ARQ_JOB_TIMEOUT, ARQ_MAX_JOBS
 from seraphsix.database import Database
+from seraphsix.models import deserializer, serializer
 from seraphsix.tasks.activity import (
     get_characters, process_activity, store_member_history, store_last_active, store_all_games
 )
 from seraphsix.tasks.core import set_cached_members
 from seraphsix.tasks.config import Config, log_config
-from seraphsix.tasks.parsing import encode_datetime, decode_datetime
 
 config = Config()
 
@@ -54,10 +53,10 @@ class WorkerSettings:
     job_timeout = ARQ_JOB_TIMEOUT
 
     def job_serializer(b):
-        return msgpack.packb(b, default=encode_datetime)
+        return serializer(b)
 
     def job_deserializer(b):
-        return msgpack.unpackb(b, object_hook=decode_datetime)
+        return deserializer(b)
 
 
 if __name__ == '__main__':
