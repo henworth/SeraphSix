@@ -3,11 +3,11 @@ import itertools
 import logging
 
 from peewee import DoesNotExist, fn
-from playhouse.shortcuts import dict_to_model
 from seraphsix import constants
 from seraphsix.database import ClanMember, Game, GameMember, Guild, Member
+from seraphsix.errors import PrivateHistoryError
 from seraphsix.models.destiny import (
-    Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCR
+    Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCRResponse
 )
 from seraphsix.tasks.core import execute_pydest, get_cached_members, get_primary_membership
 from seraphsix.tasks.parsing import member_hash, member_hash_db
@@ -28,7 +28,7 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
     )
     if data.response:
         if full_sync:
-            while data.response:
+            while data.response.activities:
                 page += 1
                 if activities:
                     activities.extend(data.response.activities)
@@ -41,7 +41,9 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
                 )
         else:
             activities = data.response.activities
-            if len(activities) == count:
+            if not activities:
+                activities = []
+            elif len(activities) == count:
                 log.debug(
                     f'Activity count for {platform_id}-{member_id} ({char_id}) '
                     f'equals {count} but full sync is disabled'
@@ -51,14 +53,15 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 
 async def get_pgcr(ctx, activity_id):
     destiny = ctx['destiny']
-    data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id, return_type=DestinyPGCR)
+    data = await execute_pydest(
+        destiny.api.get_post_game_carnage_report, activity_id, return_type=DestinyPGCRResponse)
     return data.response
 
 
 async def decode_activity(ctx, reference_id):
     destiny = ctx['destiny']
-    await execute_pydest(destiny.update_manifest)
-    return await execute_pydest(destiny.decode_hash, reference_id)
+    await execute_pydest(destiny.update_manifest)  # TODO Add return_type
+    return await execute_pydest(destiny.decode_hash, reference_id)  # TODO Add return_type
 
 
 async def get_activity_list(ctx, platform_id, member_id, characters, count, full_sync=False, mode=0):
@@ -66,8 +69,13 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
         get_activity_history(ctx, platform_id, member_id, character, count, full_sync, mode)
         for character in characters
     ]
-    activities = await asyncio.gather(*tasks)
-    all_activities = list(itertools.chain.from_iterable(activities))
+    try:
+        activities = await asyncio.gather(*tasks)
+    except PrivateHistoryError:
+        log.info(f"Member {platform_id}-{member_id} has set their account private")
+        all_activities = []
+    else:
+        all_activities = list(itertools.chain.from_iterable(activities))
     return all_activities
 
 
@@ -90,9 +98,8 @@ async def get_last_active(ctx, member_db=None, platform_id=None, member_id=None)
 
 async def store_last_active(ctx, guild_id, guild_name):
     database = ctx['database']
-    for member in await get_cached_members(ctx, guild_id, guild_name):
-        member_db = dict_to_model(ClanMember, member)
-        last_active = await get_last_active(ctx, member_db)
+    for member_db in await get_cached_members(ctx, guild_id, guild_name):
+        last_active = await get_last_active(ctx, member_db.member)
         member_db.last_active = last_active
         await database.update(member_db)
     log.info(f"Found last active dates for all members of {guild_name} ({guild_id})")
@@ -193,7 +200,7 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
             continue
 
         active_members = await database.get_clan_members_active(clan_db.id, hours=1)
-        all_members = await get_cached_members(ctx, guild_id, guild_name)
+        all_members = [clanmember.member for clanmember in await get_cached_members(ctx, guild_id, guild_name)]
 
         if guild_db.aggregate_clans:
             active_member_dbs.extend(active_members)
@@ -254,14 +261,10 @@ async def get_characters(ctx, member_id, platform_id):
 async def process_activity(ctx, activity, guild_id, guild_name):
     database = ctx['database']
     game = GameApi(activity)
-    clan_members = await get_cached_members(ctx, guild_id, guild_name)
+    member_dbs = await get_cached_members(ctx, guild_id, guild_name)
 
     clan_dbs = await database.get_clans_by_guild(guild_id)
     clan_ids = [clan.id for clan in clan_dbs]
-
-    member_dbs = []
-    for member in clan_members:
-        member_dbs.append(dict_to_model(ClanMember, member))
 
     try:
         game_db = await database.get(Game, instance_id=game.instance_id)
