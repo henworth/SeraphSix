@@ -26,6 +26,62 @@ class ServerCog(commands.Cog, name="Server"):
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
+    @server.group(name='set', invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def server_set(self, ctx):
+        """Server Set Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @server.group(invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def role(self, ctx):
+        """Server Role Specific Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @role.group(name='set', invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def role_set(self, ctx):
+        """Server Role Set Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @role.group(name='show', invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def role_show(self, ctx):
+        """Server Role Show Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @role.group(name='clear', invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def role_clear(self, ctx):
+        """Server Role Clear Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @server.group(invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def channel(self, ctx):
+        """Server Channel Specific Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @channel.group(name='set', invoke_without_command=True)
+    @commands.guild_only()
+    @commands.cooldown(rate=2, per=5, type=commands.BucketType.user)
+    async def set_channel(self, ctx):
+        """Server Channel Set Commands (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
     async def twitter_channel(self, ctx, twitter_id, message):
         """Set a channel for particular twitter messages"""
         manager = MessageManager(ctx)
@@ -126,7 +182,7 @@ class ServerCog(commands.Cog, name="Server"):
 
         return await manager.send_and_clean(message)
 
-    @server.command()
+    @server_set.command(name='prefix')
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def setprefix(self, ctx, new_prefix):
@@ -143,7 +199,7 @@ class ServerCog(commands.Cog, name="Server"):
 
         return await manager.send_and_clean(message)
 
-    @server.command()
+    @server_set.command(name='platform')
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
@@ -164,10 +220,10 @@ class ServerCog(commands.Cog, name="Server"):
 
         return await manager.send_and_clean(message)
 
-    @server.command()
+    @set_channel.command(name='admin')
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
-    async def setchanneladmin(self, ctx, channel_id: int):
+    async def channelsetadmin(self, ctx, channel_id: int):
         """Set the channel for admin notifications (Manage Server only)"""
         manager = MessageManager(ctx)
 
@@ -185,11 +241,11 @@ class ServerCog(commands.Cog, name="Server"):
 
         return await manager.send_and_clean(message)
 
-    @server.command()
+    @role_set.command(name='sherpa')
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
-    async def setsherparoles(self, ctx):
+    async def rolesetsherpa(self, ctx):
         """Set server roles that distinguish sherpas (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
@@ -198,8 +254,8 @@ class ServerCog(commands.Cog, name="Server"):
         cont = True
         while cont:
             name = await manager.send_and_get_response(
-                "Enter the name of a role that denotes a 'sherpa' "
-                "(enter `stop` to enter `cancel` to cancel command)")
+                "Enter the name of one or more roles that denote(s) a 'sherpa', one per line. "
+                "(enter `stop` when done, or enter `cancel` to cancel command entirely)")
             if name.lower() == 'cancel':
                 return await manager.send_and_clean('Canceling command')
             elif name.lower() == 'stop':
@@ -215,13 +271,13 @@ class ServerCog(commands.Cog, name="Server"):
             await self.bot.database.execute(
                 Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.is_sherpa]))
 
-        return await manager.send_and_cleans("Sherpa roles have been set")
+        return await manager.send_and_clean("Sherpa roles have been set")
 
-    @server.command()
+    @role_show.command(name='sherpa')
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
-    async def showsherparoles(self, ctx):
+    async def roleshowsherpa(self, ctx):
         """Show server roles that distinguish sherpas (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
@@ -300,11 +356,11 @@ class ServerCog(commands.Cog, name="Server"):
 
         return await manager.send_message(message, mention=False, clean=False)
 
-    @server.command()
+    @role_set.command(name='platforms')
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
-    async def setplatformroles(self, ctx):
+    async def rolesetplatform(self, ctx):
         """Map server roles to game platforms (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
@@ -329,11 +385,11 @@ class ServerCog(commands.Cog, name="Server"):
 
         return await manager.send_and_clean("Platforms have been set")
 
-    @server.command()
+    @role_show.command(name='platform')
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
-    async def showplatformroles(self, ctx):
+    async def roleshowplatform(self, ctx):
         """Map server roles to game platforms (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
@@ -362,11 +418,11 @@ class ServerCog(commands.Cog, name="Server"):
 
         await manager.send_embed(base_embed, clean=True)
 
-    @server.command()
+    @role_clear.command(name='platform')
     @clan_is_linked()
     @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
-    async def clearplatformroles(self, ctx):
+    async def roleclearplatform(self, ctx):
         """Map server roles to game platforms (Manage Server only)"""
         manager = MessageManager(ctx)
         guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
@@ -406,6 +462,38 @@ class ServerCog(commands.Cog, name="Server"):
         await self.bot.database.execute(role_query)
 
         return await manager.send_and_clean("Platform roles cleared")
+
+    @role_set.command(name='protectedmember')
+    @clan_is_linked()
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    async def rolesetprotectedmember(self, ctx):
+        """Set server roles that distinguish protected members (Manage Server only)"""
+        manager = MessageManager(ctx)
+        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+
+        roles = []
+        cont = True
+        while cont:
+            name = await manager.send_and_get_response(
+                "Enter the name of one or more roles that denote(s) a 'protected member', one per line. "
+                "(enter `stop` when done, or enter `cancel` to cancel command entirely)")
+            if name.lower() == 'cancel':
+                return await manager.send_and_clean('Canceling command')
+            elif name.lower() == 'stop':
+                cont = False
+            else:
+                role_obj = discord.utils.get(ctx.guild.roles, name=name)
+                if role_obj:
+                    roles.append((guild_db.id, role_obj.id, True))
+                else:
+                    return await manager.send_and_clean(f"Could not find a role with name `{name}`")
+
+        if roles:
+            await self.bot.database.execute(
+                Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.is_protected_clanmember]))
+
+        return await manager.send_and_clean("Protected member roles have been set")
 
     @server.command()
     @commands.guild_only()

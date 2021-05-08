@@ -18,8 +18,9 @@ from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Database, Guild, TwitterChannel
 
 from seraphsix.errors import (
-    InvalidCommandError, InvalidGameModeError, InvalidMemberError,
-    NotRegisteredError, ConfigurationError, MissingTimezoneError, MaintenanceError)
+    InvalidCommandError, InvalidGameModeError, InvalidMemberError, InvalidAdminError,
+    NotRegisteredError, ConfigurationError, MissingTimezoneError, MaintenanceError,
+)
 from seraphsix.tasks.core import create_redis_jobs_pool
 from seraphsix.tasks.clan import ack_clan_application
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
@@ -232,7 +233,7 @@ class SeraphSix(commands.Bot):
         elif isinstance(error, (
             ConfigurationError, InvalidCommandError, InvalidMemberError,
             InvalidGameModeError, NotRegisteredError, MissingTimezoneError,
-            MaintenanceError
+            MaintenanceError, InvalidAdminError
         )):
             text = error
         elif isinstance(error, commands.CommandNotFound):
