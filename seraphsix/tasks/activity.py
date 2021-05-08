@@ -6,7 +6,7 @@ from peewee import DoesNotExist, fn
 from seraphsix import constants
 from seraphsix.database import ClanMember, Game, GameMember, Guild, Member
 from seraphsix.models.destiny import (
-    Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCR
+    Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCRResponse
 )
 from seraphsix.tasks.core import execute_pydest, get_cached_members, get_primary_membership
 from seraphsix.tasks.parsing import member_hash, member_hash_db
@@ -52,7 +52,8 @@ async def get_activity_history(ctx, platform_id, member_id, char_id, count=250, 
 
 async def get_pgcr(ctx, activity_id):
     destiny = ctx['destiny']
-    data = await execute_pydest(destiny.api.get_post_game_carnage_report, activity_id, return_type=DestinyPGCR)
+    data = await execute_pydest(
+        destiny.api.get_post_game_carnage_report, activity_id, return_type=DestinyPGCRResponse)
     return data.response
 
 

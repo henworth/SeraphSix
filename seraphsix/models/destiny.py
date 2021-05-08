@@ -17,8 +17,8 @@ __all__ = [
     'DestinyGroupPendingMember', 'DestinyGroupPendingMemberResults', 'DestinyGroupPendingMembersResponse',
     'DestinyGroupResponse', 'DestinyMemberGroup', 'DestinyMemberGroupResponse', 'DestinyMemberGroupResults',
     'DestinyMembership', 'DestinyMembershipResponse', 'DestinyMembershipResults', 'DestinyPGCR',
-    'DestinyPGCREntry', 'DestinyPGCRExtended', 'DestinyPGCRWeapon', 'DestinyPlayer', 'DestinyProfile',
-    'DestinyProfileData', 'DestinyProfileResponse', 'DestinyProfileResults', 'DestinyResponse',
+    'DestinyPGCREntry', 'DestinyPGCRExtended', 'DestinyPGCRResponse', 'DestinyPGCRWeapon', 'DestinyPlayer',
+    'DestinyProfile', 'DestinyProfileData', 'DestinyProfileResponse', 'DestinyProfileResults', 'DestinyResponse',
     'DestinyResults', 'DestinySearchPlayerResponse', 'DestinyTokenErrorResponse', 'DestinyTokenResponse',
     'DestinyUserInfo',
 ]
@@ -688,6 +688,12 @@ class DestinyActivityResponse(DestinyResponse):
 @dataclass
 class DestinyMembershipResponse(DestinyResponse):
     response: Optional[DestinyMembershipResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyPGCRResponse(DestinyResponse):
+    response: Optional[DestinyPGCR] = field(metadata=config(field_name='Response'), default=None)
 
 
 @dataclass_json
