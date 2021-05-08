@@ -457,7 +457,7 @@ class Database(object):
     async def create_game_member(self, player, game_db, clan_id, player_db=None):
         if not player_db:
             player_db = await self.get_clan_member_by_platform(
-                player.membership_id, player.membership_type, clan_id)
+                player.membership_id, player.membership_type, [clan_id])
 
         try:
             # Create the game member
