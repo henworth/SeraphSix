@@ -53,6 +53,7 @@ class Guild(BaseModel):
     aggregate_clans = BooleanField(default=True)
     track_sherpas = BooleanField(default=False)
     admin_channel = BigIntegerField(unique=True, null=True)
+    announcement_channel = BigIntegerField(unique=True, null=True)
 
 
 class Clan(BaseModel):
@@ -187,6 +188,10 @@ class Role(BaseModel):
     role_id = BigIntegerField()
     platform_id = IntegerField(null=True)
     is_sherpa = BooleanField(null=True)
+    is_clanmember = BooleanField(null=True)
+    is_new_clanmember = BooleanField(null=True)
+    is_non_clanmember = BooleanField(null=True)
+    is_protected_clanmember = BooleanField(null=True)
 
     class Meta:
         indexes = (
@@ -336,8 +341,13 @@ class Database(object):
             query = query.where(fn.LOWER(Member.stadia_username) == username)
         return await self.get(query)
 
-    async def get_member_by_discord_id(self, discord_id):
-        query = Member.select(Member, ClanMember).join(ClanMember).where(Member.discord_id == discord_id)
+    async def get_member_by_discord_id(self, discord_id, include_clan=True):
+        if include_clan:
+            query = Member.select(Member, ClanMember, Clan).join(ClanMember).join(Clan)
+        else:
+            query = Member.select(Member)
+
+        query = query.where(Member.discord_id == discord_id)
         return await self.get(query)
 
     async def get_clan_members(self, clan_ids, sorted_by=None):
@@ -409,6 +419,15 @@ class Database(object):
         query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
             Clan.id == clan_id,
             ClanMember.last_active > datetime.now(pytz.utc) - timedelta(**kwargs)
+        )
+        return await self.execute(query)
+
+    async def get_clan_members_inactive(self, clan_id, **kwargs):
+        if not kwargs:
+            kwargs = dict(days=30)
+        query = Member.select(Member, ClanMember).join(ClanMember).join(Clan).where(
+            Clan.id == clan_id,
+            ClanMember.last_active < datetime.now(pytz.utc) - timedelta(**kwargs)
         )
         return await self.execute(query)
 

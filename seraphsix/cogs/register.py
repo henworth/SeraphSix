@@ -39,7 +39,7 @@ class RegisterCog(commands.Cog, name="Register"):
         try:
             user = await execute_pydest(
                 self.bot.destiny.api.get_membership_current_user, bungie_access_token
-            )
+            )  # TODO Add return_type
         except Exception as e:
             log.exception(e)
             await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")

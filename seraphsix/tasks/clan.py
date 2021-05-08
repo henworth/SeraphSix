@@ -204,15 +204,6 @@ async def ack_clan_application(ctx, payload):
     guild = approver_user.guild
 
     try:
-        approver_db = await ctx.ext_conns['database'].get(
-            MemberDb.select(MemberDb, ClanMember, Clan).join(ClanMember).join(Clan).where(
-                (ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN) & (MemberDb.discord_id == approver_id)
-            )
-        )
-    except DoesNotExist:
-        raise InvalidAdminError
-
-    try:
         # pylama:ignore=E712
         query = ClanMemberApplication.select().join(MemberDb).where(
             (ClanMemberApplication.message_id == message_id) & (ClanMemberApplication.approved == False)
@@ -220,6 +211,15 @@ async def ack_clan_application(ctx, payload):
         application_db = await ctx.ext_conns['database'].get(query)
     except DoesNotExist:
         return
+
+    try:
+        approver_db = await ctx.ext_conns['database'].get(
+            MemberDb.select(MemberDb, ClanMember, Clan).join(ClanMember).join(Clan).where(
+                (ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN) & (MemberDb.discord_id == approver_id)
+            )
+        )
+    except DoesNotExist:
+        raise InvalidAdminError
 
     application_db.approved = is_approved
     application_db.approved_by_id = approver_db.id
@@ -233,7 +233,7 @@ async def ack_clan_application(ctx, payload):
         ack_message = 'Denied'
 
     admin_message = await admin_channel.send(
-        f"Application for {applicant_user.nick} was {ack_message} by {approver_user.nick}.")
+        f"Application for {applicant_user.display_name} was {ack_message} by {approver_user.display_name}.")
     await applicant_user.send(
         f"Your application to join {approver_db.clanmember.clan.name} has been {ack_message}.")
 
@@ -256,12 +256,15 @@ async def ack_clan_application(ctx, payload):
         )
 
         if res.error_status == 'ClanTargetDisallowsInvites':
-            message = f"User **{applicant_user.nick}** ({username}) has disabled clan invites"
+            message = f"User **{applicant_user.display_name}** ({username}) has disabled clan invites"
         elif res.error_status != 'Success':
-            message = f"Could not invite **{applicant_user.nick}** ({username})"
-            log.info(f"Could not invite '{applicant_user.nick}' ({username}): {res}")
+            message = f"Could not invite **{applicant_user.display_name}** ({username})"
+            log.info(f"Could not invite '{applicant_user.display_name}' ({username}): {res}")
         else:
-            message = f"Invited **{applicant_user.nick}** ({username}) to clan **{approver_db.clanmember.clan.name}**"
+            message = (
+                f"Invited **{applicant_user.display_name}** ({username}) "
+                f"to clan **{approver_db.clanmember.clan.name}**"
+            )
 
         await manager.send_message(message, mention=False, clean=False)
 
