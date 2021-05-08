@@ -5,6 +5,7 @@ import logging
 from peewee import DoesNotExist, fn
 from seraphsix import constants
 from seraphsix.database import ClanMember, Game, GameMember, Guild, Member
+from seraphsix.errors import PrivateHistoryError
 from seraphsix.models.destiny import (
     Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCRResponse
 )
@@ -68,8 +69,13 @@ async def get_activity_list(ctx, platform_id, member_id, characters, count, full
         get_activity_history(ctx, platform_id, member_id, character, count, full_sync, mode)
         for character in characters
     ]
-    activities = await asyncio.gather(*tasks)
-    all_activities = list(itertools.chain.from_iterable(activities))
+    try:
+        activities = await asyncio.gather(*tasks)
+    except PrivateHistoryError:
+        log.info(f"Member {platform_id}-{member_id} has set their account private")
+        all_activities = []
+    else:
+        all_activities = list(itertools.chain.from_iterable(activities))
     return all_activities
 
 
