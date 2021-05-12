@@ -58,10 +58,10 @@ async def get_pgcr(ctx, activity_id):
     return data.response
 
 
-async def decode_activity(ctx, reference_id):
+async def decode_activity(ctx, reference_id, definition):
     destiny = ctx['destiny']
-    await execute_pydest(destiny.update_manifest)  # TODO Add return_type
-    return await execute_pydest(destiny.decode_hash, reference_id)  # TODO Add return_type
+    await execute_pydest(destiny.update_manifest, return_type=None)
+    return await execute_pydest(destiny.decode_hash, reference_id, definition, return_type=None)
 
 
 async def get_activity_list(ctx, platform_id, member_id, characters, count, full_sync=False, mode=0):
@@ -221,13 +221,13 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
     all_activities = list(itertools.chain.from_iterable(results))
     all_activities_dict = {}
     for activity in all_activities:
-        key = activity['activityDetails']['instanceId']
+        key = activity.activity_details.instance_id
         if key not in all_activities_dict:
             all_activities_dict[key] = activity
     unique_activities = list(all_activities_dict.values())
 
     for activity in unique_activities:
-        activity_id = activity['activityDetails']['instanceId']
+        activity_id = activity.activity_details.instance_id
         await redis_jobs.enqueue_job(
             'process_activity', activity, guild_id, guild_name, _job_id=f'process_activity-{activity_id}'
         )

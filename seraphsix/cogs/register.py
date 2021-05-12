@@ -6,7 +6,7 @@ from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Member, Role, Guild
-from seraphsix.models.destiny import User
+from seraphsix.models.destiny import User, DestinyMembershipResponse
 from seraphsix.tasks.core import execute_pydest, register
 
 log = logging.getLogger(__name__)
@@ -38,8 +38,9 @@ class RegisterCog(commands.Cog, name="Register"):
         # Fetch platform specific display names and membership IDs
         try:
             user = await execute_pydest(
-                self.bot.destiny.api.get_membership_current_user, bungie_access_token
-            )  # TODO Add return_type
+                self.bot.destiny.api.get_membership_current_user, bungie_access_token,
+                return_type=DestinyMembershipResponse
+            )
         except Exception as e:
             log.exception(e)
             await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")
@@ -125,12 +126,12 @@ class RegisterCog(commands.Cog, name="Register"):
             message = f"User {str(ctx.author)} ({ctx.author.id}) has registered"
 
             if platform_emojis:
-                emojis = [str(self.bot.get_emoji(emoji)) for emoji in platform_emojis if emoji]
+                emojis = ' '.join([str(self.bot.get_emoji(emoji)) for emoji in platform_emojis if emoji])
                 e.add_field(
                     name="Platforms Connected",
-                    value=' '.join(emojis)
+                    value=emojis
                 )
-                message = f"{message} with platforms {' '.join(emojis)}"
+                message = f"{message} with platforms {emojis}"
 
             await embed.edit(embed=e)
             await self.bot.reg_channel.send(message)
@@ -139,7 +140,7 @@ class RegisterCog(commands.Cog, name="Register"):
 
     def user_has_connected_accounts(self, user):
         """Return true if user has connected destiny accounts"""
-        if len(user['destinyMemberships']):
+        if user.destiny_memberships:
             return True
 
 

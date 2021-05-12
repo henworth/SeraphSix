@@ -59,12 +59,13 @@ async def execute_pydest(function, *args, **kwargs):
 
     log.debug(f"{function} {args} {kwargs} - {data}")
 
+    if not return_type:
+        return data
+
     try:
         res = return_type.from_dict(data)
     except KeyError:
         try:
-            res = DestinyTokenResponse.from_dict(data)
-        except KeyError:
             res = DestinyTokenErrorResponse.from_dict(data)
         except Exception:
             raise RuntimeError(f"Cannot parse Destiny API response {data}")
@@ -103,8 +104,9 @@ async def execute_pydest_auth(ctx, func, auth_user_db, manager, *args, **kwargs)
 
 async def refresh_user_tokens(ctx, manager, auth_user_db):
     tokens = await execute_pydest(
-        ctx['destiny'].api.refresh_oauth_token, auth_user_db.bungie_refresh_token
-    )  # TODO Add return_type
+        ctx['destiny'].api.refresh_oauth_token, auth_user_db.bungie_refresh_token,
+        return_type=DestinyTokenResponse
+    )
 
     if tokens.error:
         log.warning(f"{tokens.error_description} Registration is needed")
