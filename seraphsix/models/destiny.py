@@ -7,6 +7,22 @@ from typing import Optional, List, Dict, Any
 from seraphsix import constants
 from seraphsix.tasks.parsing import member_hash, member_hash_db
 
+__all__ = [
+    'DestinyActivity', 'DestinyActivityDetails', 'DestinyActivityResponse', 'DestinyActivityResults',
+    'DestinyActivityStat', 'DestinyActivityStatValue', 'DestinyBungieNetUser', 'DestinyBungieNetUserInfo',
+    'DestinyCharacter', 'DestinyCharacterData', 'DestinyCharacterResponse', 'DestinyCharacterResults',
+    'DestinyGroup', 'DestinyGroupClanBannerData', 'DestinyGroupClanInfo', 'DestinyGroupD2ClanProgression',
+    'DestinyGroupDetail', 'DestinyGroupFeatures', 'DestinyGroupMember', 'DestinyGroupMemberKick',
+    'DestinyGroupMemberKickResponse', 'DestinyGroupMemberResults', 'DestinyGroupMembersResponse',
+    'DestinyGroupPendingMember', 'DestinyGroupPendingMemberResults', 'DestinyGroupPendingMembersResponse',
+    'DestinyGroupResponse', 'DestinyMemberGroup', 'DestinyMemberGroupResponse', 'DestinyMemberGroupResults',
+    'DestinyMembership', 'DestinyMembershipResponse', 'DestinyMembershipResults', 'DestinyPGCR',
+    'DestinyPGCREntry', 'DestinyPGCRExtended', 'DestinyPGCRResponse', 'DestinyPGCRWeapon', 'DestinyPlayer',
+    'DestinyProfile', 'DestinyProfileData', 'DestinyProfileResponse', 'DestinyProfileResults', 'DestinyResponse',
+    'DestinyResults', 'DestinySearchPlayerResponse', 'DestinyTokenErrorResponse', 'DestinyTokenResponse',
+    'DestinyUserInfo',
+]
+
 
 def encode_datetime(obj):
     return obj.strftime(constants.DESTINY_DATE_FORMAT_API)
@@ -42,7 +58,6 @@ def decode_id_string(obj):
 @dataclass
 class DestinyUserInfo:
     cross_save_override: int
-    applicable_membership_types: List[int]
     is_public: bool
     membership_type: int
     membership_id: int = field(
@@ -52,6 +67,7 @@ class DestinyUserInfo:
             mm_field=fields.Integer()
         )
     )
+    applicable_membership_types: Optional[List[int]] = None
     last_seen_display_name: Optional[str] = field(
         metadata=config(field_name='LastSeenDisplayName'),
         default=None
@@ -109,7 +125,7 @@ class DestinyProfile:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class DestinyProfileResponse:
+class DestinyProfileResults:
     profile: DestinyProfile
 
 
@@ -167,12 +183,6 @@ class DestinyCharacter:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class DestinyCharacterResponse:
-    characters: DestinyCharacter
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
 class DestinyActivityStatValue:
     value: float
     display_value:  str
@@ -219,8 +229,8 @@ class DestinyActivity:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class DestinyActivityResponse:
-    activities: List[DestinyActivity]
+class DestinyActivityResults:
+    activities: Optional[List[DestinyActivity]] = None
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -363,7 +373,7 @@ class DestinyBungieNetUser:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class DestinyMembershipResponse:
+class DestinyMembershipResults:
     destiny_memberships: List[DestinyMembership]
     bungie_net_user: Optional[DestinyBungieNetUser] = None
     primary_membership_id: Optional[int] = field(
@@ -404,16 +414,6 @@ class DestinyGroupMember:
         )
     )
     bungie_net_user_info: Optional[DestinyBungieNetUserInfo] = None
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class DestinyGroupMembersResponse:
-    results: List[DestinyGroupMember]
-    total_results: int
-    has_more: bool
-    query: Dict[str, int]
-    use_total_results: bool
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -537,7 +537,7 @@ class DestinyGroupDetail:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class DestinyGroupResponse:
+class DestinyGroup:
     detail: DestinyGroupDetail
     founder: DestinyGroupMember
     allied_ids: List[int]
@@ -553,17 +553,6 @@ class DestinyGroupResponse:
 class DestinyMemberGroup:
     member: DestinyGroupMember
     group: DestinyGroupDetail
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class DestinyMemberGroupResponse:
-    results: List[DestinyMemberGroup]
-    total_results: int
-    has_more: bool
-    query: Dict[str, int]
-    use_total_results: bool
-    are_all_memberships_inactive: Dict[str, bool]
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -590,15 +579,12 @@ class DestinyGroupPendingMember:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class DestinyGroupPendingMembersResponse:
-    results: List[DestinyGroupPendingMember]
-    total_results: int
-    has_more: bool
-    query: Dict[str, int]
-    use_total_results: bool
+class DestinyGroupMemberKick:
+    group: DestinyGroupDetail
+    group_deleted: bool
 
 
-@dataclass_json
+@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyResponse:
     error_code: int = field(metadata=config(field_name='ErrorCode'))
@@ -607,6 +593,107 @@ class DestinyResponse:
     message_data: object = field(metadata=config(field_name='MessageData'))
     throttle_seconds: int = field(metadata=config(field_name='ThrottleSeconds'))
     response: Optional[object] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyResults:
+    results: List[object]
+    total_results: int
+    has_more: bool
+    query: Dict[str, int]
+    use_total_results: bool
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyMemberGroupResults(DestinyResults):
+    results: List[DestinyMemberGroup]
+    are_all_memberships_inactive: Dict[str, bool]
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyMemberGroupResponse(DestinyResponse):
+    response: Optional[DestinyMemberGroupResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyGroupResponse(DestinyResponse):
+    response: Optional[DestinyGroup] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyGroupMemberResults(DestinyResults):
+    results: List[DestinyGroupMember]
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyGroupMembersResponse(DestinyResponse):
+    response: Optional[DestinyGroupMemberResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyGroupPendingMemberResults(DestinyResults):
+    results: List[DestinyGroupPendingMember]
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyGroupPendingMembersResponse(DestinyResponse):
+    response: Optional[DestinyGroupPendingMemberResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyGroupMemberKickResponse(DestinyResponse):
+    response: Optional[DestinyGroupMemberKick] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinySearchPlayerResponse(DestinyResponse):
+    response: Optional[List[DestinyUserInfo]] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyProfileResponse(DestinyResponse):
+    response: Optional[DestinyProfileResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyCharacterResults:
+    characters: DestinyCharacter
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyCharacterResponse(DestinyResponse):
+    response: Optional[DestinyCharacterResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyActivityResponse(DestinyResponse):
+    response: Optional[DestinyActivityResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyMembershipResponse(DestinyResponse):
+    response: Optional[DestinyMembershipResults] = field(metadata=config(field_name='Response'), default=None)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class DestinyPGCRResponse(DestinyResponse):
+    response: Optional[DestinyPGCR] = field(metadata=config(field_name='Response'), default=None)
 
 
 @dataclass_json
