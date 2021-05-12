@@ -6,6 +6,7 @@ import logging
 import pickle
 import pydest
 
+from aiohttp.client_exceptions import ServerDisconnectedError, ClientOSError
 from playhouse.shortcuts import model_to_dict, dict_to_model
 from pydest.pydest import PydestException
 from pyrate_limiter import BucketFullException
@@ -43,7 +44,10 @@ def backoff_handler(details):
 
 @backoff.on_exception(backoff.constant, (PrivateHistoryError, MaintenanceError), max_tries=1, logger=None)
 @backoff.on_exception(
-    backoff.expo, (PydestException, asyncio.TimeoutError, BucketFullException), logger=None, on_backoff=backoff_handler)
+    backoff.expo,
+    (PydestException, asyncio.TimeoutError, BucketFullException, ServerDisconnectedError, ClientOSError),
+    logger=None, on_backoff=backoff_handler
+)
 async def execute_pydest(function, *args, **kwargs):
     retval = None
 

@@ -237,13 +237,13 @@ class DestinyActivityResults:
 @dataclass
 class DestinyPlayer:
     destiny_user_info: DestinyUserInfo
-    character_class: str
     class_hash: int
     race_hash: int
     gender_hash: int
     character_level: int
     light_level: int
     emblem_hash: int
+    character_class: Optional[str] = None
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)

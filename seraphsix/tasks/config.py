@@ -36,7 +36,7 @@ def log_config(root_log_level: str = ROOT_LOG_LEVEL) -> dict:
             'bot': {'handlers': ['console'], 'level': 'DEBUG'},
             'peewee': {'handlers': ['console'], 'level': 'ERROR'},
             'discord': {'handlers': ['console'], 'level': 'INFO'},
-            'pyrate_limiter': {'handlers': ['console'], 'level': 'INFO'}
+            'pyrate_limiter': {'handlers': ['console'], 'level': 'ERROR'}
         }
     }
 
