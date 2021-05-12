@@ -3,18 +3,19 @@ import asyncio
 import backoff
 import discord
 import logging
-import msgpack
 import pickle
 import pydest
 
-from playhouse.shortcuts import model_to_dict
+from aiohttp.client_exceptions import ServerDisconnectedError, ClientOSError
+from playhouse.shortcuts import model_to_dict, dict_to_model
 from pydest.pydest import PydestException
 from pyrate_limiter import BucketFullException
 from seraphsix import constants
-from seraphsix.tasks.config import Config
-from seraphsix.errors import MaintenanceError, PrivateHistoryError, InvalidCommandError
+from seraphsix.models import deserializer, serializer
 from seraphsix.models.destiny import DestinyResponse, DestinyTokenResponse, DestinyTokenErrorResponse
-from seraphsix.tasks.parsing import decode_datetime, encode_datetime
+from seraphsix.tasks.config import Config
+from seraphsix.database import ClanMember
+from seraphsix.errors import MaintenanceError, PrivateHistoryError, InvalidCommandError
 
 log = logging.getLogger(__name__)
 config = Config()
@@ -23,8 +24,8 @@ config = Config()
 async def create_redis_jobs_pool():
     return await arq.create_pool(
         config.arq_redis,
-        job_serializer=lambda b: msgpack.packb(b, default=encode_datetime),
-        job_deserializer=lambda b: msgpack.unpackb(b, object_hook=decode_datetime)
+        job_serializer=lambda b: serializer(b),
+        job_deserializer=lambda b: deserializer(b)
     )
 
 
@@ -43,7 +44,10 @@ def backoff_handler(details):
 
 @backoff.on_exception(backoff.constant, (PrivateHistoryError, MaintenanceError), max_tries=1, logger=None)
 @backoff.on_exception(
-    backoff.expo, (PydestException, asyncio.TimeoutError, BucketFullException), logger=None, on_backoff=backoff_handler)
+    backoff.expo,
+    (PydestException, asyncio.TimeoutError, BucketFullException, ServerDisconnectedError, ClientOSError),
+    logger=None, on_backoff=backoff_handler
+)
 async def execute_pydest(function, *args, **kwargs):
     retval = None
 
@@ -59,12 +63,13 @@ async def execute_pydest(function, *args, **kwargs):
 
     log.debug(f"{function} {args} {kwargs} - {data}")
 
+    if not return_type:
+        return data
+
     try:
-        res = DestinyResponse.from_dict(data)
+        res = return_type.from_dict(data)
     except KeyError:
         try:
-            res = DestinyTokenResponse.from_dict(data)
-        except KeyError:
             res = DestinyTokenErrorResponse.from_dict(data)
         except Exception:
             raise RuntimeError(f"Cannot parse Destiny API response {data}")
@@ -83,8 +88,6 @@ async def execute_pydest(function, *args, **kwargs):
                 log.error(f"Error running {function} {args} {kwargs} - {res}")
                 if res.error_status not in ['DestinyAccountNotFound']:
                     raise PydestException
-        if return_type != DestinyResponse and res.response:
-            res.response = return_type.from_dict(res.response)
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")
     return retval
@@ -105,7 +108,8 @@ async def execute_pydest_auth(ctx, func, auth_user_db, manager, *args, **kwargs)
 
 async def refresh_user_tokens(ctx, manager, auth_user_db):
     tokens = await execute_pydest(
-        ctx['destiny'].api.refresh_oauth_token, auth_user_db.bungie_refresh_token
+        ctx['destiny'].api.refresh_oauth_token, auth_user_db.bungie_refresh_token,
+        return_type=DestinyTokenResponse
     )
 
     if tokens.error:
@@ -193,8 +197,9 @@ async def get_cached_members(ctx, guild_id, guild_name):
     clan_members = await ctx['redis_cache'].get(cache_key)
     if not clan_members:
         clan_members = await set_cached_members(ctx, guild_id, guild_name)
-    clan_members = msgpack.unpackb(clan_members, object_hook=decode_datetime)
-    return clan_members
+    clan_members = deserializer(clan_members)
+    member_dbs = [dict_to_model(ClanMember, member) for member in clan_members]
+    return member_dbs
 
 
 async def set_cached_members(ctx, guild_id, guild_name):
@@ -208,7 +213,7 @@ async def set_cached_members(ctx, guild_id, guild_name):
         member_dict = model_to_dict(member_db.clanmember, recurse=False)
         member_dict['member'] = model_to_dict(member_db, recurse=False)
         members.append(member_dict)
-    members = msgpack.packb([member for member in members], default=encode_datetime)
+    members = serializer([member for member in members])
     await redis_cache.set(cache_key, members, expire=constants.TIME_HOUR_SECONDS)
     log.info(f"Successfully cached all members of {guild_name} ({guild_id})")
     return members
