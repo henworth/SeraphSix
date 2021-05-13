@@ -1,7 +1,6 @@
 import asyncio
 import discord
 import logging
-import pickle
 import pydest
 import pytz
 
@@ -15,14 +14,16 @@ from seraphsix.cogs.utils.checks import is_clan_admin, is_valid_game_mode, is_re
 from seraphsix.cogs.utils.helpers import date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
-from seraphsix.database import Member, ClanMember, Clan, Guild, ClanMemberApplication
+from seraphsix.database import Member, ClanMember, Clan, Guild, ClanMemberApplication, Role
 from seraphsix.errors import InvalidAdminError, InvalidCommandError
+from seraphsix.models import deserializer, serializer
 from seraphsix.models.destiny import (
-    DestinyMembershipResponse, DestinyMemberGroupResponse, DestinyGroupResponse, DestinyGroupPendingMembersResponse
+    DestinyMembershipResponse, DestinyMemberGroupResponse, DestinyGroupResponse, DestinyGroupPendingMembersResponse,
+    DestinySearchPlayerResponse
 )
 from seraphsix.tasks.activity import get_game_counts, get_last_active
 from seraphsix.tasks.core import execute_pydest, get_primary_membership, execute_pydest_auth
-from seraphsix.tasks.clan import info_sync, member_sync
+from seraphsix.tasks.clan import info_sync, member_sync, set_cached_members
 
 log = logging.getLogger(__name__)
 
@@ -67,13 +68,13 @@ class ClanCog(commands.Cog, name="Clan"):
 
         return username, platform_id
 
-    async def get_member_db(self, ctx, username):
+    async def get_member_db(self, ctx, username, include_clan=False):
         try:
             member_discord = await commands.MemberConverter().convert(ctx, str(username))
         except BadArgument:
-            member_query = self.bot.database.get_member_by_naive_username(username, include_clan=False)
+            member_query = self.bot.database.get_member_by_naive_username(username, include_clan=include_clan)
         else:
-            member_query = self.bot.database.get_member_by_discord_id(member_discord.id)
+            member_query = self.bot.database.get_member_by_discord_id(member_discord.id, include_clan=include_clan)
 
         try:
             member_db = await asyncio.create_task(member_query)
@@ -104,7 +105,8 @@ class ClanCog(commands.Cog, name="Clan"):
                     break
         else:
             player = await execute_pydest(
-                self.bot.destiny.api.search_destiny_player, platform_id, username
+                self.bot.destiny.api.search_destiny_player, platform_id, username,
+                return_type=DestinySearchPlayerResponse
             )
             if not player.response:
                 log_message = f"Could not find Destiny player for {username}"
@@ -169,7 +171,7 @@ class ClanCog(commands.Cog, name="Clan"):
 
         embed = discord.Embed(
             colour=constants.BLUE,
-            title=f"Clan Application for {ctx.author.nick}"
+            title=f"Clan Application for {ctx.author.display_name}"
         )
 
         bungie_url = f"https://www.bungie.net/en/Profile/{platform_id}/{membership_id}"
@@ -190,14 +192,46 @@ class ClanCog(commands.Cog, name="Clan"):
         embed.set_footer(text="All times shown in UTC")
         embed.set_thumbnail(url=str(ctx.author.avatar_url))
 
-        # application = msgpack.packb(embed, default=encode_datetime)
         await redis_cache.set(
-            f'{ctx.guild.id}-clan-application-{requestor_db.id}', pickle.dumps(embed))
+            f'{ctx.guild.id}-clan-application-{requestor_db.id}', serializer(embed))
         return embed
 
-    @commands.group()
+    async def get_inactive_members(self, ctx, clan_db):
+        inactive_members_filtered = []
+
+        # pylama:ignore=E712
+        query = Role.select().join(Guild).where(
+            (Guild.guild_id == ctx.guild.id) & (Role.is_protected_clanmember == True)
+        )
+        protected_roles = [role.role_id for role in await self.bot.database.execute(query)]
+
+        inactive_members = await self.bot.database.get_clan_members_inactive(clan_db.id)
+        if len(inactive_members) > 0:
+            for member in inactive_members:
+                time_delta = (datetime.now(pytz.utc) - member.clanmember.last_active).total_seconds()
+                platform_id, membership_id, username = get_primary_membership(member)
+                member_discord = ctx.guild.get_member(member.discord_id)
+                if member_discord:
+                    member_roles = [role.id for role in member_discord.roles]
+                    if any(role in protected_roles for role in member_roles):
+                        continue
+                inactive_members_filtered.append((time_delta, platform_id, membership_id, username))
+
+        inactive_members_filtered.sort(reverse=True)
+        return inactive_members_filtered
+
+    @commands.group(invoke_without_command=True)
     async def clan(self, ctx):
         """Clan Specific Commands"""
+        if ctx.invoked_subcommand is None:
+            raise commands.CommandNotFound()
+
+    @clan.group(invoke_without_command=True)
+    @is_clan_admin()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def admin(self, ctx):
+        """Clan Admin Specific Commands"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
@@ -287,7 +321,7 @@ class ClanCog(commands.Cog, name="Clan"):
         if clan_info_redis and '-nocache' not in args:
             log.debug(f'{clan_redis_key} {clan_info_redis}')
             await redis_cache.expire(clan_redis_key, constants.TIME_HOUR_SECONDS)
-            embeds = pickle.loads(clan_info_redis)
+            embeds = [discord.Embed.from_dict(embed) for embed in deserializer(clan_info_redis)]
         else:
             for clan_db in clan_dbs:
                 group = await execute_pydest(
@@ -326,7 +360,9 @@ class ClanCog(commands.Cog, name="Clan"):
                     inline=True
                 )
                 embeds.append(embed)
-            await redis_cache.set(clan_redis_key, pickle.dumps(embeds), expire=constants.TIME_HOUR_SECONDS)
+            await redis_cache.set(clan_redis_key, serializer(
+                [embed.to_dict() for embed in embeds]), expire=constants.TIME_HOUR_SECONDS
+            )
 
         if len(embeds) > 1:
             paginator = EmbedPages(ctx, embeds)
@@ -351,12 +387,12 @@ class ClanCog(commands.Cog, name="Clan"):
         if members_redis and '-nocache' not in args:
             await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
             for member in members_redis:
-                members.append(pickle.loads(member))
+                members.append(deserializer(member))
         else:
             members_db = await self.bot.database.get_clan_members(
                 [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
             for member in members_db:
-                await self.bot.ext_conns['redis_cache'].rpush(f"{ctx.guild.id}-clan-roster", pickle.dumps(member))
+                await self.bot.ext_conns['redis_cache'].rpush(f"{ctx.guild.id}-clan-roster", serializer(member))
             await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
             members = members_db
 
@@ -382,10 +418,7 @@ class ClanCog(commands.Cog, name="Clan"):
         )
         await p.paginate()
 
-    @clan.command()
-    @is_clan_admin()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
+    @admin.command()
     async def pending(self, ctx):
         """Show a list of pending members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
@@ -422,11 +455,9 @@ class ClanCog(commands.Cog, name="Clan"):
 
         await manager.send_embed(embed)
 
-    @clan.command(
+    @admin.command(
         help="""
-Admin only, requires registration
-
-Approve a pending clan member based on either their Discord info or in-game username.
+Approve a pending clan member (Admin only, requires registration)
 
 To approve based on Discord info, the user must be registered. Once that is done,
 the command takes any Discord user info (username, nickname, id, etc.)
@@ -438,9 +469,6 @@ Examples:
 ?clan approve username
 ?clan approve username -platform xbox
 """)
-    @is_clan_admin()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
     async def approve(self, ctx, *args):
         """Approve a pending member (Admin only, requires registration)"""
         manager = MessageManager(ctx)
@@ -481,10 +509,7 @@ Examples:
 
         return await manager.send_message(message, mention=False, clean=False)
 
-    @clan.command()
-    @is_clan_admin()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
+    @admin.command()
     async def invited(self, ctx):
         """Show a list of invited members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
@@ -521,11 +546,9 @@ Examples:
 
         await manager.send_embed(embed)
 
-    @clan.command(
+    @admin.command(
         help="""
-Admin only, requires registration
-
-Invite a user to clan based on either their Discord info or in-game username.
+Invite a user to clan (Admin only, requires registration)
 
 To invite based on Discord info, the user must be registered. Once that is done,
 the command takes any Discord user info (username, nickname, id, etc.)
@@ -537,9 +560,6 @@ Examples:
 ?clan invite username
 ?clan invite username -platform xbox
 """)
-    @is_clan_admin()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
     async def invite(self, ctx, *args):
         """Invite a member by username (Admin only, requires registration)"""
         manager = MessageManager(ctx)
@@ -582,10 +602,8 @@ Examples:
 
         return await manager.send_message(message, mention=False, clean=False)
 
-    @clan.command()
+    @admin.command()
     @clan_is_linked()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
         """Sync member list with Destiny (Admin only)"""
         manager = MessageManager(ctx)
@@ -696,10 +714,7 @@ Examples:
                 message = "Your application has been approved!"
             return await manager.send_and_clean(message)
 
-    @clan.command()
-    @is_clan_admin()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
+    @admin.command()
     async def applied(self, ctx):
         redis_cache = self.bot.ext_conns['redis_cache']
         manager = MessageManager(ctx)
@@ -723,7 +738,7 @@ Examples:
                 previous_message = await admin_channel.fetch_message(previous_message_id)
                 await previous_message.delete()
 
-                new_message = await manager.send_embed(pickle.loads(embed_packed))
+                new_message = await manager.send_embed(deserializer(embed_packed))
                 application_db.message_id = new_message.id
                 await self.bot.ext_conns['database'].update(application_db)
         else:
@@ -781,6 +796,176 @@ Examples:
             await manager.send_message(message, mention=False, clean=False)
 
         return await manager.clean_messages()
+
+    @admin.command()
+    async def inactive(self, ctx, *args):
+        manager = MessageManager(ctx)
+
+        embeds = []
+        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        for clan_db in clan_dbs:
+            embed = discord.Embed(
+                colour=constants.BLUE,
+                title=f"Clan Members in {clan_db.name} Inactive for over 30 Days"
+            )
+
+            inactive_members = await self.get_inactive_members(ctx, clan_db)
+            if len(inactive_members) == 0:
+                embed.add_field(
+                    name="None",
+                    value='-'
+                )
+            else:
+                for inactive_member in inactive_members:
+                    time_delta, _, _, username = inactive_member
+                    months, remainder = divmod(time_delta, 2628000)
+                    days, _ = divmod(remainder, 86400)
+                    embed.add_field(name=username, value=f'{int(months)} months {int(days)} days')
+
+            embeds.append(embed)
+
+        for embed in embeds:
+            await manager.send_embed(embed)
+
+    @admin.command()
+    async def kick(self, ctx, *args):
+        manager = MessageManager(ctx)
+        username = ' '.join(args)
+
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+
+        member_db = await self.get_member_db(ctx, username, include_clan=True)
+        if not member_db:
+            return await manager.send_and_clean(f"Could not find username `{username}`")
+
+        platform_id, membership_id, username = get_primary_membership(member_db)
+
+        confirm = {
+            constants.EMOJI_CHECKMARK: True,
+            constants.EMOJI_CROSSMARK: False
+        }
+
+        confirm_res = await manager.send_message_react(
+            f"Kick **{username}**?",
+            reactions=confirm.keys(),
+            clean=False
+        )
+        if confirm_res == constants.EMOJI_CROSSMARK:
+            return await manager.send_and_clean("Canceling command")
+
+        await execute_pydest_auth(
+            self.bot.ext_conns,
+            self.bot.destiny.api.group_kick_member,
+            admin_db,
+            manager,
+            group_id=admin_db.clanmember.clan.clan_id,
+            membership_type=platform_id,
+            membership_id=membership_id,
+            access_token=admin_db.bungie_access_token
+        )
+
+        await self.bot.database.delete(member_db.clanmember)
+
+        return await manager.send_message(
+            f"Member **{username}** has been kicked from {admin_db.clanmember.clan.name}")
+
+    @admin.command()
+    async def purge(self, ctx, *args):
+        manager = MessageManager(ctx)
+
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+
+        inactive_members = await self.get_inactive_members(ctx, admin_db.clanmember.clan)
+
+        query = Role.select().join(Guild).where(
+            (Guild.guild_id == ctx.guild.id) & (
+                (Role.is_clanmember == True) | (Role.is_new_clanmember == True) | (Role.is_non_clanmember == True)
+            )
+        )
+        roles_db = await self.bot.database.execute(query)
+        member_roles = [
+            ctx.guild.get_role(role_db.role_id) for role_db in roles_db
+            if role_db.is_clanmember or role_db.is_new_clanmember
+        ]
+
+        non_member_roles = [
+            ctx.guild.get_role(role_db.role_id) for role_db in roles_db
+            if role_db.is_non_clanmember
+        ]
+
+        announcements = []
+        for member in inactive_members:
+            time_delta, platform_id, membership_id, username = member
+            months, remainder = divmod(time_delta, 2628000)
+            days, _ = divmod(remainder, 86400)
+
+            member_db = await self.bot.database.get_clan_member_by_platform(
+                membership_id, platform_id, [admin_db.clanmember.clan.id]
+            )
+
+            if member_db.discord_id:
+                member_discord = ctx.guild.get_member(member_db.discord_id)
+                kick_message = (
+                    f"Kick **{username}** (Discord: {member_discord.display_name}), "
+                    f"inactive for {int(months)} months {int(days)} days?"
+                )
+            else:
+                member_discord = None
+                kick_message = (
+                    f"Kick **{username}** (not in this Discord server or not registered), "
+                    f"inactive for {int(months)} months {int(days)} days?"
+                )
+
+            confirm = {
+                constants.EMOJI_CHECKMARK: True,
+                constants.EMOJI_CROSSMARK: False
+            }
+
+            confirm_res = await manager.send_message_react(
+                kick_message,
+                reactions=confirm.keys(),
+                clean=False,
+                with_cancel=True
+            )
+            if confirm_res == constants.EMOJI_CROSSMARK:
+                continue
+            elif not confirm_res:
+                return await manager.send_and_clean("Canceling command")
+
+            await execute_pydest_auth(
+                self.bot.ext_conns,
+                self.bot.destiny.api.group_kick_member,
+                admin_db,
+                manager,
+                group_id=admin_db.clanmember.clan.clan_id,
+                membership_type=platform_id,
+                membership_id=membership_id,
+                access_token=admin_db.bungie_access_token
+            )
+
+            await self.bot.database.delete(member_db.clanmember)
+
+            announcement_base = (
+                f"has been kicked from {admin_db.clanmember.clan.name} after being inactive "
+                f"for {int(months)} months {int(days)} days"
+            )
+            await manager.send_message(f"Member **{username}** {announcement_base}", mention=False, clean=False)
+
+            if member_discord:
+                await member_discord.remove_roles(*member_roles)
+                await member_discord.add_roles(*non_member_roles)
+                announcement = f"{member_discord.mention} {announcement_base}"
+            else:
+                announcement = f"Member **{username}** {announcement_base}"
+
+            announcements.append(announcement)
+
+        if announcements:
+            await set_cached_members(self.bot.ext_conns, ctx.guild.id, ctx.guild.name)
+
+            announcement_channel = ctx.guild.get_channel(self.bot.guild_map[ctx.guild.id].announcement_channel)
+            if announcement_channel:
+                await announcement_channel.send('\n'.join(announcements))
 
 
 def setup(bot):

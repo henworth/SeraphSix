@@ -14,7 +14,7 @@ from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_r
 from seraphsix.cogs.utils.helpers import get_timezone_name, date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.database import Member
-from seraphsix.models.destiny import User as DestinyUser
+from seraphsix.models.destiny import User as DestinyUser, DestinyMembershipResponse
 from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, execute_pydest
 
 log = logging.getLogger(__name__)
@@ -67,7 +67,8 @@ class MemberCog(commands.Cog, name="Member"):
         bungie_link = None
         if member_db.bungie_id:
             bungie_info = await execute_pydest(
-                self.bot.destiny.api.get_membership_data_by_id, member_db.bungie_id
+                self.bot.destiny.api.get_membership_data_by_id, member_db.bungie_id,
+                return_type=DestinyMembershipResponse
             )
             if not bungie_info.response:
                 bungie_link = member_db.bungie_username
