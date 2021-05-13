@@ -258,7 +258,7 @@ async def get_characters(ctx, member_id, platform_id):
     return retval
 
 
-async def process_activity(ctx, activity, guild_id, guild_name):
+async def process_activity(ctx, activity, guild_id, guild_name, player_check=False):
     database = ctx['database']
     game = GameApi(activity)
     member_dbs = await get_cached_members(ctx, guild_id, guild_name)
@@ -269,32 +269,36 @@ async def process_activity(ctx, activity, guild_id, guild_name):
     try:
         game_db = await database.get(Game, instance_id=game.instance_id)
     except DoesNotExist:
-        log.debug(f"Skipping missing player check because game {game.instance_id} does not exist")
+        log.debug(f"Game {game.instance_id} does not exist")
     else:
-        pgcr = await get_pgcr(ctx, game.instance_id)
-        clan_game = ClanGame(pgcr, member_dbs)
-        api_players_db = [
-            await database.get_clan_member_by_platform(player.membership_id, player.membership_type, clan_ids)
-            for player in clan_game.clan_players
-        ]
+        if player_check:
+            log.debug(f"Starting missing player check because game {game.instance_id} exists")
+            pgcr = await get_pgcr(ctx, game.instance_id)
+            clan_game = ClanGame(pgcr, member_dbs)
+            api_players_db = [
+                await database.get_clan_member_by_platform(player.membership_id, player.membership_type, clan_ids)
+                for player in clan_game.clan_players
+            ]
 
-        query = Member.select(Member, ClanMember).join(
-            GameMember).switch(Member).join(ClanMember).switch(GameMember).join(Game).where(
-            (Game.instance_id == game.instance_id)
-        )
-        db_players_db = await database.execute(query)
-        missing_player_dbs = set(api_players_db).symmetric_difference(set([db_player for db_player in db_players_db]))
+            query = Member.select(Member, ClanMember).join(
+                GameMember).switch(Member).join(ClanMember).switch(GameMember).join(Game).where(
+                (Game.instance_id == game.instance_id)
+            )
+            db_players_db = await database.execute(query)
+            missing_player_dbs = set(api_players_db).symmetric_difference(
+                set([db_player for db_player in db_players_db]))
 
-        if len(missing_player_dbs) > 0:
-            for missing_player_db in missing_player_dbs:
-                for game_player in clan_game.clan_players:
-                    if member_hash(game_player) == member_hash_db(missing_player_db, game_player.membership_type) \
-                            and game.date > missing_player_db.clanmember.join_date:
-                        log.debug(f'Found missing player in {game.instance_id} {game_player}')
-                        await database.create_game_member(
-                            game_player, game_db, member_dbs[0].clan_id, missing_player_db)
-        else:
-            log.debug(f"Continuing because game {game.instance_id} exists")
+            if len(missing_player_dbs) > 0:
+                log.debug(f"Found {len(missing_player_dbs)} missing players in game {game.instance_id}")
+                for missing_player_db in missing_player_dbs:
+                    for game_player in clan_game.clan_players:
+                        if member_hash(game_player) == member_hash_db(missing_player_db, game_player.membership_type) \
+                                and game.date > missing_player_db.clanmember.join_date:
+                            log.debug(f'Found missing player in {game.instance_id} {game_player}')
+                            await database.create_game_member(
+                                game_player, game_db, member_dbs[0].clan_id, missing_player_db)
+            else:
+                log.debug(f"No missing players found in game {game.instance_id}")
         return
 
     supported_modes = set(sum(constants.SUPPORTED_GAME_MODES.values(), []))
