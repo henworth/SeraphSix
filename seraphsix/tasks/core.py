@@ -63,6 +63,8 @@ async def execute_pydest(function, *args, **kwargs):
 
     log.debug(f"{function} {args} {kwargs} - {data}")
 
+    # None is a valid value for return_type, in this case we don't try and turn it into
+    # a dataclass. This is primarily used for manifest decoding.
     if not return_type:
         return data
 
@@ -76,7 +78,13 @@ async def execute_pydest(function, *args, **kwargs):
     else:
         if not res:
             raise RuntimeError("Unexpected empty response from the Destiny API")
-        if res.error_status != 'Success':
+
+        # DestinyTokenResponse and DestinyTokenErrorResponse have an "error" field
+        if hasattr(res, 'error') and res.error:
+            log.error(f"Error running {function} {args} {kwargs} - {res}")
+            raise RuntimeError(f"Error running {function} {args} {kwargs} - {res}")
+        elif hasattr(res, 'error_status') and res.error_status != 'Success':
+            # The rest of the API responses use "error_status"
             # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
             if res.error_status == 'SystemDisabled':
                 raise MaintenanceError
