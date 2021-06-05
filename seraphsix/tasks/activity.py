@@ -2,15 +2,20 @@ import asyncio
 import itertools
 import logging
 
-from peewee import DoesNotExist, fn
+from tortoise.functions import Max, Count
+from tortoise.exceptions import DoesNotExist
+from tortoise.expressions import Subquery
+from typing import Tuple
+
 from seraphsix import constants
-from seraphsix.database import ClanMember, Game, GameMember, Guild, Member
 from seraphsix.errors import PrivateHistoryError
+from seraphsix.models.database import ClanMember, Game, GameMember, Member
 from seraphsix.models.destiny import (
     Game as GameApi, ClanGame, DestinyProfileResponse, DestinyActivityResponse, DestinyPGCRResponse
 )
 from seraphsix.tasks.core import execute_pydest, get_cached_members, get_primary_membership
 from seraphsix.tasks.parsing import member_hash, member_hash_db
+
 
 log = logging.getLogger(__name__)
 
@@ -96,92 +101,105 @@ async def get_last_active(ctx, member_db=None, platform_id=None, member_id=None)
     return acct_last_active
 
 
+async def save_last_active(ctx, member_id):
+    member_db = await Member.get(id=member_id)
+    last_active = await get_last_active(ctx, member_db)
+    member_db.last_active = last_active
+    await member_db.save()
+
+
 async def store_last_active(ctx, guild_id, guild_name):
-    database = ctx['database']
+    redis_jobs = ctx['redis_jobs']
     for member_db in await get_cached_members(ctx, guild_id, guild_name):
-        last_active = await get_last_active(ctx, member_db.member)
-        member_db.last_active = last_active
-        await database.update(member_db)
-    log.info(f"Found last active dates for all members of {guild_name} ({guild_id})")
+        await redis_jobs.enqueue_job(
+            'save_last_active', member_db.member.id, _job_id=f'save_last_active-{member_db.member.id}'
+        )
+    log.info(f"Queued last active collection for all members of {guild_name} ({guild_id})")
 
 
 async def get_game_counts(database, game_mode, member_db=None):
-    base_query = Game.select(Game.mode_id, fn.Count(Game.id))
+    base_query = Game.annotate(count=Count('id'))
     modes = [mode_id for mode_id in constants.SUPPORTED_GAME_MODES.get(game_mode)]
 
     if member_db:
-        query = base_query.join(GameMember).join(Member).join(ClanMember).where(
-            (Member.id == member_db.id) &
-            (ClanMember.clan_id == member_db.clanmember.clan_id) &
-            (Game.mode_id << modes)
+        query = base_query.filter(
+            members__member=member_db.member,
+            members__member__clans__clan=member_db.clan,
+            mode_id__in=modes
         )
     else:
-        query = base_query.where(Game.mode_id << modes)
+        query = base_query.filter(mode_id__in=modes)
 
-    data = await database.execute(query.group_by(Game.mode_id))
     counts = {}
-    for row in data._rows:
-        mode_id, count = row
-        game_title = constants.MODE_MAP[mode_id]['title']
-        counts[game_title] = count
+    for row in await query.group_by('mode_id').values('mode_id', 'count'):
+        game_title = constants.MODE_MAP[row['mode_id']]['title']
+        counts[game_title] = row['count']
     return counts
 
 
-async def get_sherpa_time_played(database, member_db):
-    clan_sherpas = Member.select(Member.id).join(ClanMember).where((ClanMember.is_sherpa) & (Member.id != member_db.id))
+async def get_sherpa_time_played(member_db: object) -> Tuple[int, list]:
+    await member_db.member
+    clan_sherpas = ClanMember.filter(
+        is_sherpa=True, id__not=member_db.id
+    ).only('member_id')
 
     full_list = list(constants.SUPPORTED_GAME_MODES.values())
     mode_list = list(set([mode for sublist in full_list for mode in sublist]))
 
-    all_games = Game.select().join(GameMember).where(
-        (GameMember.member_id == member_db.id) & (Game.mode_id << mode_list)
-    )
+    all_games = GameMember.filter(
+        game__mode_id__in=mode_list, member=member_db.member, time_played__not_isnull=True
+    ).only('game_id')
 
-    sherpa_games = Game.select(Game.id.distinct()).join(GameMember).where(
-        (Game.id << all_games) & (GameMember.member_id << clan_sherpas)
-    )
+    sherpa_games = GameMember.filter(
+        game_id__in=Subquery(all_games), member_id__in=Subquery(clan_sherpas), time_played__not_isnull=True
+    ).distinct().only('game_id')
 
-    query = GameMember.select(
-        GameMember.member_id, GameMember.game_id, fn.MAX(GameMember.time_played).alias('sherpa_time')
-    ).where(
-        (GameMember.game_id << sherpa_games) & (GameMember.member_id << clan_sherpas)
+    # Ideally one more optimal query whould look like this, which would return all the data we'd need
+    # in one query. But this is not currently possible with Tortoise.
+    # SELECT DISTINCT ON (m.game_id) m.game_id, m.member_id, t.sherpa_time
+    # FROM(
+    # 	SELECT "game_id" "game_id", MAX("time_played") "sherpa_time"
+    # 	FROM "gamemember"
+    # 	WHERE "game_id" IN(2078188, 2078189)
+    # 	AND "member_id" IN(7, 75, 92, 108, 14, 11, 56, 95, 38, 167, 220, 48, 263, 47)
+    # 	AND NOT "time_played" IS NULL
+    # 	GROUP BY "game_id"
+    # ) AS t
+    # JOIN gamemember m ON m.game_id = t.game_id
+
+    query = await GameMember.annotate(
+        sherpa_time=Max('time_played')
+    ).filter(
+        game_id__in=Subquery(sherpa_games),
+        member_id__in=Subquery(clan_sherpas),
+        sherpa_time__not_isnull=True
     ).group_by(
-        GameMember.game_id, GameMember.member_id
-    ).order_by(
-        GameMember.game_id, fn.MAX(GameMember.time_played).desc()
-    ).distinct(GameMember.game_id)
+        'game_id'
+    ).values('game_id', 'sherpa_time')
 
     total_time = 0
-    unique_sherpas = set()
-    unique_games = set()
-    try:
-        results = await database.execute(query)
-    except DoesNotExist:
-        return (total_time, unique_sherpas)
+    for result in query:
+        total_time += result['sherpa_time']
 
-    for result in results:
-        unique_sherpas.add(result.member_id)
-        unique_games.add(result.game_id)
-        total_time += result.sherpa_time if result.sherpa_time else 0
+    # https://github.com/tortoise/tortoise-orm/issues/780
+    all_games = GameMember.filter(
+        game__mode_id__in=mode_list, member=member_db.member, time_played__not_isnull=True
+    ).only('game_id')
 
-    all_game_sherpas_query = GameMember.select(Member.id.distinct()).join(Member).switch().join(Game).where(
-        (Game.id << sherpa_games) & (GameMember.member_id << clan_sherpas)
-    )
-    try:
-        all_game_sherpas_db = await database.execute(all_game_sherpas_query)
-    except DoesNotExist:
-        return (total_time, unique_sherpas)
+    sherpa_games = GameMember.filter(
+        game_id__in=Subquery(all_games), member_id__in=Subquery(clan_sherpas), time_played__not_isnull=True
+    ).distinct().only('game_id')
 
-    for sherpa in all_game_sherpas_db:
-        unique_sherpas.add(sherpa)
+    sherpa_ids = GameMember.filter(
+        game_id__in=Subquery(sherpa_games), member_id__in=Subquery(clan_sherpas), time_played__not_isnull=True
+    ).distinct().values_list('member__discord_id', flat=True)
 
-    return (total_time, unique_sherpas)
+    return (total_time, sherpa_ids)
 
 
-async def store_all_games(ctx, guild_id, guild_name, count=30):
+async def store_all_games(ctx, guild_id, guild_name, count=30, recent=True):
     database = ctx['database']
     redis_jobs = ctx['redis_jobs']
-    guild_db = await database.get(Guild, guild_id=guild_id)
 
     try:
         clan_dbs = await database.get_clans_by_guild(guild_id)
@@ -189,30 +207,29 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
         log.info(f"No clans found for {guild_name} ({guild_id})")
         return
 
-    log.info(f"Finding all games for members of {guild_name} ({guild_id}) active in the last hour")
-
     tasks = []
-    active_member_dbs = []
-    all_member_dbs = []
-    for clan_db in clan_dbs:
-        if not clan_db.activity_tracking:
-            log.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
-            continue
+    if recent:
+        log.info(f"Finding all games for members of {guild_name} ({guild_id}) active in the last hour")
 
-        active_members = await database.get_clan_members_active(clan_db.id, hours=1)
-        all_members = [clanmember.member for clanmember in await get_cached_members(ctx, guild_id, guild_name)]
+        for clan_db in clan_dbs:
+            if not clan_db.activity_tracking:
+                log.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
+                continue
 
-        if guild_db.aggregate_clans:
-            active_member_dbs.extend(active_members)
-            all_member_dbs.extend(all_members)
-        else:
-            active_member_dbs = active_members
-            all_member_dbs = all_members
+            tasks.extend([
+                get_member_activity(ctx, clanmember.member, count=count, full_sync=False)
+                for clanmember in await database.get_clan_members_active(clan_db, hours=1)
+            ])
+    else:
+        for clan_db in clan_dbs:
+            if not clan_db.activity_tracking:
+                log.info(f"Clan activity tracking disabled for Clan {clan_db.name}, skipping")
+                continue
 
-        tasks.extend([
-            get_member_activity(ctx, member_db, count=count, full_sync=False)
-            for member_db in active_member_dbs
-        ])
+            tasks.extend([
+                get_member_activity(ctx, clanmember.member, count=count, full_sync=False)
+                for clanmember in await database.get_clan_members([clan_db.clan_id])
+            ])
 
     results = await asyncio.gather(*tasks)
 
@@ -226,6 +243,7 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
             all_activities_dict[key] = activity
     unique_activities = list(all_activities_dict.values())
 
+    tasks = []
     for activity in unique_activities:
         activity_id = activity.activity_details.instance_id
         await redis_jobs.enqueue_job(
@@ -233,7 +251,7 @@ async def store_all_games(ctx, guild_id, guild_name, count=30):
         )
 
     log.info(
-        f"Found {len(unique_activities)} games for members of {guild_name} ({guild_id}) active in the last hour"
+        f"Processed {len(unique_activities)} games for members of {guild_name} ({guild_id}) active in the last hour"
     )
 
 
@@ -266,9 +284,8 @@ async def process_activity(ctx, activity, guild_id, guild_name):
     clan_dbs = await database.get_clans_by_guild(guild_id)
     clan_ids = [clan.id for clan in clan_dbs]
 
-    try:
-        game_db = await database.get(Game, instance_id=game.instance_id)
-    except DoesNotExist:
+    game_db = await Game.get_or_none(instance_id=game.instance_id)
+    if not game_db:
         log.debug(f"Skipping missing player check because game {game.instance_id} does not exist")
     else:
         pgcr = await get_pgcr(ctx, game.instance_id)
@@ -278,21 +295,26 @@ async def process_activity(ctx, activity, guild_id, guild_name):
             for player in clan_game.clan_players
         ]
 
-        query = Member.select(Member, ClanMember).join(
-            GameMember).switch(Member).join(ClanMember).switch(GameMember).join(Game).where(
-            (Game.instance_id == game.instance_id)
-        )
-        db_players_db = await database.execute(query)
-        missing_player_dbs = set(api_players_db).symmetric_difference(set([db_player for db_player in db_players_db]))
+        db_players_db = await ClanMember.filter(
+            member__games__game__instance_id=game.instance_id
+        ).prefetch_related('member')
+
+        try:
+            missing_player_dbs = set(api_players_db).symmetric_difference(
+                set([db_player for db_player in db_players_db]))
+        except TypeError:
+            log.debug(f"api_players_db: {api_players_db} db_players_db: {db_players_db}")
+            raise
 
         if len(missing_player_dbs) > 0:
             for missing_player_db in missing_player_dbs:
+                member_db = missing_player_db.member
                 for game_player in clan_game.clan_players:
-                    if member_hash(game_player) == member_hash_db(missing_player_db, game_player.membership_type) \
-                            and game.date > missing_player_db.clanmember.join_date:
+                    if member_hash(game_player) == member_hash_db(member_db, game_player.membership_type) \
+                            and game.date > missing_player_db.join_date:
                         log.debug(f'Found missing player in {game.instance_id} {game_player}')
                         await database.create_game_member(
-                            game_player, game_db, member_dbs[0].clan_id, missing_player_db)
+                            game_player, game_db, member_dbs[0].clan_id, member_db)
         else:
             log.debug(f"Continuing because game {game.instance_id} exists")
         return
@@ -324,11 +346,9 @@ async def process_activity(ctx, activity, guild_id, guild_name):
 
 
 async def store_member_history(ctx, member_db_id, guild_id, guild_name, full_sync=False, count=250, mode=0):
-    database = ctx['database']
     redis_jobs = ctx['redis_jobs']
 
-    query = Member.select(Member, ClanMember).join(ClanMember).where(Member.id == member_db_id)
-    member_db = await database.get(query)
+    member_db = await Member.get(id=member_db_id)
     activities = await get_member_activity(ctx, member_db, count, full_sync, mode)
 
     for activity in activities:

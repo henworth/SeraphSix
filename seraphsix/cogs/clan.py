@@ -7,23 +7,23 @@ import pytz
 from datetime import datetime
 from discord.ext import commands
 from discord.ext.commands.errors import BadArgument
-from peewee import DoesNotExist
+from tortoise.query_utils import Q
 
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_clan_admin, is_valid_game_mode, is_registered, clan_is_linked
 from seraphsix.cogs.utils.helpers import date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import FieldPages, EmbedPages
-from seraphsix.database import Member, ClanMember, Clan, Guild, ClanMemberApplication, Role
 from seraphsix.errors import InvalidAdminError, InvalidCommandError
 from seraphsix.models import deserializer, serializer
+from seraphsix.models.database import Clan, Guild, ClanMemberApplication, Role
 from seraphsix.models.destiny import (
     DestinyMembershipResponse, DestinyMemberGroupResponse, DestinyGroupResponse, DestinyGroupPendingMembersResponse,
     DestinySearchPlayerResponse
 )
 from seraphsix.tasks.activity import get_game_counts, get_last_active
-from seraphsix.tasks.core import execute_pydest, get_primary_membership, execute_pydest_auth
-from seraphsix.tasks.clan import info_sync, member_sync, set_cached_members
+from seraphsix.tasks.core import execute_pydest, get_primary_membership, execute_pydest_auth, get_memberships
+from seraphsix.tasks.clan import info_sync, member_sync
 
 log = logging.getLogger(__name__)
 
@@ -33,16 +33,14 @@ class ClanCog(commands.Cog, name="Clan"):
         self.bot = bot
 
     async def get_admin_group(self, ctx):
-        try:
-            return await self.bot.database.get(
-                Clan.select(Clan).join(ClanMember).join(Member).switch(Clan).join(Guild).where(
-                    Guild.guild_id == ctx.message.guild.id,
-                    ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN,
-                    Member.discord_id == ctx.author.id
-                )
-            )
-        except DoesNotExist:
+        clan_db = await Clan.get(
+            guild__guild_id=ctx.message.guild.id,
+            members__member_type__gte=constants.CLAN_MEMBER_ADMIN,
+            members__member__discord_id=ctx.author.id
+        )
+        if not clan_db:
             raise InvalidAdminError
+        return clan_db
 
     async def get_user_details(self, args):
         username, platform_id = (None,)*2
@@ -75,13 +73,7 @@ class ClanCog(commands.Cog, name="Clan"):
             member_query = self.bot.database.get_member_by_naive_username(username, include_clan=include_clan)
         else:
             member_query = self.bot.database.get_member_by_discord_id(member_discord.id, include_clan=include_clan)
-
-        try:
-            member_db = await asyncio.create_task(member_query)
-        except DoesNotExist:
-            member_db = None
-
-        return member_db
+        return await asyncio.create_task(member_query)
 
     async def get_bungie_details(self, username, bungie_id=None, platform_id=None):
         membership_id = None
@@ -95,7 +87,7 @@ class ClanCog(commands.Cog, name="Clan"):
                 )
             except pydest.PydestException as e:
                 log_message = f"Could not find Destiny player for {username}"
-                log.error(f"{log_message}\n\n{e}\n\n{player}")
+                log.error(f"{log_message}\n\n{e}\n\n{username}")
                 raise InvalidCommandError(log_message)
 
             for membership in player.response.destiny_memberships:
@@ -199,18 +191,18 @@ class ClanCog(commands.Cog, name="Clan"):
     async def get_inactive_members(self, ctx, clan_db):
         inactive_members_filtered = []
 
-        # pylama:ignore=E712
-        query = Role.select().join(Guild).where(
-            (Guild.guild_id == ctx.guild.id) & (Role.is_protected_clanmember == True)
+        query = Role.filter(
+            guild__guild_id=ctx.guild.id,
+            is_protected_clanmember=True
         )
-        protected_roles = [role.role_id for role in await self.bot.database.execute(query)]
+        protected_roles = [role.role_id for role in await query]
 
-        inactive_members = await self.bot.database.get_clan_members_inactive(clan_db.id)
+        inactive_members = await self.bot.database.get_clan_members_inactive(clan_db)
         if len(inactive_members) > 0:
-            for member in inactive_members:
-                time_delta = (datetime.now(pytz.utc) - member.clanmember.last_active).total_seconds()
-                platform_id, membership_id, username = get_primary_membership(member)
-                member_discord = ctx.guild.get_member(member.discord_id)
+            for clanmember in inactive_members:
+                time_delta = (datetime.now(pytz.utc) - clanmember.last_active).total_seconds()
+                platform_id, membership_id, username = get_primary_membership(clanmember.member)
+                member_discord = ctx.guild.get_member(clanmember.member.discord_id)
                 if member_discord:
                     member_roles = [role.id for role in member_discord.roles]
                     if any(role in protected_roles for role in member_roles):
@@ -265,7 +257,7 @@ class ClanCog(commands.Cog, name="Clan"):
                 f"**{clan_db.name} [{clan_db.callsign}]** is already linked to another the100 group.")
 
         clan_db.the100_group_id = res['id']
-        await self.bot.database.update(clan_db)
+        await clan_db.save()
 
         message = (
             f"**{clan_db.name} [{clan_db.callsign}]** "
@@ -294,7 +286,7 @@ class ClanCog(commands.Cog, name="Clan"):
         callsign = res['clan_tag']
 
         clan_db.the100_group_id = None
-        await self.bot.database.update(clan_db)
+        await clan_db.save()
 
         message = (
             f"**{clan_db.name} [{clan_db.callsign}]** "
@@ -376,40 +368,68 @@ class ClanCog(commands.Cog, name="Clan"):
     async def roster(self, ctx, *args):
         """Show roster for all connected clans"""
         manager = MessageManager(ctx)
-
         clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
 
         if not clan_dbs:
             return await manager.send_and_clean("No connected clans found")
 
-        members = []
-        members_redis = await self.bot.ext_conns['redis_cache'].lrange(f"{ctx.guild.id}-clan-roster", 0, -1)
-        if members_redis and '-nocache' not in args:
-            await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
-            for member in members_redis:
-                members.append(deserializer(member))
-        else:
-            members_db = await self.bot.database.get_clan_members(
-                [clan_db.clan_id for clan_db in clan_dbs], sorted_by='username')
-            for member in members_db:
-                await self.bot.ext_conns['redis_cache'].rpush(f"{ctx.guild.id}-clan-roster", serializer(member))
-            await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
-            members = members_db
+        # members = []
+        # members_redis = await self.bot.ext_conns['redis_cache'].lrange(f"{ctx.guild.id}-clan-roster", 0, -1)
+        # if members_redis and '-nocache' not in args:
+        #     await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
+        #     for member in members_redis:
+        #         members.append(deserializer(member))
+        # else:
+        #     members_db = await self.bot.database.get_clan_members([clan_db.clan_id for clan_db in clan_dbs])
+        #     for member in members_db:
+        #         await self.bot.ext_conns['redis_cache'].rpush(f"{ctx.guild.id}-clan-roster", serializer(member))
+        #     await self.bot.ext_conns['redis_cache'].expire(f"{ctx.guild.id}-clan-roster", constants.TIME_HOUR_SECONDS)
+        #     members = members_db
+        members_db = await self.bot.database.get_clan_members([clan_db.clan_id for clan_db in clan_dbs])
+
+        platform_names = list(constants.PLATFORM_MAP.keys())
+        platform_ids = list(constants.PLATFORM_MAP.values())
 
         entries = []
-        for member in members:
+
+        clans = {}
+        for clanmember in members_db:
+            if clanmember.clan.id not in clans.keys():
+                clans[clanmember.clan.id] = {}
+
+            member = clanmember.member
             timezone = "Not Set"
             if member.timezone:
                 tz = datetime.now(pytz.timezone(member.timezone))
                 timezone = f"{tz.strftime('UTC%z')} ({tz.tzname()})"
+
+            if member.bungie_username:
+                username = member.bungie_username
+            else:
+                username = f'{member.xbox_username} X'
+            memberships = get_memberships(member)
+            if constants.PLATFORM_BUNGIE in memberships.keys():
+                username = memberships[constants.PLATFORM_BUNGIE][1]
+            else:
+                username = list(memberships.values())[0][1]
+
+            platform_emojis = [
+                constants.PLATFORM_EMOJI_MAP.get(platform_names[platform_ids.index(platform)])
+                for platform in memberships.keys()
+            ]
+
             member_info = (
-                member.username,
-                f"Clan: {member.clanmember.clan.name} [{member.clanmember.clan.callsign}]\n"
-                f"Join Date: {date_as_string(member.clanmember.join_date)}\n"
+                f"{username} {' '.join([str(self.bot.get_emoji(emoji)) for emoji in platform_emojis if emoji])}",
+                f"Clan: {clanmember.clan.name} [{clanmember.clan.callsign}]\n"
+                f"Join Date: {date_as_string(clanmember.join_date)}\n"
                 f"Timezone: {timezone}"
             )
-            entries.append(member_info)
+            clans[clanmember.clan.id][username] = member_info
 
+        entries = []
+        for i in sorted(clans.keys()):
+            for v in sorted(clans[i].keys()):
+                entries.append(clans[i][v])
         p = FieldPages(
             ctx, entries=entries,
             per_page=5,
@@ -423,7 +443,7 @@ class ClanCog(commands.Cog, name="Clan"):
         """Show a list of pending members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
 
-        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id, include_clan=False)
         clan_db = await self.get_admin_group(ctx)
 
         members = await execute_pydest_auth(
@@ -475,7 +495,7 @@ Examples:
         username, platform_id = await self.get_user_details(args)
 
         member_db = await self.get_member_db(ctx, username)
-        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id, include_clan=False)
         clan_db = await self.get_admin_group(ctx)
 
         if clan_db.platform:
@@ -514,7 +534,7 @@ Examples:
         """Show a list of invited members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
 
-        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id, include_clan=False)
         clan_db = await self.get_admin_group(ctx)
 
         members = await execute_pydest_auth(
@@ -566,7 +586,7 @@ Examples:
         username, platform_id = await self.get_user_details(args)
 
         member_db = await self.get_member_db(ctx, username)
-        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id, include_clan=False)
         clan_db = await self.get_admin_group(ctx)
 
         if not platform_id and clan_db.platform:
@@ -688,23 +708,19 @@ Examples:
         """Apply to be a member of the linked clan"""
         manager = MessageManager(ctx)
         requestor_db = await get_requestor(ctx)
-        guild_db = await self.bot.ext_conns['database'].get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get_or_none(guild_id=ctx.guild.id)
 
-        try:
-            clan_app_db = await self.bot.ext_conns['database'].get(
-                ClanMemberApplication, guild_id=guild_db.id, member_id=requestor_db.id
-            )
-        except DoesNotExist:
+        clan_app_db = await ClanMemberApplication.get_or_none(guild=guild_db, member=requestor_db)
+        if not clan_app_db:
             embed = await self.create_application_embed(ctx, requestor_db, guild_db)
             application_embed = await manager.send_embed(embed, channel_id=guild_db.admin_channel)
 
-            data = {
-                'guild': guild_db.id,
-                'member': requestor_db.id,
-                'message_id': application_embed.id,
-                'approved': False
-            }
-            await self.bot.ext_conns['database'].create(ClanMemberApplication, **data)
+            await ClanMemberApplication.create(
+                guild=guild_db,
+                member=requestor_db,
+                message_id=application_embed.id,
+                approved=False
+            )
 
             await manager.send_and_clean("Your application has been submitted for admin approval.")
         else:
@@ -729,10 +745,9 @@ Examples:
             for key in keys:
                 embed_packed = await redis_cache.get(key)
                 member_db_id = key.decode('utf-8').split('-')[-1]
-                query = ClanMemberApplication.select().join(Member).where(
-                    Member.id == member_db_id
+                application_db = await ClanMemberApplication.filter(
+                    member_id=member_db_id
                 )
-                application_db = await self.bot.ext_conns['database'].get(query)
                 previous_message_id = application_db.message_id
 
                 previous_message = await admin_channel.fetch_message(previous_message_id)
@@ -740,7 +755,7 @@ Examples:
 
                 new_message = await manager.send_embed(deserializer(embed_packed))
                 application_db.message_id = new_message.id
-                await self.bot.ext_conns['database'].update(application_db)
+                await application_db.save()
         else:
             await manager.send_and_clean("No applications found.")
 
@@ -774,9 +789,7 @@ Examples:
         embed.description = str(total_count)
         await manager.send_embed(embed)
 
-    @clan.command()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
+    @admin.command()
     async def activitytracking(self, ctx):
         """Enable activity tracking on all connected clans (Admin only)"""
         manager = MessageManager(ctx)
@@ -787,7 +800,7 @@ Examples:
                 clan_db.activity_tracking = False
             else:
                 clan_db.activity_tracking = True
-            await self.bot.database.update(clan_db)
+            await clan_db.save()
             message = (
                 f"Clan activity tracking has been "
                 f"{'enabled' if clan_db.activity_tracking else 'disabled'} "
@@ -798,11 +811,27 @@ Examples:
         return await manager.clean_messages()
 
     @admin.command()
+    async def update_games(self, ctx, *args):
+        manager = MessageManager(ctx)
+
+        discord_guild = await self.bot.fetch_guild(ctx.guild.id)
+        guild_id = ctx.guild.id
+        guild_name = str(discord_guild)
+
+        message = f"Queueing task to find recent games for all members of {guild_name} ({guild_id})"
+        log.info(message)
+        await self.bot.ext_conns['redis_jobs'].enqueue_job(
+            'store_all_games', guild_id, guild_name, 30, False, _job_id=f'store_all_games-{guild_id}'
+        )
+
+        await manager.send_message(message, mention=False, clean=False)
+
+    @ admin.command()
     async def inactive(self, ctx, *args):
         manager = MessageManager(ctx)
 
         embeds = []
-        clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
+        clan_dbs = await Clan.filter(guild__guild_id=ctx.guild.id).prefetch_related('guild')
         for clan_db in clan_dbs:
             embed = discord.Embed(
                 colour=constants.BLUE,
@@ -832,7 +861,7 @@ Examples:
         manager = MessageManager(ctx)
         username = ' '.join(args)
 
-        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id, include_clan=True)
 
         member_db = await self.get_member_db(ctx, username, include_clan=True)
         if not member_db:
@@ -856,18 +885,18 @@ Examples:
         await execute_pydest_auth(
             self.bot.ext_conns,
             self.bot.destiny.api.group_kick_member,
-            admin_db,
+            admin_db.member,
             manager,
-            group_id=admin_db.clanmember.clan.clan_id,
+            group_id=admin_db.clan.clan_id,
             membership_type=platform_id,
             membership_id=membership_id,
-            access_token=admin_db.bungie_access_token
+            access_token=admin_db.member.bungie_access_token
         )
 
-        await self.bot.database.delete(member_db.clanmember)
+        await member_db.delete()  # TODO
 
         return await manager.send_message(
-            f"Member **{username}** has been kicked from {admin_db.clanmember.clan.name}")
+            f"Member **{username}** has been kicked from {admin_db.clan.name}")
 
     @admin.command()
     async def purge(self, ctx, *args):
@@ -875,14 +904,16 @@ Examples:
 
         admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
-        inactive_members = await self.get_inactive_members(ctx, admin_db.clanmember.clan)
+        inactive_members = await self.get_inactive_members(ctx, admin_db.clan)
 
-        query = Role.select().join(Guild).where(
-            (Guild.guild_id == ctx.guild.id) & (
-                (Role.is_clanmember == True) | (Role.is_new_clanmember == True) | (Role.is_non_clanmember == True)
+        roles_db = await Role.filter(
+            Q(
+                Q(guild__guild_id=ctx.guild.id),
+                Q(
+                    Q(is_clanmember=True), Q(is_new_clanmember=True), Q(is_non_clanmember=True), join_type="OR"
+                )
             )
         )
-        roles_db = await self.bot.database.execute(query)
         member_roles = [
             ctx.guild.get_role(role_db.role_id) for role_db in roles_db
             if role_db.is_clanmember or role_db.is_new_clanmember
@@ -900,21 +931,25 @@ Examples:
             days, _ = divmod(remainder, 86400)
 
             member_db = await self.bot.database.get_clan_member_by_platform(
-                membership_id, platform_id, [admin_db.clanmember.clan.id]
+                membership_id, platform_id, [admin_db.clan.id]
             )
 
-            if member_db.discord_id:
-                member_discord = ctx.guild.get_member(member_db.discord_id)
-                kick_message = (
-                    f"Kick **{username}** (Discord: {member_discord.display_name}), "
-                    f"inactive for {int(months)} months {int(days)} days?"
+            kick_message = f"Kick **{username}** "
+
+            member_discord = None
+            if member_db.member.discord_id:
+                member_discord = ctx.guild.get_member(member_db.member.discord_id)
+                if member_discord:
+                    kick_message += (
+                        f"(Discord: {member_discord.display_name}), "
+                    )
+
+            if not member_discord:
+                kick_message += (
+                    "(not in this Discord server or not registered), "
                 )
-            else:
-                member_discord = None
-                kick_message = (
-                    f"Kick **{username}** (not in this Discord server or not registered), "
-                    f"inactive for {int(months)} months {int(days)} days?"
-                )
+
+            kick_message += f"inactive for {int(months)} months {int(days)} days?"
 
             confirm = {
                 constants.EMOJI_CHECKMARK: True,
@@ -935,18 +970,18 @@ Examples:
             await execute_pydest_auth(
                 self.bot.ext_conns,
                 self.bot.destiny.api.group_kick_member,
-                admin_db,
+                admin_db.member,
                 manager,
-                group_id=admin_db.clanmember.clan.clan_id,
+                group_id=admin_db.clan.clan_id,
                 membership_type=platform_id,
                 membership_id=membership_id,
                 access_token=admin_db.bungie_access_token
             )
 
-            await self.bot.database.delete(member_db.clanmember)
+            await member_db.delete()  # TODO
 
             announcement_base = (
-                f"has been kicked from {admin_db.clanmember.clan.name} after being inactive "
+                f"has been kicked from {admin_db.clan.name} after being inactive "
                 f"for {int(months)} months {int(days)} days"
             )
             await manager.send_message(f"Member **{username}** {announcement_base}", mention=False, clean=False)
@@ -961,7 +996,7 @@ Examples:
             announcements.append(announcement)
 
         if announcements:
-            await set_cached_members(self.bot.ext_conns, ctx.guild.id, ctx.guild.name)
+            # await set_cached_members(self.bot.ext_conns, ctx.guild.id, ctx.guild.name)
 
             announcement_channel = ctx.guild.get_channel(self.bot.guild_map[ctx.guild.id].announcement_channel)
             if announcement_channel:
