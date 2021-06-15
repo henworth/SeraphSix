@@ -8,21 +8,19 @@ import peony
 import traceback
 
 from discord.ext import commands, tasks
-from peewee import DoesNotExist
 from peony import PeonyClient
 from pydest.pydest import Pydest
 from the100 import The100
 
-from seraphsix import constants
+from seraphsix import constants, Database
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.database import Database, Guild, TwitterChannel
-
 from seraphsix.errors import (
     InvalidCommandError, InvalidGameModeError, InvalidMemberError, InvalidAdminError,
     NotRegisteredError, ConfigurationError, MissingTimezoneError, MaintenanceError,
 )
-from seraphsix.tasks.core import create_redis_jobs_pool
+from seraphsix.models.database import Guild, TwitterChannel
 from seraphsix.tasks.clan import ack_clan_application
+from seraphsix.tasks.core import create_redis_jobs_pool
 from seraphsix.tasks.discord import store_sherpas, update_sherpa
 
 log = logging.getLogger(__name__)
@@ -37,18 +35,13 @@ STARTUP_EXTENSIONS = [
 
 
 async def _prefix_callable(bot, message):
-    '''Get current command prefix'''
+    """Get current command prefix"""
     base = [f"<@{bot.user.id}> "]
     if isinstance(message.channel, discord.abc.PrivateChannel):
         base.append('?')
     else:
-        try:
-            guild = await bot.database.get(Guild, guild_id=message.guild.id)
-        except DoesNotExist:
-            await bot.database.create(Guild, guild_id=message.guild.id)
-            base.append('?')
-        else:
-            base.append(guild.prefix)
+        guild_db, _ = await Guild.get_or_create(guild_id=message.guild.id)
+        base.append(guild_db.prefix)
     return base
 
 
@@ -63,7 +56,6 @@ class SeraphSix(commands.Bot):
 
         self.config = config
         self.database = Database(config.database_url, config.database_conns)
-        self.database.initialize()
 
         self.destiny = Pydest(
             api_key=config.destiny.api_key,
@@ -101,7 +93,7 @@ class SeraphSix(commands.Bot):
 
     @tasks.loop(minutes=5.0)
     async def update_members(self):
-        guilds = await self.ext_conns['database'].execute(Guild.select())
+        guilds = await Guild.all()
         if not guilds:
             return
         for guild in guilds:
@@ -124,16 +116,14 @@ class SeraphSix(commands.Bot):
         await self.wait_until_ready()
 
     async def update_sherpa_roles(self):
-        guilds = await self.ext_conns['database'].execute(Guild.select())
+        guilds = await Guild.all()
         if not guilds:
             return
         tasks = [store_sherpas(self, guild) for guild in guilds if guild.track_sherpas]
         await asyncio.gather(*tasks)
 
     async def process_tweet(self, tweet):
-        # pylint: disable=assignment-from-no-return
-        query = TwitterChannel.select().where(TwitterChannel.twitter_id == tweet.user.id)
-        channels = await self.ext_conns['database'].execute(query)
+        channels = await TwitterChannel.filter(twitter_id=tweet.user.id)
 
         if not channels:
             log.info(
@@ -166,7 +156,7 @@ class SeraphSix(commands.Bot):
 
     @tasks.loop(hours=1.0)
     async def cache_clan_members(self):
-        guilds = await self.ext_conns['database'].execute(Guild.select())
+        guilds = await Guild.all()
         if not guilds:
             return
         for guild in guilds:
@@ -183,10 +173,11 @@ class SeraphSix(commands.Bot):
         await self.wait_until_ready()
 
     async def on_connect(self):
+        await self.database.initialize()
         await self.connect_redis()
 
     async def on_ready(self):
-        guilds = await self.ext_conns['database'].execute(Guild.select())
+        guilds = await Guild.all()
         if not guilds:
             return
         self.guild_map = {}

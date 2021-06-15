@@ -2,11 +2,11 @@ import discord
 import logging
 
 from discord.ext import commands
-from peewee import DoesNotExist
+from tortoise.exceptions import DoesNotExist
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import twitter_enabled, clan_is_linked
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.database import TwitterChannel, Clan, Guild, Role
+from seraphsix.models.database import TwitterChannel, Clan, Guild, Role
 from seraphsix.models.destiny import DestinyGroupResponse
 from seraphsix.tasks.core import execute_pydest
 from seraphsix.tasks.discord import store_sherpas
@@ -86,17 +86,14 @@ class ServerCog(commands.Cog, name="Server"):
         """Set a channel for particular twitter messages"""
         manager = MessageManager(ctx)
 
-        try:
-            # pylint: disable=assignment-from-no-return
-            query = TwitterChannel.select().where(
-                TwitterChannel.guild_id == ctx.message.guild.id,
-                TwitterChannel.twitter_id == twitter_id
-            )
-            channel_db = await self.bot.database.get(query)
-        except DoesNotExist:
+        channel_db = await TwitterChannel.get_or_none(
+            guild_id=ctx.message.guild.id,
+            twitter_id=twitter_id
+        )
+        if not channel_db:
             details = {'guild_id': ctx.message.guild.id,
                        'channel_id': ctx.message.channel.id, 'twitter_id': twitter_id}
-            await self.bot.database.create(TwitterChannel, **details)
+            await TwitterChannel.create(**details)
             message = f"{message} now enabled and will post to **#{ctx.message.channel.name}**."
         else:
             channel = self.bot.get_channel(channel_db.channel_id)
@@ -144,22 +141,22 @@ class ServerCog(commands.Cog, name="Server"):
         clan_name = group.response.detail.name
         callsign = group.response.detail.clan_info.clan_callsign
 
-        try:
-            clan_db = await self.bot.database.get(Clan, clan_id=clan_id)
-        except DoesNotExist:
-            guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
-            await self.bot.database.create(
-                Clan, clan_id=clan_id, name=clan_name, callsign=callsign, guild=guild_db)
+        clan_db = await Clan.get_or_none(clan_id=clan_id)
+        if not clan_db:
+            guild_db = await Guild.get(guild_id=ctx.guild.id)
+            await Clan.create(
+                clan_id=clan_id, name=clan_name, callsign=callsign, guild=guild_db
+            )
         else:
             if clan_db.guild_id:
                 return await manager.send_and_clean(
                     f"**{clan_name} [{callsign}]** is already linked to another server.")
             else:
-                guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+                guild_db = await Guild.get(guild_id=ctx.guild.id)
                 clan_db.guild = guild_db
                 clan_db.name = clan_name
                 clan_db.callsign = callsign
-                await self.bot.database.update(clan_db)
+                await clan_db.save()
 
         return await manager.send_and_clean(
             f"Server **{ctx.message.guild.name}** linked to **{clan_name} [{callsign}]**")
@@ -177,7 +174,7 @@ class ServerCog(commands.Cog, name="Server"):
             message = "No clan linked to this server."
         else:
             clan_db.guild_id = None
-            await self.bot.database.update(clan_db)
+            await clan_db.save()
             message = f"Server **{ctx.message.guild.name}** unlinked from **{clan_db.name} [{clan_db.callsign}]**"
 
         return await manager.send_and_clean(message)
@@ -192,9 +189,9 @@ class ServerCog(commands.Cog, name="Server"):
         if len(new_prefix) > 5:
             message = "Prefix must be less than 6 characters."
         else:
-            guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+            guild_db = await Guild.get(guild_id=ctx.guild.id)
             guild_db.prefix = new_prefix
-            await self.bot.database.update(guild_db)
+            await guild_db.save()
             message = f"Command prefix has been changed to `{new_prefix}`"
 
         return await manager.send_and_clean(message)
@@ -213,9 +210,7 @@ class ServerCog(commands.Cog, name="Server"):
             message = f"Platform must be one of `{', '.join(constants.PLATFORM_MAP.keys()).title()}`.`"
         else:
             clan_dbs = await self.bot.database.get_clans_by_guild(ctx.guild.id)
-            for clan_db in clan_dbs:
-                clan_db.platform = platform_id
-            await self.bot.database.bulk_update(clan_dbs, ['platform'])
+            await clan_dbs.update(platform=platform_id)
             message = f"Platform has been set to `{platform}`"
 
         return await manager.send_and_clean(message)
@@ -234,9 +229,9 @@ class ServerCog(commands.Cog, name="Server"):
             if not channel:
                 message = f"Channel ID {channel_id} not found"
             else:
-                guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+                guild_db = await Guild.get(guild_id=ctx.guild.id)
                 guild_db.admin_channel = channel_id
-                await self.bot.database.update(guild_db)
+                await guild_db.save()
                 message = f"Channel for Admin Notifications set to {str(channel)} ({channel_id})"
 
         return await manager.send_and_clean(message)
@@ -248,7 +243,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def rolesetsherpa(self, ctx):
         """Set server roles that distinguish sherpas (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         roles = []
         cont = True
@@ -263,13 +258,18 @@ class ServerCog(commands.Cog, name="Server"):
             else:
                 role_obj = discord.utils.get(ctx.guild.roles, name=name)
                 if role_obj:
-                    roles.append((guild_db.id, role_obj.id, True))
+                    roles.append(
+                        Role(
+                            guild=guild_db,
+                            role_id=role_obj.id,
+                            is_sherpa=True
+                        )
+                    )
                 else:
                     return await manager.send_and_clean(f"Could not find a role with name `{name}`")
 
         if roles:
-            await self.bot.database.execute(
-                Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.is_sherpa]))
+            await Role.bulk_create(roles)
 
         return await manager.send_and_clean("Sherpa roles have been set")
 
@@ -280,11 +280,10 @@ class ServerCog(commands.Cog, name="Server"):
     async def roleshowsherpa(self, ctx):
         """Show server roles that distinguish sherpas (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         roles = []
-        query = Role.select().join(Guild).where((Guild.id == guild_db.id) & (Role.is_sherpa))
-        roles_db = await self.bot.database.execute(query)
+        roles_db = await Role.filter(guild=guild_db, is_sherpa=True)
         for role in roles_db:
             role_obj = discord.utils.get(ctx.guild.roles, id=role.role_id)
             roles.append(role_obj.name)
@@ -304,7 +303,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def syncsherpas(self, ctx):
         """Sync server member sherpa role state (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
         if not guild_db.track_sherpas:
             return await manager.send_message(
                 f"Sherpa tracking is not enabled on this server. "
@@ -328,7 +327,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def sherpatracking(self, ctx):
         """Set server sherpa role tracking state (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         reactions = {
             constants.EMOJI_CHECKMARK: 'True',
@@ -345,8 +344,7 @@ class ServerCog(commands.Cog, name="Server"):
             return await manager.send_and_clean("Canceling command")
 
         track = reactions[react] == 'True'
-        query = Guild.update(track_sherpas=track).where(Guild.id == guild_db.id)
-        await self.bot.database.execute(query)
+        await guild_db.update(track_sherpas=track)
 
         message = "Sherpa tracking has been"
         if track:
@@ -363,7 +361,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def rolesetplatform(self, ctx):
         """Map server roles to game platforms (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         roles = []
         for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
@@ -375,13 +373,18 @@ class ServerCog(commands.Cog, name="Server"):
             else:
                 role_obj = discord.utils.get(ctx.guild.roles, name=name)
                 if role_obj:
-                    roles.append((guild_db.id, role_obj.id, constants.PLATFORM_MAP[role]))
+                    roles.append(
+                        Role(
+                            guild=guild_db,
+                            role_id=role_obj.id,
+                            platform_id=constants.PLATFORM_MAP[role]
+                        )
+                    )
                 else:
                     return await manager.send_and_clean(f"Could not find a role with name `{name}`")
 
         if roles:
-            await self.bot.database.execute(
-                Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.platform_id]))
+            await Role.bulk_create(roles)
 
         return await manager.send_and_clean("Platforms have been set")
 
@@ -392,7 +395,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def roleshowplatform(self, ctx):
         """Map server roles to game platforms (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         base_embed = discord.Embed(
             color=constants.BLUE,
@@ -400,11 +403,8 @@ class ServerCog(commands.Cog, name="Server"):
         )
 
         for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
-            try:
-                role_db = await self.bot.database.get(
-                    Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role]
-                )
-            except DoesNotExist:
+            role_db = await Role.get_or_none(guild=guild_db, platform_id=constants.PLATFORM_MAP[role])
+            if not role_db:
                 role_name = "None"
             else:
                 role_obj = discord.utils.get(ctx.guild.roles, id=role_db.role_id)
@@ -425,7 +425,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def roleclearplatform(self, ctx):
         """Map server roles to game platforms (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         base_embed = discord.Embed(
             color=constants.BLUE,
@@ -433,7 +433,7 @@ class ServerCog(commands.Cog, name="Server"):
         )
 
         for role, emoji in constants.PLATFORM_EMOJI_MAP.items():
-            role_db = await self.bot.database.get(Role, guild_id=guild_db.id, platform_id=constants.PLATFORM_MAP[role])
+            role_db = await Role.get(guild=guild_db, platform_id=constants.PLATFORM_MAP[role])
             role_obj = discord.utils.get(ctx.guild.roles, id=role_db.role_id)
             kwargs = dict(
                 name=self.bot.get_emoji(emoji),
@@ -458,9 +458,7 @@ class ServerCog(commands.Cog, name="Server"):
         if not clear:
             return await manager.send_and_clean("Canceling command")
 
-        role_query = Role.delete().join(Guild).where(Guild.guild_id == guild_db.id)
-        await self.bot.database.execute(role_query)
-
+        await Role.filter(guild=guild_db).delete()
         return await manager.send_and_clean("Platform roles cleared")
 
     @role_set.command(name='protectedmember')
@@ -470,7 +468,7 @@ class ServerCog(commands.Cog, name="Server"):
     async def rolesetprotectedmember(self, ctx):
         """Set server roles that distinguish protected members (Manage Server only)"""
         manager = MessageManager(ctx)
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
         roles = []
         cont = True
@@ -485,13 +483,18 @@ class ServerCog(commands.Cog, name="Server"):
             else:
                 role_obj = discord.utils.get(ctx.guild.roles, name=name)
                 if role_obj:
-                    roles.append((guild_db.id, role_obj.id, True))
+                    roles.append(
+                        Role(
+                            guild=guild_db,
+                            role_id=role_obj.id,
+                            is_protected_clanmember=True
+                        )
+                    )
                 else:
                     return await manager.send_and_clean(f"Could not find a role with name `{name}`")
 
         if roles:
-            await self.bot.database.execute(
-                Role.insert_many(roles, fields=[Role.guild, Role.role_id, Role.is_protected_clanmember]))
+            await Role.bulk_create(roles)
 
         return await manager.send_and_clean("Protected member roles have been set")
 
@@ -501,15 +504,15 @@ class ServerCog(commands.Cog, name="Server"):
     async def aggregateclans(self, ctx):
         """Aggregate all connected clan data (Admin only)"""
         manager = MessageManager(ctx)
+        guild_db = await Guild.get(guild_id=ctx.guild.id)
 
-        guild_db = await self.bot.database.get(Guild, guild_id=ctx.guild.id)
         if guild_db.aggregate_clans:
             guild_db.aggregate_clans = False
         else:
             guild_db.aggregate_clans = True
 
         message = f"Clan aggregation has been {'enabled' if guild_db.aggregate_clans else 'disabled'}."
-        await self.bot.database.update(guild_db)
+        await guild_db.save()
         return await manager.send_and_clean(message)
 
 

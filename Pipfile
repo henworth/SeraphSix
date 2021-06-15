@@ -4,45 +4,37 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+aio-pika = "*"
 autopep8 = "*"
+migra = {extras = ["pg"],version = "*"}
+pika = "*"
 pylama = "*"
 pyopenssl = "*"
-migra = {extras = ["pg"],version = "*"}
-aio-pika = "*"
-pika = "*"
 
 [packages]
-aiopg = ">=0.15.0"
-astroid = ">=2.0.4"
+aiohttp = ">=3.7.4"
+aioredis = "*"
+arq = ">=0.20"
 backoff = ">=1.8.0"
-lazy-object-proxy = ">=1.3.1"
-peewee-async = ">=0.7.1"
-peewee = ">=3.9.4"
-peony-twitter = ">=1.1.2"
-psycopg2-binary = ">=2.8.2"
-pytz = "*"
-six = ">=1.11.0"
-wrapt = ">=1.10.11"
+cryptography = ">=3.3.2"
+dataclasses-json = "*"
 "discord.py" = ">=1.5.1"
 flask = "*"
-requests-oauth2 = "*"
-gunicorn = "*"
-aioredis = "*"
-redis = "*"
-jsonpickle = "*"
-the100 = {git = "https://github.com/henworth/the100"}
-pydest = {git = "https://github.com/henworth/pydest",ref = "9537696c39f36f8250082891ddcc0198142d22eb"}
 flask-kvsession = "*"
-tenacity = "*"
 get-docker-secret = "*"
-arq = ">=0.20"
-msgpack = "*"
-cryptography = ">=3.3.2"
-urllib3 = ">=1.26.4"
+gunicorn = "*"
 jinja2 = ">=2.11.3"
-aiohttp = ">=3.7.4"
-dataclasses-json = "*"
+jsonpickle = "*"
+msgpack = "*"
+peony-twitter = ">=1.1.2"
+pydest = {git = "https://github.com/henworth/pydest",ref = "9537696c39f36f8250082891ddcc0198142d22eb"}
 pyrate-limiter = "*"
+pytz = "*"
+redis = "*"
+requests-oauth2 = "*"
+the100 = {git = "https://github.com/henworth/the100"}
+tortoise-orm = {extras = ["asyncpg"], version = "*"}
+urllib3 = ">=1.26.4"
 
 [pipenv]
 allow_prereleases = false

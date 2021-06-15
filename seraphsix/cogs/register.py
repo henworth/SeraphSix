@@ -2,10 +2,10 @@ import discord
 import logging
 
 from discord.ext import commands
-from peewee import DoesNotExist
+
 from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.database import Member, Role, Guild
+from seraphsix.models.database import Member, Role
 from seraphsix.models.destiny import User, DestinyMembershipResponse
 from seraphsix.tasks.core import execute_pydest, register
 
@@ -66,10 +66,9 @@ class RegisterCog(commands.Cog, name="Register"):
             (bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE)
         ]
 
-        try:
-            member_db = await self.bot.database.get_member_by_platform(
-                bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE)
-        except DoesNotExist:
+        member_db = await self.bot.database.get_member_by_platform(
+            bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE)
+        if not member_db:
             # Create a list of member id with their respective platforms, if the id is not null
             member_id_list = ((member_id, platform_id) for member_id, platform_id in member_ids if member_id)
             # Grab the first one and craft the query data
@@ -80,10 +79,9 @@ class RegisterCog(commands.Cog, name="Register"):
             )
 
             # Query for that member, if that fails create a skeleton entry
-            try:
-                member_db = await self.bot.database.get_member_by_platform(**query_data)
-            except DoesNotExist:
-                member_db = await self.bot.database.create(Member)
+            member_db = await self.bot.database.get_member_by_platform(**query_data)
+            if not member_db:
+                member_db = await Member.create()
 
         # Save OAuth credentials and Bungie User data
         for key, value in bungie_user.to_dict().items():
@@ -92,8 +90,7 @@ class RegisterCog(commands.Cog, name="Register"):
         member_db.discord_id = ctx.author.id
         member_db.bungie_access_token = bungie_access_token
         member_db.bungie_refresh_token = user_info.get('refresh_token')
-
-        await self.bot.database.update(member_db)
+        await member_db.save()
 
         e = discord.Embed(
             colour=constants.BLUE,
@@ -103,8 +100,7 @@ class RegisterCog(commands.Cog, name="Register"):
         emojis = []
         # Update platform roles to match connected accounts
         if ctx.guild:
-            guild_query = Role.select(Role).join(Guild).where(Guild.guild_id == ctx.guild.id)
-            guild_roles_db = await self.bot.database.execute(guild_query)
+            guild_roles_db = await Role.filter(guild__guild_id=ctx.guild.id)
             member_platforms = [platform_id for member_id, platform_id in member_ids if member_id]
 
             guild_roles = [
