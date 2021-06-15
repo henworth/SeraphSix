@@ -9,7 +9,8 @@ from seraphsix.constants import ARQ_JOB_TIMEOUT, ARQ_MAX_JOBS
 from seraphsix.database import Database
 from seraphsix.models import deserializer, serializer
 from seraphsix.tasks.activity import (
-    get_characters, process_activity, store_member_history, store_last_active, store_all_games
+    get_characters, process_activity, store_member_history, store_last_active, store_all_games,
+    save_last_active
 )
 from seraphsix.tasks.core import set_cached_members
 from seraphsix.tasks.config import Config, log_config
@@ -25,7 +26,7 @@ async def startup(ctx):
     )
 
     database = Database(config.database_url, config.database_conns)
-    database.initialize()
+    await database.initialize()
     ctx['database'] = database
     ctx['redis_cache'] = await aioredis.create_redis_pool(config.redis_url)
     ctx['redis_jobs'] = ctx['redis']
@@ -43,8 +44,8 @@ async def shutdown(ctx):
 class WorkerSettings:
     functions = [
         set_cached_members, get_characters, process_activity,
-        store_member_history, func(store_last_active, keep_result=240),
-        store_all_games
+        store_member_history, store_all_games,
+        func(save_last_active, keep_result=240), func(store_last_active, keep_result=240)
     ]
     on_startup = startup
     on_shutdown = shutdown

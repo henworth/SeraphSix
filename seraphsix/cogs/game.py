@@ -5,12 +5,12 @@ import pytz
 
 from datetime import datetime
 from discord.ext import commands
-from peewee import DoesNotExist
+
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import clan_is_linked, member_has_timezone
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.cogs.utils.paginator import EmbedPages
-from seraphsix.database import Clan, ClanMember, Guild, Member
+from seraphsix.models.database import ClanMember, Member
 from seraphsix.tasks.the100 import collate_the100_activities
 
 log = logging.getLogger(__name__)
@@ -85,15 +85,12 @@ class GameCog(commands.Cog, name="Game"):
             reserve = []
             for session in game['confirmed_sessions']:
                 gamertag = session['user']['gamertag']
-                try:
-                    query = Member.select(Member, ClanMember, Clan, Guild).join(ClanMember).join(
-                        Clan).join(Guild).where(Member.the100_id == session['user_id'])
-                    member_db = await self.bot.database.get(query)
-                except DoesNotExist:
-                    pass
-                else:
-                    if member_db.clanmember.clan.guild.guild_id == ctx.guild.id:
-                        gamertag = f"{gamertag} (m)"
+                member_db = await ClanMember.get_or_none(
+                    member__the100_id=session['user_id'],
+                    clan__guild__guild_id=ctx.guild.id
+                )
+                if member_db:
+                    gamertag = f"{gamertag} (m)"
 
                 if session['reserve_spot']:
                     reserve.append(gamertag)
@@ -195,7 +192,7 @@ class GameCog(commands.Cog, name="Game"):
         if time.lower() == 'cancel':
             return await manager.send_and_clean("Canceling post")
 
-        member_db = await self.bot.database.get(Member, discord_id=ctx.author.id)
+        member_db = await Member.get(discord_id=ctx.author.id)
 
         time_format = datetime.strptime(time, constants.THE100_DATE_CREATE).replace(
             year=datetime.now().year).astimezone(tz=pytz.timezone(member_db.timezone))

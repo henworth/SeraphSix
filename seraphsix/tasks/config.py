@@ -29,14 +29,14 @@ def log_config(root_log_level: str = ROOT_LOG_LEVEL) -> dict:
         },
         'root': {'handlers': ['console'], 'level': root_log_level},
         'loggers': {
-            'aiohttp.client': {'handlers': ['console'], 'level': 'ERROR'},
-            'aioredis': {'handlers': ['console'], 'level': 'INFO'},
-            'arq': {'handlers': ['console'], 'level': 'INFO'},
-            'backoff': {'handlers': ['console'], 'level': 'DEBUG'},
-            'bot': {'handlers': ['console'], 'level': 'DEBUG'},
-            'peewee': {'handlers': ['console'], 'level': 'ERROR'},
-            'discord': {'handlers': ['console'], 'level': 'INFO'},
-            'pyrate_limiter': {'handlers': ['console'], 'level': 'ERROR'}
+            'aiohttp.client': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False},
+            'aioredis': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+            'arq': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+            'backoff': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+            'bot': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+            'discord': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+            'pyrate_limiter': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False},
+            'db_client': {'handlers': ['console'], 'level': 'INFO', 'propagate': False}
         }
     }
 

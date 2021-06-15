@@ -1,15 +1,14 @@
 import asyncio
 import logging
 
-from peewee import DoesNotExist
 from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.database import Member as MemberDb, ClanMember, Clan, ClanMemberApplication
 from seraphsix.errors import InvalidAdminError
+from seraphsix.models.database import Member as MemberDb, ClanMember, Clan, ClanMemberApplication
 from seraphsix.models.destiny import (
     Member, DestinyGroupMembersResponse, DestinyMembershipResponse, DestinyGroupResponse
 )
-from seraphsix.tasks.core import execute_pydest, execute_pydest_auth, set_cached_members, get_primary_membership
+from seraphsix.tasks.core import execute_pydest, execute_pydest_auth, get_primary_membership
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ log = logging.getLogger(__name__)
 async def sort_members(database, member_list):
     return_list = []
     for member_hash in member_list:
-        clan_id, platform_id, member_id = map(int, member_hash.split('-'))
+        _, platform_id, member_id = map(int, member_hash.split('-'))
 
         member_db = await database.get_member_by_platform(member_id, platform_id)
         if platform_id == constants.PLATFORM_XBOX:
@@ -57,19 +56,19 @@ async def get_bungie_members(destiny, clan_id):
 
 async def get_database_members(database, clan_id):
     members = {}
-    for member in await database.get_clan_members([clan_id]):
-        if member.clanmember.platform_id == constants.PLATFORM_XBOX:
-            member_id = member.xbox_id
-        elif member.clanmember.platform_id == constants.PLATFORM_PSN:
-            member_id = member.psn_id
-        elif member.clanmember.platform_id == constants.PLATFORM_BLIZZARD:
-            member_id = member.blizzard_id
-        elif member.clanmember.platform_id == constants.PLATFORM_STEAM:
-            member_id = member.steam_id
-        elif member.clanmember.platform_id == constants.PLATFORM_STADIA:
-            member_id = member.stadia_id
-        member_hash = f'{clan_id}-{member.clanmember.platform_id}-{member_id}'
-        members[member_hash] = member
+    for clanmember in await database.get_clan_members([clan_id]):
+        if clanmember.platform_id == constants.PLATFORM_XBOX:
+            member_id = clanmember.member.xbox_id
+        elif clanmember.platform_id == constants.PLATFORM_PSN:
+            member_id = clanmember.member.psn_id
+        elif clanmember.platform_id == constants.PLATFORM_BLIZZARD:
+            member_id = clanmember.member.blizzard_id
+        elif clanmember.platform_id == constants.PLATFORM_STEAM:
+            member_id = clanmember.member.steam_id
+        elif clanmember.platform_id == constants.PLATFORM_STADIA:
+            member_id = clanmember.member.stadia_id
+        member_hash = f'{clan_id}-{clanmember.platform_id}-{member_id}'
+        members[member_hash] = clanmember
     return members
 
 
@@ -115,12 +114,11 @@ async def member_sync(ctx, guild_id, guild_name):
     for member_hash in members_added:
         member_info = bungie_members[member_hash]
         clan_id, platform_id, member_id = map(int, member_hash.split('-'))
-        try:
-            member_db = await ctx['database'].get_member_by_platform(member_id, platform_id)
-        except DoesNotExist:
-            member_db = await ctx['database'].create(MemberDb, **member_info.to_dict())
+        member_db = await ctx['database'].get_member_by_platform(member_id, platform_id)
+        if not member_db:
+            member_db = await MemberDb.create(**member_info.to_dict())
 
-        clan_db = await ctx['database'].get(Clan, clan_id=clan_id)
+        clan_db = await Clan.get(clan_id=clan_id)
         member_details = dict(
             join_date=member_info.join_date,
             platform_id=member_info.platform_id,
@@ -129,8 +127,9 @@ async def member_sync(ctx, guild_id, guild_name):
             last_active=member_info.last_online_status_change
         )
 
-        await ctx['database'].create(
-            ClanMember, clan=clan_db, member=member_db, **member_details)
+        await ClanMember.create(
+            clan=clan_db, member=member_db, **member_details
+        )
 
         member_added_dbs.append(member_db)
         member_changes[clan_db.clan_id]['added'].append(member_hash)
@@ -139,19 +138,17 @@ async def member_sync(ctx, guild_id, guild_name):
     members_removed = db_member_set - bungie_member_set
     for member_hash in members_removed:
         clan_id, platform_id, member_id = map(int, member_hash.split('-'))
-        try:
-            member_db = await ctx['database'].get_member_by_platform(member_id, platform_id)
-        except DoesNotExist:
-            log.info(member_id)
+        member_db = await ctx['database'].get_member_by_platform(member_id, platform_id)
+        if not member_db:
             continue
-        clanmember_db = await ctx['database'].get(ClanMember, member_id=member_db.id)
-        await ctx['database'].delete(clanmember_db)
+        await ClanMember.filter(member=member_db).delete()
         member_changes[clan_db.clan_id]['removed'].append(member_hash)
 
     # Ensure we bust the member cache before queueing jobs
-    await set_cached_members(ctx, guild_id, guild_name)
+    # TODO: Until Tortoise has deserialization support, this has to stay disabled
+    # await set_cached_members(ctx, guild_id, guild_name)
 
-    for clan, changes in member_changes.items():
+    for clan_id, changes in member_changes.items():
         if len(changes['added']):
             # Kick off activity scans for each of the added members
             for member_db in member_added_dbs:
@@ -160,10 +157,10 @@ async def member_sync(ctx, guild_id, guild_name):
                     _job_id=f'store_member_history-{member_db.id}')
 
             changes['added'] = await sort_members(ctx['database'], changes['added'])
-            log.info(f"Added members {changes['added']}")
+            log.info(f"Added members {changes['added']} to clan id {clan_id}")
         if len(changes['removed']):
             changes['removed'] = await sort_members(ctx['database'], changes['removed'])
-            log.info(f"Removed members {changes['removed']}")
+            log.info(f"Removed members {changes['removed']} from clan id {clan_id}")
 
     return member_changes
 
@@ -191,7 +188,7 @@ async def info_sync(ctx, guild_id):
                 clan_changes[clan_db.clan_id]['callsign'] = {'from': original_callsign, 'to': bungie_callsign}
             clan_db.callsign = bungie_callsign
 
-        await ctx['database'].update(clan_db)
+        await clan_db.save()
 
     return clan_changes
 
@@ -203,27 +200,19 @@ async def ack_clan_application(ctx, payload):
     approver_user = payload.member
     guild = approver_user.guild
 
-    try:
-        # pylama:ignore=E712
-        query = ClanMemberApplication.select().join(MemberDb).where(
-            (ClanMemberApplication.message_id == message_id) & (ClanMemberApplication.approved == False)
-        )
-        application_db = await ctx.ext_conns['database'].get(query)
-    except DoesNotExist:
+    application_db = await ClanMemberApplication.get_or_none(message_id=message_id, approved=False)
+    if not application_db:
         return
 
-    try:
-        approver_db = await ctx.ext_conns['database'].get(
-            MemberDb.select(MemberDb, ClanMember, Clan).join(ClanMember).join(Clan).where(
-                (ClanMember.member_type >= constants.CLAN_MEMBER_ADMIN) & (MemberDb.discord_id == approver_id)
-            )
-        )
-    except DoesNotExist:
+    approver_db = await ClanMember.get_or_none(
+        member_type__gte=constants.CLAN_MEMBER_ADMIN, member__discord_id=approver_id
+    )
+    if not approver_db:
         raise InvalidAdminError
 
     application_db.approved = is_approved
-    application_db.approved_by_id = approver_db.id
-    await ctx.ext_conns['database'].update(application_db)
+    application_db.approved_by_id = approver_db.member.id
+    await application_db.save()
 
     admin_channel = ctx.get_channel(ctx.guild_map[payload.guild_id].admin_channel)
     applicant_user = guild.get_member(application_db.member.discord_id)
@@ -235,7 +224,7 @@ async def ack_clan_application(ctx, payload):
     admin_message = await admin_channel.send(
         f"Application for {applicant_user.display_name} was {ack_message} by {approver_user.display_name}.")
     await applicant_user.send(
-        f"Your application to join {approver_db.clanmember.clan.name} has been {ack_message}.")
+        f"Your application to join {approver_db.clan.name} has been {ack_message}.")
 
     if is_approved:
         admin_context = await ctx.get_context(admin_message)
@@ -248,10 +237,10 @@ async def ack_clan_application(ctx, payload):
             ctx.ext_conns['destiny'].api.group_approve_pending_member,
             approver_db,
             manager,
-            group_id=approver_db.clanmember.clan.clan_id,
+            group_id=approver_db.clan.clan_id,
             membership_type=platform_id,
             membership_id=membership_id,
-            message=f"Join my clan {approver_db.clanmember.clan.name}!",
+            message=f"Join my clan {approver_db.clan.name}!",
             access_token=approver_db.bungie_access_token
         )
 
@@ -263,7 +252,7 @@ async def ack_clan_application(ctx, payload):
         else:
             message = (
                 f"Invited **{applicant_user.display_name}** ({username}) "
-                f"to clan **{approver_db.clanmember.clan.name}**"
+                f"to clan **{approver_db.clan.name}**"
             )
 
         await manager.send_message(message, mention=False, clean=False)

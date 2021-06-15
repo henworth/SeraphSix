@@ -1,19 +1,17 @@
-import asyncio
 import discord
 import logging
 import pytz
 
 from datetime import datetime
 from discord.ext import commands
-from discord.ext.commands.errors import BadArgument
-from peewee import DoesNotExist
+from discord.ext.commands.errors import BadArgument, MemberNotFound
 from urllib.parse import quote
 
 from seraphsix import constants
 from seraphsix.cogs.utils.checks import is_valid_game_mode, clan_is_linked, is_registered
 from seraphsix.cogs.utils.helpers import get_timezone_name, date_as_string, get_requestor
 from seraphsix.cogs.utils.message_manager import MessageManager
-from seraphsix.database import Member
+from seraphsix.models.database import Member
 from seraphsix.models.destiny import User as DestinyUser, DestinyMembershipResponse
 from seraphsix.tasks.activity import get_game_counts, get_sherpa_time_played, execute_pydest
 
@@ -38,10 +36,10 @@ class MemberCog(commands.Cog, name="Member"):
         """Show member information"""
         manager = MessageManager(ctx)
         member_name = ' '.join(args)
-        requestor_db = await get_requestor(ctx)
+        requestor_db = await get_requestor(ctx, include_clan=True)
 
         if not member_name:
-            member_db = requestor_db
+            clanmember_db = requestor_db
             member_name = ctx.author.nick
             member_discord = ctx.message.author
             discord_username = str(ctx.message.author)
@@ -53,11 +51,11 @@ class MemberCog(commands.Cog, name="Member"):
             else:
                 discord_username = str(member_discord)
 
-            member_query = self.bot.database.get_member_by_naive_username(member_name)
-            try:
-                member_db = await asyncio.create_task(member_query)
-            except DoesNotExist:
+            clanmember_db = await self.bot.database.get_member_by_naive_username(member_name)
+            if not clanmember_db:
                 return await manager.send_and_clean(f"Could not find username `{member_name}` in any connected clans")
+
+        member_db = clanmember_db.member
 
         the100_link = None
         if member_db.the100_username:
@@ -90,11 +88,11 @@ class MemberCog(commands.Cog, name="Member"):
             discord_username = str(member_discord)
 
         requestor_is_admin = False
-        if requestor_db and requestor_db.clanmember.member_type >= constants.CLAN_MEMBER_ADMIN:
+        if requestor_db and requestor_db.member_type >= constants.CLAN_MEMBER_ADMIN:
             requestor_is_admin = True
 
         member_is_admin = False
-        if member_db.clanmember.member_type >= constants.CLAN_MEMBER_ADMIN:
+        if clanmember_db.member_type >= constants.CLAN_MEMBER_ADMIN:
             member_is_admin = True
 
         embed = discord.Embed(
@@ -103,17 +101,17 @@ class MemberCog(commands.Cog, name="Member"):
         )
         embed.add_field(
             name="Clan",
-            value=f"{member_db.clanmember.clan.name} [{member_db.clanmember.clan.callsign}]"
+            value=f"{clanmember_db.clan.name} [{clanmember_db.clan.callsign}]"
         )
         embed.add_field(
             name="Join Date",
-            value=date_as_string(member_db.clanmember.join_date)
+            value=date_as_string(clanmember_db.join_date)
         )
 
         if requestor_is_admin:
             embed.add_field(
                 name="Last Active Date",
-                value=date_as_string(member_db.clanmember.last_active)
+                value=date_as_string(clanmember_db.last_active)
             )
 
         embed.add_field(name="Time Zone", value=timezone)
@@ -126,7 +124,7 @@ class MemberCog(commands.Cog, name="Member"):
         embed.add_field(name="The100 Username", value=the100_link)
         embed.add_field(
             name="Is Sherpa",
-            value=constants.EMOJI_CHECKMARK if member_db.clanmember.is_sherpa else constants.EMOJI_CROSSMARK
+            value=constants.EMOJI_CHECKMARK if clanmember_db.is_sherpa else constants.EMOJI_CROSSMARK
         )
         embed.add_field(
             name="Is Admin",
@@ -168,9 +166,8 @@ class MemberCog(commands.Cog, name="Member"):
 
         platform_id = constants.PLATFORM_EMOJI_ID[react.id]
 
-        try:
-            member_db = await self.bot.database.get_member_by_platform_username(username, platform_id)
-        except DoesNotExist:
+        member_db = await self.bot.database.get_member_by_platform_username(username, platform_id)
+        if not member_db:
             return await manager.send_and_clean(f"Username \"{username}\" does not match a valid member")
 
         if member_db.discord_id:
@@ -180,7 +177,7 @@ class MemberCog(commands.Cog, name="Member"):
 
         member_db.discord_id = member_discord.id
         try:
-            await self.bot.database.update(member_db)
+            await member_db.save()
         except Exception:
             message = (
                 f"Could not link username \"{username}\" to Discord user \"{member_discord.display_name}\"")
@@ -214,17 +211,15 @@ Example: ?member games raid
         if not member_name:
             discord_id = ctx.author.id
             member_name = ctx.author.display_name
-            try:
-                member_db = await self.bot.database.get_member_by_discord_id(discord_id)
-            except DoesNotExist:
+            member_db = await self.bot.database.get_member_by_discord_id(discord_id)
+            if not member_db:
                 return await manager.send_and_clean(
                     f"User `{ctx.author.display_name}` has not registered or is not a clan member", mention=False)
             log.info(
                 f"Getting {game_mode} games for \"{ctx.author.display_name}\"")
         else:
-            try:
-                member_db = await self.bot.database.get_member_by_naive_username(member_name)
-            except DoesNotExist:
+            member_db = await self.bot.database.get_member_by_naive_username(member_name)
+            if not member_db:
                 return await manager.send_and_clean(f"Invalid member name `{member_name}`", mention=False)
             log.info(
                 f"Getting {game_mode} games by gamertag \"{member_name}\" for \"{ctx.author.display_name}\"")
@@ -264,35 +259,37 @@ Example: ?member sherpatime
         if not member_name:
             discord_id = ctx.author.id
             member_name = ctx.author.display_name
-            try:
-                member_db = await self.bot.database.get_member_by_discord_id(discord_id)
-            except DoesNotExist:
+            member_db = await self.bot.database.get_member_by_discord_id(discord_id)
+            if not member_db:
                 return await manager.send_and_clean(
                     f"User `{ctx.author.display_name}` has not registered or is not a clan member")
             log.info(
                 f"Getting sherpa time played for \"{ctx.author.display_name}\"")
         else:
-            try:
-                member_db = await self.bot.database.get_member_by_naive_username(member_name)
-            except DoesNotExist:
+            member_db = await self.bot.database.get_member_by_naive_username(member_name)
+            if not member_db:
                 try:
                     member_discord = await commands.MemberConverter().convert(ctx, member_name)
-                    member_db = await self.bot.database.get_member_by_discord_id(member_discord.id)
-                except (BadArgument, DoesNotExist):
+                except BadArgument:
                     return await manager.send_and_clean(f"Invalid member name `{member_name}`")
                 else:
                     member_name = member_discord.display_name
+                    member_db = await self.bot.database.get_member_by_discord_id(member_discord.id)
+                    if not member_db:
+                        return await manager.send_and_clean(f"Invalid member name `{member_name}`")
             log.info(
                 f"Getting sherpa time played by username \"{member_name}\" for \"{ctx.author}\"")
 
-        time_played, sherpa_ids = await get_sherpa_time_played(self.bot.database, member_db)
+        time_played, sherpa_ids = await get_sherpa_time_played(member_db)
 
         sherpa_list = []
         if time_played > 0:
-            sherpas = await self.bot.database.execute(Member.select().where(Member.id << sherpa_ids))
-            for sherpa in sherpas:
-                if sherpa.discord_id:
-                    sherpa_discord = await commands.MemberConverter().convert(ctx, str(sherpa.discord_id))
+            for sherpa_id in await sherpa_ids:
+                try:
+                    sherpa_discord = await commands.MemberConverter().convert(ctx, str(sherpa_id))
+                except MemberNotFound:
+                    sherpa_list.append(str(sherpa_id))
+                else:
                     sherpa_list.append(f"{sherpa_discord.name}#{sherpa_discord.discriminator}")
 
         embed = discord.Embed(
@@ -313,7 +310,7 @@ Example: ?member sherpatime
     async def settimezone(self, ctx):
         manager = MessageManager(ctx)
 
-        member_db = await self.bot.database.get(Member, discord_id=ctx.author.id)
+        member_db = await Member.get(discord_id=ctx.author.id)
         if member_db.timezone:
             res = await manager.send_message_react(
                 f"Your current timezone is set to `{member_db.timezone}`, would you like to change it?",
@@ -348,7 +345,7 @@ Example: ?member sherpatime
                 return await manager.send_and_clean("Canceling command")
 
             member_db.timezone = timezone
-            await self.bot.database.update(member_db)
+            await member_db.save()
         else:
             text = "\n".join(sorted(timezones, key=lambda s: s.lower()))
             res = await manager.send_and_get_response(f"Which of these timezones is correct?\n```{text}```")
@@ -357,7 +354,7 @@ Example: ?member sherpatime
 
             if res in timezones:
                 member_db.timezone = res
-                await self.bot.database.update(member_db)
+                await member_db.save()
             else:
                 return await manager.send_and_clean("Unexpected response, canceling")
 
