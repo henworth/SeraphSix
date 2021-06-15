@@ -614,6 +614,8 @@ Examples:
 
         if res.error_status == 'ClanTargetDisallowsInvites':
             message = f"User **{username}** has disabled clan invites"
+        elif res.error_status == 'ClanMaximumMembershipReached':
+            message = f"Could not invite **{username}**, clan is full"
         elif res.error_status != 'Success':
             message = f"Could not invite **{username}**"
             log.info(f"Could not invite '{username}': {res}")

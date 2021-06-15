@@ -75,10 +75,12 @@ async def execute_pydest(function, *args, **kwargs):
     else:
         if not res:
             raise RuntimeError("Unexpected empty response from the Destiny API")
-        if hasattr(res, 'error'):
+        # DestinyTokenResponse and DestinyTokenErrorResponse have an "error" field
+        if hasattr(res, 'error') and res.error:
             log.error(f"Error running {function} {args} {kwargs} - {res}")
             raise RuntimeError(f"Error running {function} {args} {kwargs} - {res}")
         elif hasattr(res, 'error_status') and res.error_status != 'Success':
+            # The rest of the API responses use "error_status"
             # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
             if res.error_status == 'SystemDisabled':
                 raise MaintenanceError
@@ -90,7 +92,7 @@ async def execute_pydest(function, *args, **kwargs):
                 raise pydest.PydestTokenException
             else:
                 log.error(f"Error running {function} {args} {kwargs} - {res}")
-                if res.error_status not in ['DestinyAccountNotFound']:
+                if res.error_status not in ['DestinyAccountNotFound', 'ClanMaximumMembershipReached']:
                     raise PydestException
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")

@@ -276,7 +276,7 @@ async def get_characters(ctx, member_id, platform_id):
     return retval
 
 
-async def process_activity(ctx, activity, guild_id, guild_name):
+async def process_activity(ctx, activity, guild_id, guild_name, player_check=False):
     database = ctx['database']
     game = GameApi(activity)
     member_dbs = await get_cached_members(ctx, guild_id, guild_name)
@@ -287,7 +287,7 @@ async def process_activity(ctx, activity, guild_id, guild_name):
     game_db = await Game.get_or_none(instance_id=game.instance_id)
     if not game_db:
         log.debug(f"Skipping missing player check because game {game.instance_id} does not exist")
-    else:
+    elif player_check:
         pgcr = await get_pgcr(ctx, game.instance_id)
         clan_game = ClanGame(pgcr, member_dbs)
         api_players_db = [
