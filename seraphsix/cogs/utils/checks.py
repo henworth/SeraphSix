@@ -1,12 +1,13 @@
 import discord
 
 from discord.ext import commands
-from peewee import DoesNotExist
+from tortoise.exceptions import DoesNotExist
+
 from seraphsix.constants import SUPPORTED_GAME_MODES, CLAN_MEMBER_ADMIN
-from seraphsix.database import Member, ClanMember, Clan, Guild
 from seraphsix.errors import (
     ConfigurationError, InvalidAdminError, InvalidCommandError, InvalidGameModeError,
     InvalidMemberError, NotRegisteredError, MissingTimezoneError)
+from seraphsix.models.database import Member, ClanMember
 
 
 def is_event(message):
@@ -56,11 +57,8 @@ def is_valid_game_mode():
 
 
 async def check_registered(ctx):
-    try:
-        member_db = await ctx.bot.database.get(Member, discord_id=ctx.author.id)
-    except DoesNotExist:
-        raise NotRegisteredError(ctx.prefix)
-    if not member_db.bungie_access_token:
+    member_db = await Member.get_or_none(discord_id=ctx.author.id)
+    if not member_db or not member_db.bungie_access_token:
         raise NotRegisteredError(ctx.prefix)
     return True
 
@@ -77,11 +75,9 @@ async def check_clan_linked(ctx):
 
 async def check_clan_member(ctx):
     try:
-        await ctx.bot.database.get(
-            Member.select(Member, ClanMember).join(ClanMember).join(Clan).join(Guild).where(
-                Guild.guild_id == ctx.message.guild.id,
-                Member.discord_id == ctx.author.id
-            )
+        await ClanMember.get(
+            clan__guild__guild_id=ctx.message.guild.id,
+            member__discord_id=ctx.author.id
         )
     except DoesNotExist:
         raise InvalidMemberError
@@ -89,9 +85,8 @@ async def check_clan_member(ctx):
 
 
 async def check_timezone(ctx):
-    try:
-        member_db = await ctx.bot.database.get(Member, discord_id=ctx.author.id)
-    except DoesNotExist:
+    member_db = await Member.get_or_none(discord_id=ctx.author.id)
+    if not member_db:
         raise NotRegisteredError
     if not member_db.timezone:
         raise MissingTimezoneError
@@ -129,12 +124,10 @@ def is_clan_admin():
         await check_clan_linked(ctx)
         await check_clan_member(ctx)
         try:
-            await ctx.bot.database.get(
-                Clan.select(Clan.id).join(ClanMember).join(Member).switch(Clan).join(Guild).where(
-                    Guild.guild_id == ctx.message.guild.id,
-                    ClanMember.member_type >= CLAN_MEMBER_ADMIN,
-                    Member.discord_id == ctx.author.id
-                )
+            await ClanMember.get(
+                clan__guild__guild_id=ctx.message.guild.id,
+                member_type__gte=CLAN_MEMBER_ADMIN,
+                member__discord_id=ctx.author.id
             )
         except DoesNotExist:
             raise InvalidAdminError

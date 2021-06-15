@@ -7,14 +7,13 @@ import pickle
 import pydest
 
 from aiohttp.client_exceptions import ServerDisconnectedError, ClientOSError
-from playhouse.shortcuts import model_to_dict, dict_to_model
 from pydest.pydest import PydestException
 from pyrate_limiter import BucketFullException
+
 from seraphsix import constants
 from seraphsix.models import deserializer, serializer
 from seraphsix.models.destiny import DestinyResponse, DestinyTokenResponse, DestinyTokenErrorResponse
 from seraphsix.tasks.config import Config
-from seraphsix.database import ClanMember
 from seraphsix.errors import MaintenanceError, PrivateHistoryError, InvalidCommandError
 
 log = logging.getLogger(__name__)
@@ -92,9 +91,11 @@ async def execute_pydest(function, *args, **kwargs):
                 raise PydestException
             elif res.error_status == 'DestinyPrivacyRestriction':
                 raise PrivateHistoryError
+            elif res.error_status == 'WebAuthRequired':
+                raise pydest.PydestTokenException
             else:
                 log.error(f"Error running {function} {args} {kwargs} - {res}")
-                if res.error_status not in ['DestinyAccountNotFound']:
+                if res.error_status not in ['DestinyAccountNotFound', 'ClanMaximumMembershipReached']:
                     raise PydestException
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")
@@ -110,7 +111,7 @@ async def execute_pydest_auth(ctx, func, auth_user_db, manager, *args, **kwargs)
         res = await execute_pydest(func, *args, **kwargs)
         auth_user_db.bungie_access_token = tokens.access_token
         auth_user_db.bungie_refresh_token = tokens.refresh_token
-        await ctx['database'].update(auth_user_db)
+        await auth_user_db.save()
     return res
 
 
@@ -153,7 +154,7 @@ async def register(manager, extra_message='', confirm_message=''):
     e.url = auth_url
     e.description = (
         "Click the above link to register your Bungie.net account with Seraph Six. "
-        "Registering will allow Seraph Six to access your connected Destiny 2"
+        "Registering will allow Seraph Six to access your connected Destiny 2 "
         "accounts. At no point will Seraph Six have access to your password."
     )
     registration_msg = await manager.send_private_embed(e)
@@ -191,40 +192,44 @@ async def wait_for_msg(channel):
         return pickle.loads(pickled_msg)
 
 
-def member_dbs_to_dict(member_dbs):
-    members = []
-    for member_db in member_dbs:
-        member_dict = model_to_dict(member_db, recurse=False)
-        member_dict['clanmember'] = model_to_dict(member_db.clanmember, recurse=False)
-        members.append(member_dict)
-    return members
+# def member_dbs_to_dict(member_dbs):
+#     members = []
+#     for member_db in member_dbs:
+#         member_dict = model_to_dict(member_db, recurse=False)
+#         member_dict['clanmember'] = model_to_dict(member_db.clanmember, recurse=False)
+#         members.append(member_dict)
+#     return members
 
 
 async def get_cached_members(ctx, guild_id, guild_name):
-    cache_key = f'{guild_id}-members'
-    clan_members = await ctx['redis_cache'].get(cache_key)
-    if not clan_members:
-        clan_members = await set_cached_members(ctx, guild_id, guild_name)
-    clan_members = deserializer(clan_members)
-    member_dbs = [dict_to_model(ClanMember, member) for member in clan_members]
-    return member_dbs
+    return await ctx['database'].get_clan_members_by_guild_id(guild_id)
+    # TODO: Until Tortoise has deserialization support, this has to stay disabled
+    # cache_key = f'{guild_id}-members'
+    # clan_members = await ctx['redis_cache'].get(cache_key)
+    # if not clan_members:
+    #     clan_members = await set_cached_members(ctx, guild_id, guild_name)
+    # clan_members = deserializer(clan_members)
+    # member_dbs = [dict_to_model(ClanMember, member) for member in clan_members]
+    # return member_dbs
 
 
 async def set_cached_members(ctx, guild_id, guild_name):
-    cache_key = f'{guild_id}-members'
-    redis_cache = ctx['redis_cache']
-    database = ctx['database']
+    return
+    # TODO: Until Tortoise has deserialization support, this has to stay disabled
+    # cache_key = f'{guild_id}-members'
+    # redis_cache = ctx['redis_cache']
+    # database = ctx['database']
 
-    members = []
-    member_dbs = await database.get_clan_members_by_guild_id(guild_id)
-    for member_db in member_dbs:
-        member_dict = model_to_dict(member_db.clanmember, recurse=False)
-        member_dict['member'] = model_to_dict(member_db, recurse=False)
-        members.append(member_dict)
-    members = serializer([member for member in members])
-    await redis_cache.set(cache_key, members, expire=constants.TIME_HOUR_SECONDS)
-    log.info(f"Successfully cached all members of {guild_name} ({guild_id})")
-    return members
+    # members = []
+    # member_dbs = await database.get_clan_members_by_guild_id(guild_id)
+    # for member_db in member_dbs:
+    #     member_dict = model_to_dict(member_db.clanmember, recurse=False)
+    #     member_dict['member'] = model_to_dict(member_db, recurse=False)
+    #     members.append(member_dict)
+    # members = serializer([member for member in members])
+    # await redis_cache.set(cache_key, members, expire=constants.TIME_HOUR_SECONDS)
+    # log.info(f"Successfully cached all members of {guild_name} ({guild_id})")
+    # return members
 
 
 def get_primary_membership(member_db, restrict_platform_id=None):
@@ -249,3 +254,19 @@ def get_primary_membership(member_db, restrict_platform_id=None):
     if not platform_id and not membership_id:
         log.error(f"Platform not found in membership list {memberships}")
     return platform_id, membership_id, username
+
+
+def get_memberships(member_db):
+    memberships = [
+        [constants.PLATFORM_BUNGIE, member_db.bungie_id, member_db.bungie_username],
+        [constants.PLATFORM_XBOX, member_db.xbox_id, member_db.xbox_username],
+        [constants.PLATFORM_PSN, member_db.psn_id, member_db.psn_username],
+        [constants.PLATFORM_STEAM, member_db.steam_id, member_db.steam_username],
+        [constants.PLATFORM_STADIA, member_db.stadia_id, member_db.stadia_username]
+    ]
+    retval = {}
+    for membership in memberships:
+        platform_id, membership_id, username = membership
+        if membership_id and username:
+            retval[platform_id] = [membership_id, username]
+    return retval
