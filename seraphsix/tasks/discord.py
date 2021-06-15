@@ -30,7 +30,7 @@ async def store_sherpas(bot, guild):
 
     sherpas_db = await ClanMember.filter(
         is_sherpa=True, clan__guild_id=guild.id
-    )
+    ).prefetch_related('member')
     sherpas_db_ids = [sherpa_db.member.discord_id for sherpa_db in sherpas_db]
 
     discord_set = set(sherpas_discord_ids)

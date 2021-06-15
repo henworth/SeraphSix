@@ -907,6 +907,9 @@ Examples:
         admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
         inactive_members = await self.get_inactive_members(ctx, admin_db.clan)
+        if not inactive_members:
+            return await manager.send_message(
+                f"Clan {admin_db.clan.name} has no inactive members in the past 30 days")
 
         roles_db = await Role.filter(
             Q(
