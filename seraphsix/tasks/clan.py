@@ -200,55 +200,63 @@ async def ack_clan_application(ctx, payload):
     approver_user = payload.member
     guild = approver_user.guild
 
-    application_db = await ClanMemberApplication.get_or_none(message_id=message_id, approved=False)
+    application_db = await ClanMemberApplication.get_or_none(
+        message_id=message_id, approved=False
+    ).prefetch_related("member")
     if not application_db:
+        log.debug(f"Application not found for {payload}")
         return
 
     approver_db = await ClanMember.get_or_none(
         member_type__gte=constants.CLAN_MEMBER_ADMIN, member__discord_id=approver_id
-    )
+    ).prefetch_related("member", "clan")
     if not approver_db:
         raise InvalidAdminError
 
     application_db.approved = is_approved
     application_db.approved_by_id = approver_db.member.id
-    await application_db.save()
 
     admin_channel = ctx.get_channel(ctx.guild_map[payload.guild_id].admin_channel)
     applicant_user = guild.get_member(application_db.member.discord_id)
     if is_approved:
-        ack_message = 'Approved'
+        ack_message = "Approved"
     else:
-        ack_message = 'Denied'
+        ack_message = "Denied"
 
     admin_message = await admin_channel.send(
-        f"Application for {applicant_user.display_name} was {ack_message} by {approver_user.display_name}.")
+        f"Application for {applicant_user.display_name} was {ack_message} by {approver_user.display_name}."
+    )
     await applicant_user.send(
-        f"Your application to join {approver_db.clan.name} has been {ack_message}.")
+        f"Your application to join {approver_db.clan.name} has been {ack_message}."
+    )
 
     if is_approved:
         admin_context = await ctx.get_context(admin_message)
         manager = MessageManager(admin_context)
 
-        platform_id, membership_id, username = get_primary_membership(application_db.member)
+        platform_id, membership_id, username = get_primary_membership(
+            application_db.member
+        )
 
         res = await execute_pydest_auth(
             ctx.ext_conns,
-            ctx.ext_conns['destiny'].api.group_approve_pending_member,
-            approver_db,
+            ctx.ext_conns["destiny"].api.group_invite_member,
+            approver_db.member,
             manager,
             group_id=approver_db.clan.clan_id,
             membership_type=platform_id,
             membership_id=membership_id,
             message=f"Join my clan {approver_db.clan.name}!",
-            access_token=approver_db.bungie_access_token
+            access_token=approver_db.member.bungie_access_token,
         )
 
-        if res.error_status == 'ClanTargetDisallowsInvites':
+        if res.error_status == "ClanTargetDisallowsInvites":
             message = f"User **{applicant_user.display_name}** ({username}) has disabled clan invites"
-        elif res.error_status != 'Success':
+        elif res.error_status != "Success":
             message = f"Could not invite **{applicant_user.display_name}** ({username})"
-            log.info(f"Could not invite '{applicant_user.display_name}' ({username}): {res}")
+            log.info(
+                f"Could not invite '{applicant_user.display_name}' ({username}): {res}"
+            )
         else:
             message = (
                 f"Invited **{applicant_user.display_name}** ({username}) "
@@ -257,4 +265,8 @@ async def ack_clan_application(ctx, payload):
 
         await manager.send_message(message, mention=False, clean=False)
 
-    await ctx.ext_conns['redis_cache'].delete(f'{ctx.guild.id}-clan-application-{application_db.member_id}')
+    await application_db.save()
+
+    await ctx.ext_conns["redis_cache"].delete(
+        f"{payload.guild_id}-clan-application-{application_db.member_id}"
+    )
