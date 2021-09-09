@@ -2,12 +2,12 @@ from seraphsix import constants
 
 
 def member_hash(member):
-    return f'{member.membership_type}-{member.membership_id}'
+    return f"{member.membership_type}-{member.membership_id}"
 
 
 def member_hash_db(member_db, platform_id):
     membership_id, _ = parse_platform(member_db, platform_id)
-    return f'{platform_id}-{membership_id}'
+    return f"{platform_id}-{membership_id}"
 
 
 def parse_platform(member_db, platform_id):

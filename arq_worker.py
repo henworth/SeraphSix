@@ -9,8 +9,12 @@ from seraphsix.constants import ARQ_JOB_TIMEOUT, ARQ_MAX_JOBS
 from seraphsix.database import Database
 from seraphsix.models import deserializer, serializer
 from seraphsix.tasks.activity import (
-    get_characters, process_activity, store_member_history, store_last_active, store_all_games,
-    save_last_active
+    get_characters,
+    process_activity,
+    store_member_history,
+    store_last_active,
+    store_all_games,
+    save_last_active,
 )
 from seraphsix.tasks.core import set_cached_members
 from seraphsix.tasks.config import Config, log_config
@@ -19,7 +23,7 @@ config = Config()
 
 
 async def startup(ctx):
-    ctx['destiny'] = Pydest(
+    ctx["destiny"] = Pydest(
         api_key=config.destiny.api_key,
         client_id=config.destiny.client_id,
         client_secret=config.destiny.client_secret,
@@ -27,25 +31,29 @@ async def startup(ctx):
 
     database = Database(config.database_url, config.database_conns)
     await database.initialize()
-    ctx['database'] = database
-    ctx['redis_cache'] = await aioredis.create_redis_pool(config.redis_url)
-    ctx['redis_jobs'] = ctx['redis']
+    ctx["database"] = database
+    ctx["redis_cache"] = await aioredis.create_redis_pool(config.redis_url)
+    ctx["redis_jobs"] = ctx["redis"]
 
 
 async def shutdown(ctx):
-    await ctx['destiny'].close()
-    if 'database' in ctx:
-        await ctx['database'].close()
-    if 'redis_cache' in ctx:
-        ctx['redis_cache'].close()
-        await ctx['redis_cache'].wait_closed()
+    await ctx["destiny"].close()
+    if "database" in ctx:
+        await ctx["database"].close()
+    if "redis_cache" in ctx:
+        ctx["redis_cache"].close()
+        await ctx["redis_cache"].wait_closed()
 
 
 class WorkerSettings:
     functions = [
-        set_cached_members, get_characters, process_activity,
-        store_member_history, store_all_games,
-        func(save_last_active, keep_result=240), func(store_last_active, keep_result=240)
+        set_cached_members,
+        get_characters,
+        process_activity,
+        store_member_history,
+        store_all_games,
+        func(save_last_active, keep_result=240),
+        func(store_last_active, keep_result=240),
     ]
     on_startup = startup
     on_shutdown = shutdown
@@ -60,7 +68,7 @@ class WorkerSettings:
         return deserializer(b)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.config.dictConfig(log_config())
     worker = Worker(**get_kwargs(WorkerSettings))
     worker.run()

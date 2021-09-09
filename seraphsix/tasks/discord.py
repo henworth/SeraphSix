@@ -30,7 +30,7 @@ async def store_sherpas(bot, guild):
 
     sherpas_db = await ClanMember.filter(
         is_sherpa=True, clan__guild_id=guild.id
-    ).prefetch_related('member')
+    ).prefetch_related("member")
     sherpas_db_ids = [sherpa_db.member.discord_id for sherpa_db in sherpas_db]
 
     discord_set = set(sherpas_discord_ids)
@@ -46,7 +46,9 @@ async def store_sherpas(bot, guild):
 
         added = [sherpa async for sherpa in convert_sherpas(bot, sherpas_added)]
         message_added = [f"{str(sherpa)} {sherpa.id}" for sherpa in added]
-        log.info(f"Sherpas added in {str(discord_guild)} ({guild.guild_id}): {message_added}")
+        log.info(
+            f"Sherpas added in {str(discord_guild)} ({guild.guild_id}): {message_added}"
+        )
 
     if sherpas_removed:
         members = ClanMember.filter(member__discord_id__in=sherpas_removed)
@@ -54,7 +56,9 @@ async def store_sherpas(bot, guild):
 
         removed = [sherpa async for sherpa in convert_sherpas(bot, sherpas_removed)]
         message_removed = [f"{str(sherpa)} {sherpa.id}" for sherpa in removed]
-        log.info(f"Sherpas removed in {str(discord_guild)} ({guild.guild_id}): {message_removed}")
+        log.info(
+            f"Sherpas removed in {str(discord_guild)} ({guild.guild_id}): {message_removed}"
+        )
 
     return (added, removed)
 
@@ -79,9 +83,7 @@ async def update_sherpa(bot, before, after):
         f"in {str(after.guild)} ({after.guild.id})"
     )
 
-    roles_db = await Role.filter(
-        guild__guild_id=after.guild.id, is_sherpa=True
-    )
+    roles_db = await Role.filter(guild__guild_id=after.guild.id, is_sherpa=True)
     role_db_ids = set([role.role_id for role in roles_db])
 
     member_db = await ClanMember.get_or_none(member__discord_id=after.id)

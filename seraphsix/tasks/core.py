@@ -12,7 +12,11 @@ from pyrate_limiter import BucketFullException
 
 from seraphsix import constants
 from seraphsix.models import deserializer, serializer
-from seraphsix.models.destiny import DestinyResponse, DestinyTokenResponse, DestinyTokenErrorResponse
+from seraphsix.models.destiny import (
+    DestinyResponse,
+    DestinyTokenResponse,
+    DestinyTokenErrorResponse,
+)
 from seraphsix.tasks.config import Config
 from seraphsix.errors import MaintenanceError, PrivateHistoryError, InvalidCommandError
 
@@ -24,40 +28,49 @@ async def create_redis_jobs_pool():
     return await arq.create_pool(
         config.arq_redis,
         job_serializer=lambda b: serializer(b),
-        job_deserializer=lambda b: deserializer(b)
+        job_deserializer=lambda b: deserializer(b),
     )
 
 
 async def queue_redis_job(ctx, message, *args, **kwargs):
     log.info(f"Queueing task to {message}")
-    await ctx['redis_jobs'].enqueue_job(*args, **kwargs)
+    await ctx["redis_jobs"].enqueue_job(*args, **kwargs)
 
 
 def backoff_handler(details):
-    if details['wait'] > 30 or details['tries'] > 10:
+    if details["wait"] > 30 or details["tries"] > 10:
         log.debug(
             f"Backing off {details['wait']:0.1f} seconds after {details['tries']} tries "
             f"for {details['target']} args {details['args']} kwargs {details['kwargs']}"
         )
 
 
-@backoff.on_exception(backoff.constant, (PrivateHistoryError, MaintenanceError), max_tries=1, logger=None)
+@backoff.on_exception(
+    backoff.constant, (PrivateHistoryError, MaintenanceError), max_tries=1, logger=None
+)
 @backoff.on_exception(
     backoff.expo,
-    (PydestException, asyncio.TimeoutError, BucketFullException, ServerDisconnectedError, ClientOSError),
-    logger=None, on_backoff=backoff_handler
+    (
+        PydestException,
+        asyncio.TimeoutError,
+        BucketFullException,
+        ServerDisconnectedError,
+        ClientOSError,
+    ),
+    logger=None,
+    on_backoff=backoff_handler,
 )
 async def execute_pydest(function, *args, **kwargs):
     retval = None
 
-    if 'return_type' in kwargs:
-        return_type = kwargs.pop('return_type')
+    if "return_type" in kwargs:
+        return_type = kwargs.pop("return_type")
     else:
         return_type = DestinyResponse
 
     log.debug(f"{function} {args} {kwargs}")
 
-    async with config.destiny_api_limiter.ratelimit('destiny_api', delay=True):
+    async with config.destiny_api_limiter.ratelimit("destiny_api", delay=True):
         data = await function(*args, **kwargs)
 
     log.debug(f"{function} {args} {kwargs} - {data}")
@@ -79,23 +92,29 @@ async def execute_pydest(function, *args, **kwargs):
             raise RuntimeError("Unexpected empty response from the Destiny API")
 
         # DestinyTokenResponse and DestinyTokenErrorResponse have an "error" field
-        if hasattr(res, 'error') and res.error:
+        if hasattr(res, "error") and res.error:
             log.error(f"Error running {function} {args} {kwargs} - {res}")
             raise RuntimeError(f"Error running {function} {args} {kwargs} - {res}")
-        elif hasattr(res, 'error_status') and res.error_status != 'Success':
+        elif hasattr(res, "error_status") and res.error_status != "Success":
             # The rest of the API responses use "error_status"
             # https://bungie-net.github.io/#/components/schemas/Exceptions.PlatformErrorCodes
-            if res.error_status == 'SystemDisabled':
+            if res.error_status == "SystemDisabled":
                 raise MaintenanceError
-            elif res.error_status in ['PerEndpointRequestThrottleExceeded', 'DestinyDirectBabelClientTimeout']:
+            elif res.error_status in [
+                "PerEndpointRequestThrottleExceeded",
+                "DestinyDirectBabelClientTimeout",
+            ]:
                 raise PydestException
-            elif res.error_status == 'DestinyPrivacyRestriction':
+            elif res.error_status == "DestinyPrivacyRestriction":
                 raise PrivateHistoryError
-            elif res.error_status == 'WebAuthRequired':
+            elif res.error_status == "WebAuthRequired":
                 raise pydest.PydestTokenException
             else:
                 log.error(f"Error running {function} {args} {kwargs} - {res}")
-                if res.error_status not in ['DestinyAccountNotFound', 'ClanMaximumMembershipReached']:
+                if res.error_status not in [
+                    "DestinyAccountNotFound",
+                    "ClanMaximumMembershipReached",
+                ]:
                     raise PydestException
     retval = res
     log.debug(f"{function} {args} {kwargs} - {res}")
@@ -107,7 +126,7 @@ async def execute_pydest_auth(ctx, func, auth_user_db, manager, *args, **kwargs)
         res = await execute_pydest(func, *args, **kwargs)
     except pydest.PydestTokenException:
         tokens = await refresh_user_tokens(ctx, manager, auth_user_db)
-        kwargs['access_token'] = tokens.access_token
+        kwargs["access_token"] = tokens.access_token
         res = await execute_pydest(func, *args, **kwargs)
         auth_user_db.bungie_access_token = tokens.access_token
         auth_user_db.bungie_refresh_token = tokens.refresh_token
@@ -117,21 +136,30 @@ async def execute_pydest_auth(ctx, func, auth_user_db, manager, *args, **kwargs)
 
 async def refresh_user_tokens(ctx, manager, auth_user_db):
     tokens = await execute_pydest(
-        ctx['destiny'].api.refresh_oauth_token, auth_user_db.bungie_refresh_token,
-        return_type=DestinyTokenResponse
+        ctx["destiny"].api.refresh_oauth_token,
+        auth_user_db.bungie_refresh_token,
+        return_type=DestinyTokenResponse,
     )
 
     if tokens.error:
         log.warning(f"{tokens.error_description} Registration is needed")
-        user_info = await register(manager, "Your registration token has expired and re-registration is needed.")
+        user_info = await register(
+            manager,
+            "Your registration token has expired and re-registration is needed.",
+        )
         if not user_info:
-            raise InvalidCommandError("I'm not sure where you went. We can try this again later.")
-        tokens = {token: user_info.get(token) for token in [tokens.access_token, tokens.refresh_token]}
+            raise InvalidCommandError(
+                "I'm not sure where you went. We can try this again later."
+            )
+        tokens = {
+            token: user_info.get(token)
+            for token in [tokens.access_token, tokens.refresh_token]
+        }
 
     return tokens
 
 
-async def register(manager, extra_message='', confirm_message=''):
+async def register(manager, extra_message="", confirm_message=""):
     ctx = manager.ctx
 
     if not confirm_message:
@@ -145,7 +173,7 @@ async def register(manager, extra_message='', confirm_message=''):
         await manager.send_message(
             f"{extra_message} Registration instructions have been sent directly to {ctx.author}".strip(),
             mention=False,
-            clean=False
+            clean=False,
         )
 
     # Prompt user with link to Bungie.net OAuth authentication
@@ -160,34 +188,35 @@ async def register(manager, extra_message='', confirm_message=''):
     registration_msg = await manager.send_private_embed(e)
 
     # Wait for user info from the web server via Redis
-    res = await ctx.bot.ext_conns['redis_cache'].subscribe(ctx.author.id)
+    res = await ctx.bot.ext_conns["redis_cache"].subscribe(ctx.author.id)
 
     tsk = asyncio.create_task(wait_for_msg(res[0]))
     try:
         user_info = await asyncio.wait_for(tsk, timeout=constants.TIME_MIN_SECONDS)
     except asyncio.TimeoutError:
-        log.debug(f"Timed out waiting for {str(ctx.author)} ({ctx.author.id}) to register")
-        await manager.send_private_message("I'm not sure where you went. We can try this again later.")
+        log.debug(
+            f"Timed out waiting for {str(ctx.author)} ({ctx.author.id}) to register"
+        )
+        await manager.send_private_message(
+            "I'm not sure where you went. We can try this again later."
+        )
         await registration_msg.delete()
         await manager.clean_messages()
-        await ctx.bot.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
+        await ctx.bot.ext_conns["redis_cache"].unsubscribe(ctx.author.id)
         return (None, None)
     await ctx.author.dm_channel.trigger_typing()
 
     # Send confirmation of successful registration
-    e = discord.Embed(
-        colour=constants.BLUE,
-        title=confirm_message
-    )
+    e = discord.Embed(colour=constants.BLUE, title=confirm_message)
     embed = await manager.send_private_embed(e)
-    await ctx.bot.ext_conns['redis_cache'].unsubscribe(ctx.author.id)
+    await ctx.bot.ext_conns["redis_cache"].unsubscribe(ctx.author.id)
 
     return embed, user_info
 
 
 async def wait_for_msg(channel):
     """Wait for a message on the specified Redis channel"""
-    while (await channel.wait_message()):
+    while await channel.wait_message():
         pickled_msg = await channel.get()
         return pickle.loads(pickled_msg)
 
@@ -202,7 +231,7 @@ async def wait_for_msg(channel):
 
 
 async def get_cached_members(ctx, guild_id, guild_name):
-    return await ctx['database'].get_clan_members_by_guild_id(guild_id)
+    return await ctx["database"].get_clan_members_by_guild_id(guild_id)
     # TODO: Until Tortoise has deserialization support, this has to stay disabled
     # cache_key = f'{guild_id}-members'
     # clan_members = await ctx['redis_cache'].get(cache_key)
@@ -237,7 +266,7 @@ def get_primary_membership(member_db, restrict_platform_id=None):
         [constants.PLATFORM_XBOX, member_db.xbox_id, member_db.xbox_username],
         [constants.PLATFORM_PSN, member_db.psn_id, member_db.psn_username],
         [constants.PLATFORM_STEAM, member_db.steam_id, member_db.steam_username],
-        [constants.PLATFORM_STADIA, member_db.stadia_id, member_db.stadia_username]
+        [constants.PLATFORM_STADIA, member_db.stadia_id, member_db.stadia_username],
     ]
     membership_id = member_db.primary_membership_id
     platform_id = None
@@ -246,8 +275,9 @@ def get_primary_membership(member_db, restrict_platform_id=None):
             platform_id = membership[0]
             username = membership[2]
             break
-        elif (restrict_platform_id and restrict_platform_id == membership[0]) or \
-                (not membership_id and membership[1]):
+        elif (restrict_platform_id and restrict_platform_id == membership[0]) or (
+            not membership_id and membership[1]
+        ):
             platform_id, membership_id, username = membership
             break
 
@@ -262,7 +292,7 @@ def get_memberships(member_db):
         [constants.PLATFORM_XBOX, member_db.xbox_id, member_db.xbox_username],
         [constants.PLATFORM_PSN, member_db.psn_id, member_db.psn_username],
         [constants.PLATFORM_STEAM, member_db.steam_id, member_db.steam_username],
-        [constants.PLATFORM_STADIA, member_db.stadia_id, member_db.stadia_username]
+        [constants.PLATFORM_STADIA, member_db.stadia_id, member_db.stadia_username],
     ]
     retval = {}
     for membership in memberships:

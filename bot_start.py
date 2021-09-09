@@ -13,10 +13,10 @@ def main():
         bot = SeraphSix(config)
         bot.run(config.discord_api_key)
     except Exception:
-        logging.config.dictConfig(log_config('DEBUG'))
+        logging.config.dictConfig(log_config("DEBUG"))
         log = logging.getLogger(__name__)
         log.exception("Caught exception")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
