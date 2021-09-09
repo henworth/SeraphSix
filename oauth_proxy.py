@@ -24,98 +24,97 @@ KVSessionExtension(store, app)
 
 
 class DestinyClient(OAuth2):
-    site = 'https://www.bungie.net'
-    authorization_url = '/en/oauth/authorize/'
-    token_url = '/platform/app/oauth/token/'
+    site = "https://www.bungie.net"
+    authorization_url = "/en/oauth/authorize/"
+    token_url = "/platform/app/oauth/token/"
 
 
 destiny_auth = DestinyClient(
     client_id=config.destiny.client_id,
     client_secret=config.destiny.client_secret,
-    redirect_uri=f'https://{config.destiny.redirect_host}/oauth/callback'
+    redirect_uri=f"https://{config.destiny.redirect_host}/oauth/callback",
 )
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    session['code'] = request.args.get('code')
+    session["code"] = request.args.get("code")
 
-    if not session.get('access_token'):
-        log.debug(f'No access_token found in session, redirecting to /oauth, {session}')
-        return redirect(
-            url_for('oauth_index')
-        )
+    if not session.get("access_token"):
+        log.debug(f"No access_token found in session, redirecting to /oauth, {session}")
+        return redirect(url_for("oauth_index"))
 
     user_info = dict(
-        membership_id=session.get('membership_id'),
-        access_token=session.get('access_token'),
-        refresh_token=session.get('refresh_token')
+        membership_id=session.get("membership_id"),
+        access_token=session.get("access_token"),
+        refresh_token=session.get("refresh_token"),
     )
 
     pickled_info = pickle.dumps(user_info)
     try:
-        red.publish(session['state'], pickled_info)
+        red.publish(session["state"], pickled_info)
     except Exception:
-        log.exception(f'/: Failed to publish state info to redis: {user_info} {session}')
-        return render_template('message.html', message='Something went wrong.')
-    return render_template('redirect.html', site=DestinyClient.site, message='Success!')
-
-
-@app.route('/oauth')
-def oauth_index():
-    session['state'] = request.args.get('state')
-
-    if not session.get('access_token'):
-        log.debug(f'No access_token found in session, redirecting to /oauth/callback, {session}')
-        return redirect(
-            url_for('oauth_callback')
+        log.exception(
+            f"/: Failed to publish state info to redis: {user_info} {session}"
         )
+        return render_template("message.html", message="Something went wrong.")
+    return render_template("redirect.html", site=DestinyClient.site, message="Success!")
+
+
+@app.route("/oauth")
+def oauth_index():
+    session["state"] = request.args.get("state")
+
+    if not session.get("access_token"):
+        log.debug(
+            f"No access_token found in session, redirecting to /oauth/callback, {session}"
+        )
+        return redirect(url_for("oauth_callback"))
 
     with requests.Session() as s:
-        s.auth = OAuth2BearerToken(session['access_token'])
-        s.headers.update({'X-API-KEY': config.destiny.api_key})
-        r = s.get(f'{DestinyClient.site}/platform/User/GetMembershipsForCurrentUser/')
+        s.auth = OAuth2BearerToken(session["access_token"])
+        s.headers.update({"X-API-KEY": config.destiny.api_key})
+        r = s.get(f"{DestinyClient.site}/platform/User/GetMembershipsForCurrentUser/")
 
     r.raise_for_status()
-    log.debug(f'/oauth: {session} {request.args}')
-    return redirect('/')
+    log.debug(f"/oauth: {session} {request.args}")
+    return redirect("/")
 
 
-@app.route('/oauth/callback')
+@app.route("/oauth/callback")
 def oauth_callback():
-    code = request.args.get('code')
-    error = request.args.get('error')
+    code = request.args.get("code")
+    error = request.args.get("error")
 
     if error:
         log.error(repr(error))
-        return render_template('message.html', message='Something went wrong.')
+        return render_template("message.html", message="Something went wrong.")
 
     if not code:
-        log.debug(f'No code found, redirecting to bungie, {session}')
-        return redirect(destiny_auth.authorize_url(
-            response_type='code',
-            state=session['state']
-        ))
+        log.debug(f"No code found, redirecting to bungie, {session}")
+        return redirect(
+            destiny_auth.authorize_url(response_type="code", state=session["state"])
+        )
 
     data = destiny_auth.get_token(
         code=code,
-        grant_type='authorization_code',
+        grant_type="authorization_code",
     )
 
-    session['code'] = code
-    session['access_token'] = data.get('access_token')
-    session['refresh_token'] = data.get('refresh_token')
-    session['membership_id'] = data.get('membership_id')
-    log.debug(f'/oauth/callback: {session} {request.args}')
-    return redirect(url_for('index'))
+    session["code"] = code
+    session["access_token"] = data.get("access_token")
+    session["refresh_token"] = data.get("refresh_token")
+    session["membership_id"] = data.get("membership_id")
+    log.debug(f"/oauth/callback: {session} {request.args}")
+    return redirect(url_for("index"))
 
 
-@app.route('/the100webhook/<int:guild_id>/slack', methods=['POST'])
+@app.route("/the100webhook/<int:guild_id>/slack", methods=["POST"])
 def the100_webhook(guild_id):
     data = request.get_json(force=True)
-    log.info(f'{guild_id} {data}')
-    return render_template('message.html', message='Success!')
+    log.info(f"{guild_id} {data}")
+    return render_template("message.html", message="Success!")
 
 
-if __name__ == '__main__':
-    app.run(debug=True, ssl_context='adhoc')
+if __name__ == "__main__":
+    app.run(debug=True, ssl_context="adhoc")

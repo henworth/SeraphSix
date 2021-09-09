@@ -49,7 +49,7 @@ def string_to_date(date, date_format=DATE_FORMAT):
 def get_timezone_name(timezone, country_code):
     set_zones = set()
     # See if it's already a valid 'long' time zone name
-    if '/' in timezone and timezone in pytz.all_timezones:
+    if "/" in timezone and timezone in pytz.all_timezones:
         set_zones.add(timezone)
         return set_zones
 
@@ -75,7 +75,9 @@ def get_timezone_name(timezone, country_code):
 
     for name in timezones:
         tzone = pytz.timezone(name)
-        transition_info = getattr(tzone, '_transition_info', [[None, None, datetime.now(tzone).tzname()]])
+        transition_info = getattr(
+            tzone, "_transition_info", [[None, None, datetime.now(tzone).tzname()]]
+        )
         for utcoffset, dstoffset, tzabbrev in transition_info:
             if tzabbrev.upper() == timezone.upper():
                 set_zones.add(name)
@@ -86,9 +88,8 @@ def get_timezone_name(timezone, country_code):
 async def get_requestor(ctx, include_clan=False):
     if include_clan:
         requestor_db = ClanMember.get_or_none(
-            clan__guild__guild_id=ctx.guild.id,
-            member__discord_id=ctx.author.id
-        ).prefetch_related('clan', 'member')
+            clan__guild__guild_id=ctx.guild.id, member__discord_id=ctx.author.id
+        ).prefetch_related("clan", "member")
     else:
         requestor_db = await Member.get_or_none(discord_id=ctx.author.id)
     return await requestor_db

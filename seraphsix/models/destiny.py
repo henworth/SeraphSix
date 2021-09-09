@@ -8,19 +8,55 @@ from seraphsix import constants
 from seraphsix.tasks.parsing import member_hash, member_hash_db
 
 __all__ = [
-    'DestinyActivity', 'DestinyActivityDetails', 'DestinyActivityResponse', 'DestinyActivityResults',
-    'DestinyActivityStat', 'DestinyActivityStatValue', 'DestinyBungieNetUser', 'DestinyBungieNetUserInfo',
-    'DestinyCharacter', 'DestinyCharacterData', 'DestinyCharacterResponse', 'DestinyCharacterResults',
-    'DestinyGroup', 'DestinyGroupClanBannerData', 'DestinyGroupClanInfo', 'DestinyGroupD2ClanProgression',
-    'DestinyGroupDetail', 'DestinyGroupFeatures', 'DestinyGroupMember', 'DestinyGroupMemberKick',
-    'DestinyGroupMemberKickResponse', 'DestinyGroupMemberResults', 'DestinyGroupMembersResponse',
-    'DestinyGroupPendingMember', 'DestinyGroupPendingMemberResults', 'DestinyGroupPendingMembersResponse',
-    'DestinyGroupResponse', 'DestinyMemberGroup', 'DestinyMemberGroupResponse', 'DestinyMemberGroupResults',
-    'DestinyMembership', 'DestinyMembershipResponse', 'DestinyMembershipResults', 'DestinyPGCR',
-    'DestinyPGCREntry', 'DestinyPGCRExtended', 'DestinyPGCRResponse', 'DestinyPGCRWeapon', 'DestinyPlayer',
-    'DestinyProfile', 'DestinyProfileData', 'DestinyProfileResponse', 'DestinyProfileResults', 'DestinyResponse',
-    'DestinyResults', 'DestinySearchPlayerResponse', 'DestinyTokenErrorResponse', 'DestinyTokenResponse',
-    'DestinyUserInfo',
+    "DestinyActivity",
+    "DestinyActivityDetails",
+    "DestinyActivityResponse",
+    "DestinyActivityResults",
+    "DestinyActivityStat",
+    "DestinyActivityStatValue",
+    "DestinyBungieNetUser",
+    "DestinyBungieNetUserInfo",
+    "DestinyCharacter",
+    "DestinyCharacterData",
+    "DestinyCharacterResponse",
+    "DestinyCharacterResults",
+    "DestinyGroup",
+    "DestinyGroupClanBannerData",
+    "DestinyGroupClanInfo",
+    "DestinyGroupD2ClanProgression",
+    "DestinyGroupDetail",
+    "DestinyGroupFeatures",
+    "DestinyGroupMember",
+    "DestinyGroupMemberKick",
+    "DestinyGroupMemberKickResponse",
+    "DestinyGroupMemberResults",
+    "DestinyGroupMembersResponse",
+    "DestinyGroupPendingMember",
+    "DestinyGroupPendingMemberResults",
+    "DestinyGroupPendingMembersResponse",
+    "DestinyGroupResponse",
+    "DestinyMemberGroup",
+    "DestinyMemberGroupResponse",
+    "DestinyMemberGroupResults",
+    "DestinyMembership",
+    "DestinyMembershipResponse",
+    "DestinyMembershipResults",
+    "DestinyPGCR",
+    "DestinyPGCREntry",
+    "DestinyPGCRExtended",
+    "DestinyPGCRResponse",
+    "DestinyPGCRWeapon",
+    "DestinyPlayer",
+    "DestinyProfile",
+    "DestinyProfileData",
+    "DestinyProfileResponse",
+    "DestinyProfileResults",
+    "DestinyResponse",
+    "DestinyResults",
+    "DestinySearchPlayerResponse",
+    "DestinyTokenErrorResponse",
+    "DestinyTokenResponse",
+    "DestinyUserInfo",
 ]
 
 
@@ -64,17 +100,15 @@ class DestinyUserInfo:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     applicable_membership_types: Optional[List[int]] = None
     last_seen_display_name: Optional[str] = field(
-        metadata=config(field_name='LastSeenDisplayName'),
-        default=None
+        metadata=config(field_name="LastSeenDisplayName"), default=None
     )
     last_seen_display_name_type: Optional[int] = field(
-        metadata=config(field_name='LastSeenDisplayNameType'),
-        default=None
+        metadata=config(field_name="LastSeenDisplayNameType"), default=None
     )
     display_name: Optional[str] = None
     icon_path: Optional[str] = None
@@ -92,7 +126,7 @@ class DestinyBungieNetUserInfo:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     display_name: str
@@ -106,7 +140,7 @@ class DestinyProfileData:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     versions_owned: int
@@ -136,7 +170,7 @@ class DestinyCharacterData:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     membership_type: int
@@ -144,14 +178,14 @@ class DestinyCharacterData:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     date_last_played: datetime = field(
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     minutes_played_this_session: str
@@ -185,7 +219,7 @@ class DestinyCharacter:
 @dataclass
 class DestinyActivityStatValue:
     value: float
-    display_value:  str
+    display_value: str
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -204,7 +238,7 @@ class DestinyActivityDetails:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     mode: int
@@ -220,7 +254,7 @@ class DestinyActivity:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     activity_details: DestinyActivityDetails
@@ -270,7 +304,7 @@ class DestinyPGCREntry:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     values: Dict[str, DestinyActivityStat]
@@ -284,7 +318,7 @@ class DestinyPGCR:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     activity_details: DestinyActivityDetails
@@ -298,8 +332,12 @@ class DestinyPGCR:
 class DestinyMembership:
     # Basically the same as DestinyUserInfo with the addition of the "LastSeen" fields
     # TODO Consolidate these two?
-    last_seen_display_name: str = field(metadata=config(field_name='LastSeenDisplayName'))
-    last_seen_display_name_type: int = field(metadata=config(field_name='LastSeenDisplayNameType'))
+    last_seen_display_name: str = field(
+        metadata=config(field_name="LastSeenDisplayName")
+    )
+    last_seen_display_name_type: int = field(
+        metadata=config(field_name="LastSeenDisplayNameType")
+    )
     icon_path: str
     cross_save_override: int
     applicable_membership_types: List[int]
@@ -309,7 +347,7 @@ class DestinyMembership:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     display_name: str
@@ -322,7 +360,7 @@ class DestinyBungieNetUser:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     unique_name: str
@@ -337,14 +375,14 @@ class DestinyBungieNetUser:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     last_update: datetime = field(
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     show_activity: bool
@@ -359,7 +397,7 @@ class DestinyBungieNetUser:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     psn_display_name: Optional[str] = None
@@ -380,9 +418,9 @@ class DestinyMembershipResults:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         ),
-        default=None
+        default=None,
     )
 
 
@@ -395,14 +433,14 @@ class DestinyGroupMember:
         metadata=config(
             encoder=encode_datetime_timestamp,
             decoder=decode_datetime_timestamp,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     group_id: int = field(
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     destiny_user_info: DestinyUserInfo
@@ -410,7 +448,7 @@ class DestinyGroupMember:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     bungie_net_user_info: Optional[DestinyBungieNetUserInfo] = None
@@ -473,7 +511,7 @@ class DestinyGroupDetail:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     name: str
@@ -482,21 +520,21 @@ class DestinyGroupDetail:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     creation_date: datetime = field(
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     modification_date: datetime = field(
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     about: str
@@ -520,7 +558,7 @@ class DestinyGroupDetail:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     enable_invitation_messaging_for_admins: bool
@@ -528,7 +566,7 @@ class DestinyGroupDetail:
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     features: DestinyGroupFeatures
@@ -562,14 +600,14 @@ class DestinyGroupPendingMember:
         metadata=config(
             encoder=encode_id_string,
             decoder=decode_id_string,
-            mm_field=fields.Integer()
+            mm_field=fields.Integer(),
         )
     )
     creation_date: datetime = field(
         metadata=config(
             encoder=encode_datetime,
             decoder=decode_datetime,
-            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT)
+            mm_field=fields.DateTime(format=constants.DESTINY_DATE_FORMAT),
         )
     )
     resolve_state: int
@@ -587,12 +625,14 @@ class DestinyGroupMemberKick:
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyResponse:
-    error_code: int = field(metadata=config(field_name='ErrorCode'))
-    error_status: str = field(metadata=config(field_name='ErrorStatus'))
-    message: str = field(metadata=config(field_name='Message'))
-    message_data: object = field(metadata=config(field_name='MessageData'))
-    throttle_seconds: int = field(metadata=config(field_name='ThrottleSeconds'))
-    response: Optional[object] = field(metadata=config(field_name='Response'), default=None)
+    error_code: int = field(metadata=config(field_name="ErrorCode"))
+    error_status: str = field(metadata=config(field_name="ErrorStatus"))
+    message: str = field(metadata=config(field_name="Message"))
+    message_data: object = field(metadata=config(field_name="MessageData"))
+    throttle_seconds: int = field(metadata=config(field_name="ThrottleSeconds"))
+    response: Optional[object] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -615,13 +655,17 @@ class DestinyMemberGroupResults(DestinyResults):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyMemberGroupResponse(DestinyResponse):
-    response: Optional[DestinyMemberGroupResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyMemberGroupResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyGroupResponse(DestinyResponse):
-    response: Optional[DestinyGroup] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyGroup] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -633,7 +677,9 @@ class DestinyGroupMemberResults(DestinyResults):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyGroupMembersResponse(DestinyResponse):
-    response: Optional[DestinyGroupMemberResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyGroupMemberResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -645,25 +691,33 @@ class DestinyGroupPendingMemberResults(DestinyResults):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyGroupPendingMembersResponse(DestinyResponse):
-    response: Optional[DestinyGroupPendingMemberResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyGroupPendingMemberResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyGroupMemberKickResponse(DestinyResponse):
-    response: Optional[DestinyGroupMemberKick] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyGroupMemberKick] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinySearchPlayerResponse(DestinyResponse):
-    response: Optional[List[DestinyUserInfo]] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[List[DestinyUserInfo]] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyProfileResponse(DestinyResponse):
-    response: Optional[DestinyProfileResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyProfileResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -675,25 +729,33 @@ class DestinyCharacterResults:
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyCharacterResponse(DestinyResponse):
-    response: Optional[DestinyCharacterResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyCharacterResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyActivityResponse(DestinyResponse):
-    response: Optional[DestinyActivityResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyActivityResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyMembershipResponse(DestinyResponse):
-    response: Optional[DestinyMembershipResults] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyMembershipResults] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class DestinyPGCRResponse(DestinyResponse):
-    response: Optional[DestinyPGCR] = field(metadata=config(field_name='Response'), default=None)
+    response: Optional[DestinyPGCR] = field(
+        metadata=config(field_name="Response"), default=None
+    )
 
 
 @dataclass_json
@@ -716,7 +778,6 @@ class DestinyTokenErrorResponse:
 
 
 class UserMembership(object):
-
     def __init__(self):
         self.id = None
         self.username = None
@@ -730,7 +791,6 @@ class UserMembership(object):
 
 
 class User(object):
-
     class Memberships(object):
         def __init__(self):
             self.bungie = UserMembership()
@@ -745,22 +805,22 @@ class User(object):
         self.primary_membership_id = details.primary_membership_id
         self.is_cross_save = self.primary_membership_id is not None
 
-        if hasattr(details, 'destiny_user_info'):
+        if hasattr(details, "destiny_user_info"):
             self._process_membership(details.destiny_user_info)
-        elif hasattr(details, 'destiny_memberships'):
+        elif hasattr(details, "destiny_memberships"):
             for entry in details.destiny_memberships:
                 self._process_membership(entry)
 
-        if hasattr(details, 'bungie_net_user_info'):
+        if hasattr(details, "bungie_net_user_info"):
             self._process_membership(details.bungie_net_user_info)
 
-        if hasattr(details, 'bungie_net_user'):
+        if hasattr(details, "bungie_net_user"):
             self._process_membership(details.bungie_net_user)
 
     def _process_membership(self, entry):
-        if not hasattr(entry, 'membership_id'):
+        if not hasattr(entry, "membership_id"):
             return
-        if not hasattr(entry, 'membership_type'):
+        if not hasattr(entry, "membership_type"):
             self.memberships.bungie(entry)
         else:
             if entry.membership_type == constants.PLATFORM_XBOX:
@@ -791,12 +851,11 @@ class User(object):
             stadia_id=self.memberships.stadia.id,
             stadia_username=self.memberships.stadia.username,
             primary_membership_id=self.primary_membership_id,
-            is_cross_save=self.is_cross_save
+            is_cross_save=self.is_cross_save,
         )
 
 
 class Member(User):
-
     def __init__(self, details, user_details):
         super().__init__(user_details)
         self.join_date = details.join_date
@@ -835,11 +894,11 @@ class Player(object):
         self.name = details.player.destiny_user_info.display_name
 
         self.completed = False
-        if details.values['completed'].basic.display_value == 'Yes':
+        if details.values["completed"].basic.display_value == "Yes":
             self.completed = True
 
         try:
-            self.time_played = details.values['timePlayedSeconds'].basic.value
+            self.time_played = details.values["timePlayedSeconds"].basic.value
         except KeyError:
             self.time_played = 0.0
 
@@ -875,7 +934,7 @@ class Game(object):
 
     def __repr__(self):
         retval = self.__dict__
-        retval['date'] = self.date.strftime(constants.DESTINY_DATE_FORMAT)
+        retval["date"] = self.date.strftime(constants.DESTINY_DATE_FORMAT)
         return str(retval)
 
 
@@ -914,5 +973,8 @@ class ClanGame(Game):
         self.clan_players = []
         for player in self.players:
             player_hash = member_hash(player)
-            if player_hash in members.keys() and self.date > members[player_hash].join_date:
+            if (
+                player_hash in members.keys()
+                and self.date > members[player_hash].join_date
+            ):
                 self.clan_players.append(player)

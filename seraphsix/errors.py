@@ -3,9 +3,7 @@ from discord.ext.commands.errors import CommandError
 
 class InvalidGameModeError(CommandError):
     def __init__(self, game_mode, supported_game_modes, *args):
-        message = (
-            f"Invalid game mode `{game_mode}`, supported are `{', '.join(supported_game_modes)}`."
-        )
+        message = f"Invalid game mode `{game_mode}`, supported are `{', '.join(supported_game_modes)}`."
         super().__init__(message, *args)
 
 
@@ -23,7 +21,7 @@ class InvalidAdminError(CommandError):
 
 class NotRegisteredError(CommandError):
     def __init__(self, prefix, *args):
-        message = (f"You don't seem to be registered, try running `{prefix}register`.")
+        message = f"You don't seem to be registered, try running `{prefix}register`."
         super().__init__(message, *args)
 
 

@@ -13,7 +13,6 @@ log = logging.getLogger(__name__)
 
 
 class RegisterCog(commands.Cog, name="Register"):
-
     def __init__(self, bot):
         self.bot = bot
 
@@ -28,31 +27,41 @@ class RegisterCog(commands.Cog, name="Register"):
         """
         manager = MessageManager(ctx)
 
-        embed, user_info = await register(manager, confirm_message="Initial Registration Complete...")
+        embed, user_info = await register(
+            manager, confirm_message="Initial Registration Complete..."
+        )
         if not user_info:
-            await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
+            await manager.send_private_message(
+                "Oops, something went wrong during registration. Please try again."
+            )
             return await manager.clean_messages()
 
-        bungie_access_token = user_info.get('access_token')
+        bungie_access_token = user_info.get("access_token")
 
         # Fetch platform specific display names and membership IDs
         try:
             user = await execute_pydest(
-                self.bot.destiny.api.get_membership_current_user, bungie_access_token,
-                return_type=DestinyMembershipResponse
+                self.bot.destiny.api.get_membership_current_user,
+                bungie_access_token,
+                return_type=DestinyMembershipResponse,
             )
         except Exception as e:
             log.exception(e)
-            await manager.send_private_message("I can't seem to connect to Bungie right now. Try again later.")
+            await manager.send_private_message(
+                "I can't seem to connect to Bungie right now. Try again later."
+            )
             return await manager.clean_messages()
 
         if not user.response:
-            await manager.send_private_message("Oops, something went wrong during registration. Please try again.")
+            await manager.send_private_message(
+                "Oops, something went wrong during registration. Please try again."
+            )
             return await manager.clean_messages()
 
         if not self.user_has_connected_accounts(user.response):
             await manager.send_private_message(
-                "Oops, you don't have any public accounts attached to your Bungie.net profile.")
+                "Oops, you don't have any public accounts attached to your Bungie.net profile."
+            )
             return await manager.clean_messages()
 
         bungie_user = User(user.response)
@@ -63,20 +72,22 @@ class RegisterCog(commands.Cog, name="Register"):
             (bungie_user.memberships.steam.id, constants.PLATFORM_STEAM),
             (bungie_user.memberships.stadia.id, constants.PLATFORM_STADIA),
             (bungie_user.memberships.blizzard.id, constants.PLATFORM_BLIZZARD),
-            (bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE)
+            (bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE),
         ]
 
         member_db = await self.bot.database.get_member_by_platform(
-            bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE)
+            bungie_user.memberships.bungie.id, constants.PLATFORM_BUNGIE
+        )
         if not member_db:
             # Create a list of member id with their respective platforms, if the id is not null
-            member_id_list = ((member_id, platform_id) for member_id, platform_id in member_ids if member_id)
+            member_id_list = (
+                (member_id, platform_id)
+                for member_id, platform_id in member_ids
+                if member_id
+            )
             # Grab the first one and craft the query data
             member_id, platform_id = next(member_id_list)
-            query_data = dict(
-                member_id=member_id,
-                platform_id=platform_id
-            )
+            query_data = dict(member_id=member_id, platform_id=platform_id)
 
             # Query for that member, if that fails create a skeleton entry
             member_db = await self.bot.database.get_member_by_platform(**query_data)
@@ -89,19 +100,18 @@ class RegisterCog(commands.Cog, name="Register"):
 
         member_db.discord_id = ctx.author.id
         member_db.bungie_access_token = bungie_access_token
-        member_db.bungie_refresh_token = user_info.get('refresh_token')
+        member_db.bungie_refresh_token = user_info.get("refresh_token")
         await member_db.save()
 
-        e = discord.Embed(
-            colour=constants.BLUE,
-            title="Full Registration Complete"
-        )
+        e = discord.Embed(colour=constants.BLUE, title="Full Registration Complete")
 
         emojis = []
         # Update platform roles to match connected accounts
         if ctx.guild:
             guild_roles_db = await Role.filter(guild__guild_id=ctx.guild.id)
-            member_platforms = [platform_id for member_id, platform_id in member_ids if member_id]
+            member_platforms = [
+                platform_id for member_id, platform_id in member_ids if member_id
+            ]
 
             guild_roles = [
                 discord.utils.get(ctx.guild.roles, id=role_db.role_id)
@@ -115,18 +125,23 @@ class RegisterCog(commands.Cog, name="Register"):
             platform_ids = list(constants.PLATFORM_MAP.values())
 
             platform_emojis = [
-                constants.PLATFORM_EMOJI_MAP.get(platform_names[platform_ids.index(platform)])
+                constants.PLATFORM_EMOJI_MAP.get(
+                    platform_names[platform_ids.index(platform)]
+                )
                 for platform in member_platforms
             ]
 
             message = f"User {str(ctx.author)} ({ctx.author.id}) has registered"
 
             if platform_emojis:
-                emojis = ' '.join([str(self.bot.get_emoji(emoji)) for emoji in platform_emojis if emoji])
-                e.add_field(
-                    name="Platforms Connected",
-                    value=emojis
+                emojis = " ".join(
+                    [
+                        str(self.bot.get_emoji(emoji))
+                        for emoji in platform_emojis
+                        if emoji
+                    ]
                 )
+                e.add_field(name="Platforms Connected", value=emojis)
                 message = f"{message} with platforms {emojis}"
 
             await embed.edit(embed=e)

@@ -10,6 +10,7 @@ migra = {extras = ["pg"],version = "*"}
 pika = "*"
 pylama = "*"
 pyopenssl = "*"
+black = "==21.8b0"
 
 [packages]
 aiohttp = ">=3.7.4"
@@ -37,7 +38,7 @@ tortoise-orm = {extras = ["asyncpg"], version = "*"}
 urllib3 = ">=1.26.4"
 
 [pipenv]
-allow_prereleases = false
+allow_prereleases = true
 
 [scripts]
 lint = "python -m pylama"
