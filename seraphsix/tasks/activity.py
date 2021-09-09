@@ -102,10 +102,10 @@ async def get_last_active(ctx, member_db=None, platform_id=None, member_id=None)
 
 
 async def save_last_active(ctx, member_id):
-    member_db = await Member.get(id=member_id)
-    last_active = await get_last_active(ctx, member_db)
-    member_db.last_active = last_active
-    await member_db.save()
+    clanmember_db = await ClanMember.get(member__id=member_id).prefetch_related("member")
+    last_active = await get_last_active(ctx, clanmember_db.member)
+    clanmember_db.last_active = last_active
+    await clanmember_db.save()
 
 
 async def store_last_active(ctx, guild_id, guild_name):
