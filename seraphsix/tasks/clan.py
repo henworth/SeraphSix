@@ -4,11 +4,23 @@ import logging
 from seraphsix import constants
 from seraphsix.cogs.utils.message_manager import MessageManager
 from seraphsix.errors import InvalidAdminError
-from seraphsix.models.database import Member as MemberDb, ClanMember, Clan, ClanMemberApplication
-from seraphsix.models.destiny import (
-    Member, DestinyGroupMembersResponse, DestinyMembershipResponse, DestinyGroupResponse
+from seraphsix.models.database import (
+    Member as MemberDb,
+    ClanMember,
+    Clan,
+    ClanMemberApplication,
 )
-from seraphsix.tasks.core import execute_pydest, execute_pydest_auth, get_primary_membership
+from seraphsix.models.destiny import (
+    Member,
+    DestinyGroupMembersResponse,
+    DestinyMembershipResponse,
+    DestinyGroupResponse,
+)
+from seraphsix.tasks.core import (
+    execute_pydest,
+    execute_pydest_auth,
+    get_primary_membership,
+)
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +28,7 @@ log = logging.getLogger(__name__)
 async def sort_members(database, member_list):
     return_list = []
     for member_hash in member_list:
-        _, platform_id, member_id = map(int, member_hash.split('-'))
+        _, platform_id, member_id = map(int, member_hash.split("-"))
 
         member_db = await database.get_member_by_platform(member_id, platform_id)
         if platform_id == constants.PLATFORM_XBOX:
@@ -37,20 +49,26 @@ async def sort_members(database, member_list):
 
 async def get_all_members(destiny, group_id):
     group = await execute_pydest(
-        destiny.api.get_members_of_group, group_id, return_type=DestinyGroupMembersResponse)
+        destiny.api.get_members_of_group,
+        group_id,
+        return_type=DestinyGroupMembersResponse,
+    )
     group_members = group.response.results
     for member in group_members:
         profile = await execute_pydest(
-            destiny.api.get_membership_data_by_id, member.destiny_user_info.membership_id,
-            return_type=DestinyMembershipResponse
+            destiny.api.get_membership_data_by_id,
+            member.destiny_user_info.membership_id,
+            return_type=DestinyMembershipResponse,
         )
         yield Member(member, profile.response)
 
 
 async def get_bungie_members(destiny, clan_id):
     members = {}
-    async for member in get_all_members(destiny, clan_id):  # pylint: disable=not-an-iterable
-        members[f'{clan_id}-{member}'] = member
+    async for member in get_all_members(
+        destiny, clan_id
+    ):  # pylint: disable=not-an-iterable
+        members[f"{clan_id}-{member}"] = member
     return members
 
 
@@ -67,16 +85,16 @@ async def get_database_members(database, clan_id):
             member_id = clanmember.member.steam_id
         elif clanmember.platform_id == constants.PLATFORM_STADIA:
             member_id = clanmember.member.stadia_id
-        member_hash = f'{clan_id}-{clanmember.platform_id}-{member_id}'
+        member_hash = f"{clan_id}-{clanmember.platform_id}-{member_id}"
         members[member_hash] = clanmember
     return members
 
 
 async def member_sync(ctx, guild_id, guild_name):
-    clan_dbs = await ctx['database'].get_clans_by_guild(guild_id)
+    clan_dbs = await ctx["database"].get_clans_by_guild(guild_id)
     member_changes = {}
     for clan_db in clan_dbs:
-        member_changes[clan_db.clan_id] = {'added': [], 'removed': [], 'changed': []}
+        member_changes[clan_db.clan_id] = {"added": [], "removed": [], "changed": []}
 
     bungie_members = {}
     db_members = {}
@@ -87,34 +105,31 @@ async def member_sync(ctx, guild_id, guild_name):
     # Generate a dict of all members from both Bungie and the database
     for clan_db in clan_dbs:
         clan_id = clan_db.clan_id
-        bungie_tasks.append(get_bungie_members(ctx['destiny'], clan_id))
-        db_tasks.append(get_database_members(ctx['database'], clan_id))
+        bungie_tasks.append(get_bungie_members(ctx["destiny"], clan_id))
+        db_tasks.append(get_database_members(ctx["database"], clan_id))
 
     results = await asyncio.gather(*bungie_tasks, *db_tasks)
 
     # All Bungie results would be in the first half of the results
-    for result in results[:len(results)//2]:
+    for result in results[: len(results) // 2]:
         bungie_members.update(result)
 
     # All database results are in the second half
-    for result in results[len(results)//2:]:
+    # pylama:ignore=E203
+    for result in results[len(results) // 2 :]:
         db_members.update(result)
 
-    bungie_member_set = set(
-        [member for member in bungie_members.keys()]
-    )
+    bungie_member_set = set([member for member in bungie_members.keys()])
 
-    db_member_set = set(
-        [member for member in db_members.keys()]
-    )
+    db_member_set = set([member for member in db_members.keys()])
 
     # Figure out if there are any members to add
     member_added_dbs = []
     members_added = bungie_member_set - db_member_set
     for member_hash in members_added:
         member_info = bungie_members[member_hash]
-        clan_id, platform_id, member_id = map(int, member_hash.split('-'))
-        member_db = await ctx['database'].get_member_by_platform(member_id, platform_id)
+        clan_id, platform_id, member_id = map(int, member_hash.split("-"))
+        member_db = await ctx["database"].get_member_by_platform(member_id, platform_id)
         if not member_db:
             member_db = await MemberDb.create(**member_info.to_dict())
 
@@ -124,68 +139,88 @@ async def member_sync(ctx, guild_id, guild_name):
             platform_id=member_info.platform_id,
             is_active=True,
             member_type=member_info.member_type,
-            last_active=member_info.last_online_status_change
+            last_active=member_info.last_online_status_change,
         )
 
-        await ClanMember.create(
-            clan=clan_db, member=member_db, **member_details
-        )
+        await ClanMember.create(clan=clan_db, member=member_db, **member_details)
 
         member_added_dbs.append(member_db)
-        member_changes[clan_db.clan_id]['added'].append(member_hash)
+        member_changes[clan_db.clan_id]["added"].append(member_hash)
 
     # Figure out if there are any members to remove
     members_removed = db_member_set - bungie_member_set
     for member_hash in members_removed:
-        clan_id, platform_id, member_id = map(int, member_hash.split('-'))
-        member_db = await ctx['database'].get_member_by_platform(member_id, platform_id)
+        clan_id, platform_id, member_id = map(int, member_hash.split("-"))
+        member_db = await ctx["database"].get_member_by_platform(member_id, platform_id)
         if not member_db:
             continue
         await ClanMember.filter(member=member_db).delete()
-        member_changes[clan_db.clan_id]['removed'].append(member_hash)
+        member_changes[clan_db.clan_id]["removed"].append(member_hash)
 
     # Ensure we bust the member cache before queueing jobs
     # TODO: Until Tortoise has deserialization support, this has to stay disabled
     # await set_cached_members(ctx, guild_id, guild_name)
 
     for clan_id, changes in member_changes.items():
-        if len(changes['added']):
+        if len(changes["added"]):
             # Kick off activity scans for each of the added members
             for member_db in member_added_dbs:
-                await ctx['redis_jobs'].enqueue_job(
-                    'store_member_history', member_db.id, guild_id, guild_name, full_sync=True,
-                    _job_id=f'store_member_history-{member_db.id}')
+                await ctx["redis_jobs"].enqueue_job(
+                    "store_member_history",
+                    member_db.id,
+                    guild_id,
+                    guild_name,
+                    full_sync=True,
+                    _job_id=f"store_member_history-{member_db.id}",
+                )
 
-            changes['added'] = await sort_members(ctx['database'], changes['added'])
+            changes["added"] = await sort_members(ctx["database"], changes["added"])
             log.info(f"Added members {changes['added']} to clan id {clan_id}")
-        if len(changes['removed']):
-            changes['removed'] = await sort_members(ctx['database'], changes['removed'])
+        if len(changes["removed"]):
+            changes["removed"] = await sort_members(ctx["database"], changes["removed"])
             log.info(f"Removed members {changes['removed']} from clan id {clan_id}")
 
     return member_changes
 
 
 async def info_sync(ctx, guild_id):
-    clan_dbs = await ctx['database'].get_clans_by_guild(guild_id)
+    clan_dbs = await ctx["database"].get_clans_by_guild(guild_id)
 
     clan_changes = {}
     for clan_db in clan_dbs:
-        group = await execute_pydest(ctx['destiny'].api.get_group, clan_db.clan_id, return_type=DestinyGroupResponse)
+        group = await execute_pydest(
+            ctx["destiny"].api.get_group,
+            clan_db.clan_id,
+            return_type=DestinyGroupResponse,
+        )
         bungie_name = group.response.detail.name
         bungie_callsign = group.response.detail.clan_info.clan_callsign
         original_name = clan_db.name
         original_callsign = clan_db.callsign
 
         if clan_db.name != bungie_name:
-            clan_changes[clan_db.clan_id] = {'name': {'from': original_name, 'to': bungie_name}}
+            clan_changes[clan_db.clan_id] = {
+                "name": {"from": original_name, "to": bungie_name}
+            }
             clan_db.name = bungie_name
 
         if clan_db.callsign != bungie_callsign:
             if not clan_changes.get(clan_db.clan_id):
                 clan_changes.update(
-                    {clan_db.clan_id: {'callsign': {'from': original_callsign, 'to': bungie_callsign}}})
+                    {
+                        clan_db.clan_id: {
+                            "callsign": {
+                                "from": original_callsign,
+                                "to": bungie_callsign,
+                            }
+                        }
+                    }
+                )
             else:
-                clan_changes[clan_db.clan_id]['callsign'] = {'from': original_callsign, 'to': bungie_callsign}
+                clan_changes[clan_db.clan_id]["callsign"] = {
+                    "from": original_callsign,
+                    "to": bungie_callsign,
+                }
             clan_db.callsign = bungie_callsign
 
         await clan_db.save()

@@ -3,8 +3,15 @@ from seraphsix import constants
 from tortoise.contrib.postgres.indexes import PostgreSQLIndex
 from tortoise.exceptions import ValidationError
 from tortoise.fields import (
-    BigIntField, IntField, CharField, BooleanField, ForeignKeyRelation, ForeignKeyField, DatetimeField,
-    FloatField, ReverseRelation
+    BigIntField,
+    IntField,
+    CharField,
+    BooleanField,
+    ForeignKeyRelation,
+    ForeignKeyField,
+    DatetimeField,
+    FloatField,
+    ReverseRelation,
 )
 from tortoise.models import Model
 from tortoise.validators import Validator
@@ -52,13 +59,23 @@ class Member(Model):
     is_cross_save = BooleanField(default=False)
     primary_membership_id = BigIntField(unique=True, null=True)
 
-    clan: ReverseRelation['ClanMember']
-    games: ReverseRelation['GameMember']
+    clan: ReverseRelation["ClanMember"]
+    games: ReverseRelation["GameMember"]
 
     class Meta:
         indexes = [
-            PostgreSQLIndex(fields={'discord_id', 'bungie_id', 'xbox_id', 'psn_id', 'blizzard_id',
-                                    'steam_id', 'stadia_id', 'the100_id'})
+            PostgreSQLIndex(
+                fields={
+                    "discord_id",
+                    "bungie_id",
+                    "xbox_id",
+                    "psn_id",
+                    "blizzard_id",
+                    "steam_id",
+                    "stadia_id",
+                    "the100_id",
+                }
+            )
         ]
 
     # TODO: Figure out how to migrate this to Tortoise
@@ -73,7 +90,7 @@ class Member(Model):
 
 class Guild(Model):
     guild_id = BigIntField(unique=True)
-    prefix = CharField(max_length=5, null=True, default='?')
+    prefix = CharField(max_length=5, null=True, default="?")
     clear_spam = BooleanField(default=False)
     aggregate_clans = BooleanField(default=True)
     track_sherpas = BooleanField(default=False)
@@ -90,10 +107,10 @@ class Clan(Model):
     activity_tracking = BooleanField(default=True)
 
     guild: ForeignKeyRelation[Guild] = ForeignKeyField(
-        'seraphsix.Guild', related_name='clans', to_field='id'
+        "seraphsix.Guild", related_name="clans", to_field="id"
     )
 
-    members: ReverseRelation['ClanMember']
+    members: ReverseRelation["ClanMember"]
 
 
 class ClanMember(Model):
@@ -105,11 +122,11 @@ class ClanMember(Model):
     member_type = IntField(null=True, validators=[ClanMemberRankValidator()])
 
     clan: ForeignKeyRelation[Clan] = ForeignKeyField(
-        'seraphsix.Clan', related_name='members', to_field='id'
+        "seraphsix.Clan", related_name="members", to_field="id"
     )
 
     member: ForeignKeyRelation[Member] = ForeignKeyField(
-        'seraphsix.Member', related_name='clans', to_field='id'
+        "seraphsix.Member", related_name="clans", to_field="id"
     )
 
 
@@ -118,15 +135,17 @@ class ClanMemberApplication(Model):
     message_id = BigIntField(unique=True)
 
     guild: ForeignKeyRelation[Guild] = ForeignKeyField(
-        'seraphsix.Guild', related_name='clanmemberapplications', to_field='id'
+        "seraphsix.Guild", related_name="clanmemberapplications", to_field="id"
     )
 
     member: ForeignKeyRelation[Member] = ForeignKeyField(
-        'seraphsix.Member', related_name='clanmemberapplications_created', to_field='id'
+        "seraphsix.Member", related_name="clanmemberapplications_created", to_field="id"
     )
 
     approved_by: ForeignKeyRelation[Member] = ForeignKeyField(
-        'seraphsix.Member', related_name='clanmemberapplications_approved', to_field='id'
+        "seraphsix.Member",
+        related_name="clanmemberapplications_approved",
+        to_field="id",
     )
 
 
@@ -137,20 +156,20 @@ class Game(Model):
     reference_id = BigIntField(null=True)
 
     class Meta:
-        indexes = ('mode_id', 'reference_id')
+        indexes = ("mode_id", "reference_id")
 
 
 class ClanGame(Model):
     clan: ForeignKeyRelation[Clan] = ForeignKeyField(
-        'seraphsix.Clan', related_name='games', to_field='id'
+        "seraphsix.Clan", related_name="games", to_field="id"
     )
 
     game: ForeignKeyRelation[Game] = ForeignKeyField(
-        'seraphsix.Game', related_name='clans', to_field='id'
+        "seraphsix.Game", related_name="clans", to_field="id"
     )
 
     class Meta:
-        indexes = ('clan', 'game')
+        indexes = ("clan", "game")
 
 
 class GameMember(Model):
@@ -158,15 +177,15 @@ class GameMember(Model):
     completed = BooleanField(null=True)
 
     member: ForeignKeyRelation[Member] = ForeignKeyField(
-        'seraphsix.Member', related_name='games', to_field='id'
+        "seraphsix.Member", related_name="games", to_field="id"
     )
 
     game: ForeignKeyRelation[Game] = ForeignKeyField(
-        'seraphsix.Game', related_name='members', to_field='id'
+        "seraphsix.Game", related_name="members", to_field="id"
     )
 
     class Meta:
-        indexes = ('member', 'game')
+        indexes = ("member", "game")
 
 
 class TwitterChannel(Model):
@@ -175,7 +194,7 @@ class TwitterChannel(Model):
     guild_id = BigIntField()
 
     class Meta:
-        indexes = ('channel_id', 'twitter_id', 'guild_id')
+        indexes = ("channel_id", "twitter_id", "guild_id")
 
 
 class Role(Model):
@@ -188,14 +207,22 @@ class Role(Model):
     is_protected_clanmember = BooleanField(null=True)
 
     guild: ForeignKeyRelation[Guild] = ForeignKeyField(
-        'seraphsix.Guild', related_name='roles', to_field='id'
+        "seraphsix.Guild", related_name="roles", to_field="id"
     )
 
     class Meta:
-        indexes = ('guild', 'role_id')
+        indexes = ("guild", "role_id")
 
 
 __models__ = [
-    Member, Guild, Clan, ClanMember, ClanMemberApplication, Game, ClanGame, GameMember,
-    TwitterChannel, Role
+    Member,
+    Guild,
+    Clan,
+    ClanMember,
+    ClanMemberApplication,
+    Game,
+    ClanGame,
+    GameMember,
+    TwitterChannel,
+    Role,
 ]

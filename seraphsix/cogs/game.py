@@ -44,7 +44,7 @@ class GameCog(commands.Cog, name="Game"):
 
         games = []
         for result in results:
-            if isinstance(result, dict) and result.get('error'):
+            if isinstance(result, dict) and result.get("error"):
                 log.error(result)
                 continue
             games.extend(result)
@@ -55,44 +55,40 @@ class GameCog(commands.Cog, name="Game"):
         embeds = []
         for game in games:
             try:
-                spots_reserved = game['party_size'] - 1
+                spots_reserved = game["party_size"] - 1
             except TypeError:
                 continue
 
-            start_time = datetime.fromisoformat(game['start_time']).astimezone(tz=pytz.utc)
+            start_time = datetime.fromisoformat(game["start_time"]).astimezone(
+                tz=pytz.utc
+            )
 
             embed = discord.Embed(
                 color=constants.BLUE,
             )
-            embed.set_thumbnail(
-                url=(constants.THE100_LOGO_URL)
-            )
+            embed.set_thumbnail(url=(constants.THE100_LOGO_URL))
             embed.add_field(
                 name="Activity",
-                value=f"[{game['category']}](https://www.the100.io/gaming_sessions/{game['id']})"
+                value=f"[{game['category']}](https://www.the100.io/gaming_sessions/{game['id']})",
             )
             embed.add_field(
                 name="Start Time",
-                value=start_time.strftime(constants.THE100_DATE_DISPLAY)
+                value=start_time.strftime(constants.THE100_DATE_DISPLAY),
             )
-            embed.add_field(
-                name="Description",
-                value=game['name'],
-                inline=False
-            )
+            embed.add_field(name="Description", value=game["name"], inline=False)
 
             primary = []
             reserve = []
-            for session in game['confirmed_sessions']:
-                gamertag = session['user']['gamertag']
+            for session in game["confirmed_sessions"]:
+                gamertag = session["user"]["gamertag"]
                 member_db = await ClanMember.get_or_none(
-                    member__the100_id=session['user_id'],
-                    clan__guild__guild_id=ctx.guild.id
+                    member__the100_id=session["user_id"],
+                    clan__guild__guild_id=ctx.guild.id,
                 )
                 if member_db:
                     gamertag = f"{gamertag} (m)"
 
-                if session['reserve_spot']:
+                if session["reserve_spot"]:
                     reserve.append(gamertag)
                 else:
                     primary.append(gamertag)
@@ -102,13 +98,11 @@ class GameCog(commands.Cog, name="Game"):
                     f"Players Joined: {game['primary_users_count']}/{game['team_size']} "
                     f"(Spots Reserved: {spots_reserved})"
                 ),
-                value=', '.join(primary),
-                inline=False
+                value=", ".join(primary),
+                inline=False,
             )
             embed.add_field(
-                name="Reserves",
-                value=', '.join(reserve) or "None",
-                inline=False
+                name="Reserves", value=", ".join(reserve) or "None", inline=False
             )
             embed.set_footer(
                 text=(
@@ -134,19 +128,20 @@ class GameCog(commands.Cog, name="Game"):
         base_embed = discord.Embed(
             color=constants.BLUE,
         )
-        base_embed.set_thumbnail(
-            url=(constants.THE100_LOGO_URL)
-        )
-        for field in ["Status", "Activity", "Start Time", "Description", "Platform", "Group Only"]:
-            kwargs = dict(
-                name=field,
-                value="Not Set",
-                inline=True
-            )
+        base_embed.set_thumbnail(url=(constants.THE100_LOGO_URL))
+        for field in [
+            "Status",
+            "Activity",
+            "Start Time",
+            "Description",
+            "Platform",
+            "Group Only",
+        ]:
+            kwargs = dict(name=field, value="Not Set", inline=True)
             if field in ["Description', 'Status"]:
-                kwargs['inline'] = False
+                kwargs["inline"] = False
             if field == "Status":
-                kwargs['value'] = '**Game Creation In Progress...**'
+                kwargs["value"] = "**Game Creation In Progress...**"
             base_embed.add_field(**kwargs)
 
         game_embed = await manager.send_embed(base_embed, clean=True)
@@ -154,7 +149,9 @@ class GameCog(commands.Cog, name="Game"):
         # TODO: Figure out how to sanitize the Destiny 1 game activity list
         game_name = "Destiny 2"
         game = await self.bot.the100.get_game_by_name(game_name)
-        game_activities, game_activities_by_id = collate_the100_activities(game['game_activities'], game_name)
+        game_activities, game_activities_by_id = collate_the100_activities(
+            game["game_activities"], game_name
+        )
 
         activity_id = None
         while not activity_id:
@@ -164,7 +161,9 @@ class GameCog(commands.Cog, name="Game"):
 
             embed = discord.Embed(
                 color=constants.BLUE,
-                description='\n'.join([f"{react} - {activity}" for react, activity in reacts.items()]),
+                description="\n".join(
+                    [f"{react} - {activity}" for react, activity in reacts.items()]
+                ),
             )
 
             react = await manager.send_message_react(
@@ -172,7 +171,7 @@ class GameCog(commands.Cog, name="Game"):
                 reactions=reacts.keys(),
                 embed=embed,
                 clean=False,
-                with_cancel=True
+                with_cancel=True,
             )
 
             if not react:
@@ -184,25 +183,36 @@ class GameCog(commands.Cog, name="Game"):
             else:
                 game_activities = activity_react
 
-        base_embed.set_field_at(1, name="Activity", value=game_activities_by_id[activity_id])
+        base_embed.set_field_at(
+            1, name="Activity", value=game_activities_by_id[activity_id]
+        )
         await game_embed.edit(embed=base_embed)
 
         time = await manager.send_and_get_response(
-            "Enter time in the format `6/13 10:00pm` (enter `cancel` to cancel post)")
-        if time.lower() == 'cancel':
+            "Enter time in the format `6/13 10:00pm` (enter `cancel` to cancel post)"
+        )
+        if time.lower() == "cancel":
             return await manager.send_and_clean("Canceling post")
 
         member_db = await Member.get(discord_id=ctx.author.id)
 
-        time_format = datetime.strptime(time, constants.THE100_DATE_CREATE).replace(
-            year=datetime.now().year).astimezone(tz=pytz.timezone(member_db.timezone))
+        time_format = (
+            datetime.strptime(time, constants.THE100_DATE_CREATE)
+            .replace(year=datetime.now().year)
+            .astimezone(tz=pytz.timezone(member_db.timezone))
+        )
 
-        base_embed.set_field_at(2, name="Start Time",
-                                value=time_format.strftime(constants.THE100_DATE_DISPLAY))
+        base_embed.set_field_at(
+            2,
+            name="Start Time",
+            value=time_format.strftime(constants.THE100_DATE_DISPLAY),
+        )
         await game_embed.edit(embed=base_embed)
 
-        description = await manager.send_and_get_response("Enter a description (enter `cancel` to cancel post)")
-        if description.lower() == 'cancel':
+        description = await manager.send_and_get_response(
+            "Enter a description (enter `cancel` to cancel post)"
+        )
+        if description.lower() == "cancel":
             return await manager.send_and_clean("Canceling post")
 
         base_embed.set_field_at(3, name="Description", value=description, inline=False)
@@ -215,7 +225,7 @@ class GameCog(commands.Cog, name="Game"):
             "Which platform?",
             reactions=constants.PLATFORM_EMOJI_MAP.values(),
             clean=False,
-            with_cancel=True
+            with_cancel=True,
         )
 
         if not platform_react:
@@ -223,19 +233,15 @@ class GameCog(commands.Cog, name="Game"):
 
         platform = platform_names[platform_emoji_ids.index(platform_react)]
 
-        base_embed.set_field_at(4, name="Platform", value=self.bot.get_emoji(platform_react.id))
+        base_embed.set_field_at(
+            4, name="Platform", value=self.bot.get_emoji(platform_react.id)
+        )
         await game_embed.edit(embed=base_embed)
 
-        group_only = {
-            constants.EMOJI_CHECKMARK: 'group',
-            constants.EMOJI_CROSSMARK: ''
-        }
+        group_only = {constants.EMOJI_CHECKMARK: "group", constants.EMOJI_CROSSMARK: ""}
 
         group = await manager.send_message_react(
-            "Group only?",
-            reactions=group_only.keys(),
-            clean=False,
-            with_cancel=True
+            "Group only?", reactions=group_only.keys(), clean=False, with_cancel=True
         )
 
         if not group:
@@ -245,44 +251,50 @@ class GameCog(commands.Cog, name="Game"):
         await game_embed.edit(embed=base_embed)
 
         base_embed.set_field_at(
-            0, name="Status", value="**Ready to post, please confirm details...**", inline=False)
+            0,
+            name="Status",
+            value="**Ready to post, please confirm details...**",
+            inline=False,
+        )
         await game_embed.edit(embed=base_embed)
 
-        confirm = {
-            constants.EMOJI_CHECKMARK: True,
-            constants.EMOJI_CROSSMARK: False
-        }
+        confirm = {constants.EMOJI_CHECKMARK: True, constants.EMOJI_CROSSMARK: False}
 
         confirm_res = await manager.send_message_react(
-            "Create game?",
-            reactions=confirm.keys(),
-            clean=False
+            "Create game?", reactions=confirm.keys(), clean=False
         )
         if confirm_res == constants.EMOJI_CROSSMARK:
             return await manager.send_and_clean("Canceling post")
 
-        message = ' '.join([
-            group_only[group], platform, game_activities_by_id[activity_id],
-            time_format.strftime('%Y-%m-%dT%H:%M:%S%z'), f"\'{description}\'"
-        ])
+        message = " ".join(
+            [
+                group_only[group],
+                platform,
+                game_activities_by_id[activity_id],
+                time_format.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                f"'{description}'",
+            ]
+        )
 
         data = {
-            'guild_id': ctx.guild.id,
-            'username': ctx.author.name,
-            'discriminator': ctx.author.discriminator,
-            'message': message
+            "guild_id": ctx.guild.id,
+            "username": ctx.author.name,
+            "discriminator": ctx.author.discriminator,
+            "message": message,
         }
 
         response = await self.bot.the100.create_gaming_session_discord(data)
-        response_msg = response['notice']
+        response_msg = response["notice"]
 
         if "Gaming Session Created!" not in response_msg:
             await manager.send_message(response_msg)
         else:
-            msg_parts = response_msg.strip().split(' ')
-            msg = ' '.join(msg_parts[0:3])
+            msg_parts = response_msg.strip().split(" ")
+            msg = " ".join(msg_parts[0:3])
             link = msg_parts[-1]
-            base_embed.set_field_at(0, name="Status", value=f"**[{msg}]({link})**", inline=False)
+            base_embed.set_field_at(
+                0, name="Status", value=f"**[{msg}]({link})**", inline=False
+            )
             await game_embed.edit(embed=base_embed)
             manager.remove_message_from_clean(game_embed)
         return await manager.clean_messages()

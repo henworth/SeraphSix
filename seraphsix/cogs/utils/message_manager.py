@@ -5,7 +5,6 @@ from seraphsix.cogs.utils.checks import is_private_channel
 
 
 class MessageManager:
-
     def __init__(self, ctx, trigger_typing=True):
         if trigger_typing:
             asyncio.create_task(ctx.trigger_typing())
@@ -27,6 +26,7 @@ class MessageManager:
 
     async def clean_messages(self):
         """Delete messages marked for cleaning"""
+
         def message_needs_cleaning(message):
             if message.id in [m.id for m in self.messages_to_clean]:
                 return True
@@ -37,19 +37,30 @@ class MessageManager:
 
     async def get_next_message(self):
         """Get the next message sent by the user in ctx.channel
-           Raises: asyncio.TimeoutError
+        Raises: asyncio.TimeoutError
         """
+
         def is_channel_message(message):
-            return message.author == self.ctx.author and message.channel == self.ctx.channel
-        return await self.ctx.bot.wait_for('message', check=is_channel_message, timeout=115)
+            return (
+                message.author == self.ctx.author
+                and message.channel == self.ctx.channel
+            )
+
+        return await self.ctx.bot.wait_for(
+            "message", check=is_channel_message, timeout=115
+        )
 
     async def get_next_private_message(self):
         """Get the next private message sent by the user
-           Raises: asyncio.TimeoutError
+        Raises: asyncio.TimeoutError
         """
+
         def is_private_message(message):
             return message.author.dm_channel == self.ctx.author.dm_channel
-        return await self.ctx.bot.wait_for('message', check=is_private_message, timeout=120)
+
+        return await self.ctx.bot.wait_for(
+            "message", check=is_private_message, timeout=120
+        )
 
     async def send_embed(self, embed, content=None, clean=False, channel_id=None):
         """Send an embed message to the user on ctx.channel"""
@@ -65,7 +76,9 @@ class MessageManager:
             self.messages_to_clean.append(msg)
         return msg
 
-    async def send_message(self, message_text, mention=True, clean=True, channel_id=None):
+    async def send_message(
+        self, message_text, mention=True, clean=True, channel_id=None
+    ):
         """Send a message to the user on ctx.channel"""
         if is_private_channel(self.ctx.channel):
             return await self.send_private_message(message_text)
@@ -99,7 +112,9 @@ class MessageManager:
         """Send a private message to the user"""
         return await self.ctx.author.send(message_text)
 
-    async def send_message_react(self, message_text, reactions=[], embed=None, clean=True, with_cancel=False):
+    async def send_message_react(
+        self, message_text, reactions=[], embed=None, clean=True, with_cancel=False
+    ):
         reactions = list(reactions)
         self.reaction_emojis = []
         if embed:
@@ -121,7 +136,9 @@ class MessageManager:
         retval = None
         while self.waiting:
             try:
-                reaction, user = await self.ctx.bot.wait_for('reaction_add', check=self.react_check, timeout=120.0)
+                reaction, user = await self.ctx.bot.wait_for(
+                    "reaction_add", check=self.react_check, timeout=120.0
+                )
             except asyncio.TimeoutError:
                 self.waiting = False
                 try:
