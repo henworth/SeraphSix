@@ -200,9 +200,12 @@ class Database(object):
         ).prefetch_related("member")
 
     async def create_game(self, game):
-        game_db = await Game.create(**vars(game))
-        log.info(f"Game {game_db.instance_id} created")
-        return game_db
+        retval = None
+        game_db, is_created = await Game.get_or_create(**vars(game))
+        if is_created:
+            log.info(f"Game {game.instance_id} created")
+            retval = game_db
+        return retval
 
     async def create_clan_game(self, game_db, game, clan_id):
         data = dict(clan_id=clan_id, game=game_db)

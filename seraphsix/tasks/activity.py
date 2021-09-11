@@ -446,7 +446,7 @@ async def process_activity(ctx, activity, guild_id, guild_name, player_check=Fal
 
     game_db = await database.create_game(clan_game)
     if not game_db:
-        log.error(f"Continuing because error with storing game {game.instance_id}")
+        log.debug(f"Continuing because error with storing game {game.instance_id}")
         return
 
     await database.create_clan_game(game_db, clan_game, clan_game.clan_id)
