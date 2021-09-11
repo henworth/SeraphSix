@@ -2,7 +2,8 @@ FROM python:3.9-slim-buster
 
 WORKDIR /usr/src/app
 
-COPY seraphsix requirements.txt ./
+COPY seraphsix ./seraphsix/
+COPY requirements.txt ./
 
 RUN set -eux; \
     apt-get update; \
