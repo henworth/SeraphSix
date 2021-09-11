@@ -23,10 +23,11 @@ jobs:
             docker-compose --file docker-compose.test.yml build
             docker-compose --file docker-compose.test.yml run sut
           else
-            docker build . --file Dockerfile
-            docker build . --file Dockerfile.oauth_proxy
+            docker build . --file docker/arq_worker.dockerfile
+            docker build . --file docker/bot.dockerfile
+            docker build . --file docker/oauth_proxy.dockerfile
           fi
- 
+
   deploy:
     needs: test
     runs-on: ubuntu-latest
@@ -38,7 +39,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v5.4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Create a GitHub release
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/create-release@v1
@@ -50,13 +51,13 @@ jobs:
           body: ${{ steps.tag_version.outputs.changelog }}
 
       - name: Build bot image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME_BOT
+        run: docker build . --file docker/bot.dockerfile --tag $IMAGE_NAME_BOT
 
       - name: Build oauth proxy image
-        run: docker build . --file Dockerfile.oauth_proxy --tag $IMAGE_NAME_PROXY
+        run: docker build . --file docker/oauth_proxy.dockerfile --tag $IMAGE_NAME_PROXY
 
       - name: Build arq worker image
-        run: docker build . --file Dockerfile.arq_worker --tag $IMAGE_NAME_WORKER
+        run: docker build . --file docker/arq_worker.dockerfile --tag $IMAGE_NAME_WORKER
 
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
