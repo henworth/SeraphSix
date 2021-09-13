@@ -30,13 +30,13 @@ from seraphsix.models.destiny import (
     DestinySearchPlayerResponse,
 )
 from seraphsix.tasks.activity import get_game_counts, get_last_active
+from seraphsix.tasks.clan import info_sync, member_sync
 from seraphsix.tasks.core import (
     execute_pydest,
     get_primary_membership,
     execute_pydest_auth,
     get_memberships,
 )
-from seraphsix.tasks.clan import info_sync, member_sync
 
 log = logging.getLogger(__name__)
 
@@ -255,6 +255,8 @@ class ClanCog(commands.Cog, name="Clan"):
         return inactive_members_filtered
 
     @commands.group(invoke_without_command=True)
+    @clan_is_linked()
+    @commands.guild_only()
     async def clan(self, ctx):
         """Clan Specific Commands"""
         if ctx.invoked_subcommand is None:
@@ -270,15 +272,15 @@ class ClanCog(commands.Cog, name="Clan"):
             raise commands.CommandNotFound()
 
     @clan.group(invoke_without_command=True)
+    @is_clan_admin()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
     async def the100(self, ctx):
         """The100 Specific Commands"""
         if ctx.invoked_subcommand is None:
             raise commands.CommandNotFound()
 
     @the100.command()
-    @clan_is_linked()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
     async def link(self, ctx, group_id):
         """Link clan to the100 group (Admin only)"""
         manager = MessageManager(ctx)
@@ -313,9 +315,6 @@ class ClanCog(commands.Cog, name="Clan"):
         return await manager.send_message(message, mention=False, clean=False)
 
     @the100.command()
-    @clan_is_linked()
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
     async def unlink(self, ctx, group_id):
         """Unlink clan from the100 group (Admin only)"""
         manager = MessageManager(ctx)
@@ -345,8 +344,6 @@ class ClanCog(commands.Cog, name="Clan"):
         return await manager.send_message(message, mention=False, clean=False)
 
     @clan.command()
-    @clan_is_linked()
-    @commands.guild_only()
     async def info(self, ctx, *args):
         """Show information for all connected clans"""
         redis_cache = self.bot.ext_conns["redis_cache"]
@@ -423,8 +420,6 @@ class ClanCog(commands.Cog, name="Clan"):
             await manager.send_embed(embeds[0])
 
     @clan.command()
-    @clan_is_linked()
-    @commands.guild_only()
     async def roster(self, ctx, *args):
         """Show roster for all connected clans"""
         manager = MessageManager(ctx)
@@ -508,23 +503,20 @@ class ClanCog(commands.Cog, name="Clan"):
         """Show a list of pending members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
 
-        admin_db = await self.bot.database.get_member_by_discord_id(
-            ctx.author.id, include_clan=False
-        )
-        clan_db = await self.get_admin_group(ctx)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
         members = await execute_pydest_auth(
             self.bot.ext_conns,
             self.bot.destiny.api.get_group_pending_members,
-            admin_db,
+            admin_db.member,
             manager,
-            group_id=clan_db.clan_id,
-            access_token=admin_db.bungie_access_token,
+            group_id=admin_db.clan.clan_id,
+            access_token=admin_db.member.bungie_access_token,
             return_type=DestinyGroupPendingMembersResponse,
         )
 
         embed = discord.Embed(
-            colour=constants.BLUE, title=f"Pending Clan Members in {clan_db.name}"
+            colour=constants.BLUE, title=f"Pending Clan Members in {admin_db.clan.name}"
         )
 
         if len(members.response.results) == 0:
@@ -562,13 +554,10 @@ Examples:
         username, platform_id = await self.get_user_details(args)
 
         member_db = await self.get_member_db(ctx, username)
-        admin_db = await self.bot.database.get_member_by_discord_id(
-            ctx.author.id, include_clan=False
-        )
-        clan_db = await self.get_admin_group(ctx)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
-        if clan_db.platform:
-            platform_id = clan_db.platform
+        if admin_db.clan.platform:
+            platform_id = admin_db.clan.platform
         elif not platform_id:
             raise InvalidCommandError(
                 "Platform was not specified and clan default platform is not set"
@@ -585,20 +574,22 @@ Examples:
         res = await execute_pydest_auth(
             self.bot.ext_conns,
             self.bot.destiny.api.group_approve_pending_member,
-            admin_db,
+            admin_db.member,
             manager,
-            group_id=clan_db.clan_id,
+            group_id=admin_db.clan.clan_id,
             membership_type=platform_id,
             membership_id=membership_id,
-            message=f"Welcome to {clan_db.name}!",
-            access_token=admin_db.bungie_access_token,
+            message=f"Welcome to {admin_db.clan.name}!",
+            access_token=admin_db.member.bungie_access_token,
         )
 
         if res.error_status != "Success":
             message = f"Could not approve **{username}**"
             log.info(f"Could not approve '{username}': {res}")
         else:
-            message = f"Approved **{username}** as a member of clan **{clan_db.name}**"
+            message = (
+                f"Approved **{username}** as a member of clan **{admin_db.clan.name}**"
+            )
 
         return await manager.send_message(message, mention=False, clean=False)
 
@@ -607,23 +598,20 @@ Examples:
         """Show a list of invited members (Admin only, requires registration)"""
         manager = MessageManager(ctx)
 
-        admin_db = await self.bot.database.get_member_by_discord_id(
-            ctx.author.id, include_clan=False
-        )
-        clan_db = await self.get_admin_group(ctx)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
         members = await execute_pydest_auth(
             self.bot.ext_conns,
             self.bot.destiny.api.get_group_invited_members,
-            admin_db,
+            admin_db.member,
             manager,
-            group_id=clan_db.clan_id,
-            access_token=admin_db.bungie_access_token,
+            group_id=admin_db.clan.clan_id,
+            access_token=admin_db.member.bungie_access_token,
             return_type=DestinyGroupPendingMembersResponse,
         )
 
         embed = discord.Embed(
-            colour=constants.BLUE, title=f"Invited Clan Members in {clan_db.name}"
+            colour=constants.BLUE, title=f"Invited Clan Members in {admin_db.clan.name}"
         )
 
         if len(members.response.results) == 0:
@@ -661,13 +649,10 @@ Examples:
         username, platform_id = await self.get_user_details(args)
 
         member_db = await self.get_member_db(ctx, username)
-        admin_db = await self.bot.database.get_member_by_discord_id(
-            ctx.author.id, include_clan=False
-        )
-        clan_db = await self.get_admin_group(ctx)
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
-        if not platform_id and clan_db.platform:
-            platform_id = clan_db.platform
+        if not platform_id and admin_db.clan.platform:
+            platform_id = admin_db.clan.platform
         else:
             raise InvalidCommandError(
                 "Platform was not specified and clan default platform is not set"
@@ -684,13 +669,13 @@ Examples:
         res = await execute_pydest_auth(
             self.bot.ext_conns,
             self.bot.destiny.api.group_invite_member,
-            admin_db,
+            admin_db.member,
             manager,
-            group_id=clan_db.clan_id,
+            group_id=admin_db.clan.clan_id,
             membership_type=platform_id,
             membership_id=membership_id,
-            message=f"Join my clan {clan_db.name}!",
-            access_token=admin_db.bungie_access_token,
+            message=f"Join my clan {admin_db.clan.name}!",
+            access_token=admin_db.member.bungie_access_token,
         )
 
         if res.error_status == "ClanTargetDisallowsInvites":
@@ -701,7 +686,7 @@ Examples:
             message = f"Could not invite **{username}**"
             log.info(f"Could not invite '{username}': {res}")
         else:
-            message = f"Invited **{username}** to clan **{clan_db.name}**"
+            message = f"Invited **{username}** to clan **{admin_db.clan.name}**"
 
         return await manager.send_message(message, mention=False, clean=False)
 
@@ -782,8 +767,6 @@ Examples:
 
     @clan.command()
     @is_registered()
-    @clan_is_linked()
-    @commands.guild_only()
     async def apply(self, ctx):
         """Apply to be a member of the linked clan"""
         manager = MessageManager(ctx)
@@ -852,9 +835,7 @@ Examples:
             await manager.send_and_clean("No applications found.")
 
     @clan.command(usage=f"<{', '.join(constants.SUPPORTED_GAME_MODES.keys())}>")
-    @clan_is_linked()
     @is_valid_game_mode()
-    @commands.guild_only()
     async def games(self, ctx, game_mode: str):
         """Show totals of all eligible clan games for all members"""
         manager = MessageManager(ctx)
@@ -957,9 +938,7 @@ Examples:
         manager = MessageManager(ctx)
         username = " ".join(args)
 
-        admin_db = await self.bot.database.get_member_by_discord_id(
-            ctx.author.id, include_clan=True
-        )
+        admin_db = await self.bot.database.get_member_by_discord_id(ctx.author.id)
 
         member_db = await self.get_member_db(ctx, username, include_clan=True)
         if not member_db:
@@ -1071,7 +1050,7 @@ Examples:
                 group_id=admin_db.clan.clan_id,
                 membership_type=platform_id,
                 membership_id=membership_id,
-                access_token=admin_db.bungie_access_token,
+                access_token=admin_db.member.bungie_access_token,
             )
 
             await member_db.delete()  # TODO
