@@ -55,5 +55,5 @@ tortoise-orm[asyncpg]==0.17.7
 typing-extensions==3.10.0.2
 typing-inspect==0.7.1
 urllib3==1.26.6
-werkzeug==2.0.1; python_version >= '3.6'
+werkzeug==2.2.3; python_version >= '3.6'
 yarl==1.6.3; python_version >= '3.6'
